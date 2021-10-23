@@ -6,9 +6,14 @@ version = 3
 name = "fluorite"
 version = "0.1.0"
 dependencies = [
+ "fluorite-common",
  "modular-bitfield",
  "static_assertions",
 ]
+
+[[package]]
+name = "fluorite-common"
+version = "0.1.0"
 
 [[package]]
 name = "modular-bitfield"

@@ -8,3 +8,12 @@ edition = "2021"
 [dependencies]
 modular-bitfield = "0.11.2"
 static_assertions = "1.1.0"
+fluorite-common = { path = "fluorite-common" }
+
+[build-dependencies]
+fluorite-common = { path = "fluorite-common" }
+
+[workspace]
+members = [
+	"fluorite-common"
+]

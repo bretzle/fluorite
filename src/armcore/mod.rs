@@ -1,7 +1,8 @@
-use crate::armcore::registers::{CpuMode, StatusRegister};
-use crate::util::Shared;
+use crate::armcore::registers::{CpuMode, CpuState, StatusRegister};
+use fluorite_common::Shared;
 
 mod registers;
+mod thumb;
 
 pub struct Arm7tdmi {
     _bus: Shared<()>,
@@ -37,4 +38,62 @@ impl Arm7tdmi {
             _options: (),
         }
     }
+
+    pub fn cycle(&mut self) {
+        let code = self.pipeline[2];
+
+        if self.pipeline_pos == 3 {
+            match self.cspr.state() {
+                CpuState::ARM => {
+                    // check the condition
+                    // run the instruction
+                    todo!()
+                }
+                CpuState::THUMB => {
+                    let index = code >> 6;
+                    let inst = &thumb::THUMB_LUT[index as usize];
+                    inst.execute(self, code as u16);
+                }
+            }
+        } else {
+            self.pipeline_pos += 1;
+        }
+
+        match self.cspr.state() {
+            CpuState::THUMB => {
+                if self.increment_pc {
+                    self.pc += 2;
+                }
+                self.increment_pc = true;
+
+                self.pipeline[2] = self.pipeline[1];
+                self.pipeline[1] = self.pipeline[0];
+                // self.pipeline[0] = self._bus.read_16(self.pc);
+            }
+            CpuState::ARM => {
+                if self.increment_pc {
+                    self.pc += 4;
+                }
+                self.increment_pc = true;
+
+                self.pipeline[2] = self.pipeline[1];
+                self.pipeline[1] = self.pipeline[0];
+                // self.pipeline[0] = self._bus.read_32(self.pc);
+            }
+        }
+    }
+
+    pub fn stage(&self) -> usize {
+        self.pipeline_pos
+    }
+
+    pub fn pc_thumb(&self) -> u32 {
+        self.pc.wrapping_sub(4)
+    }
+
+    pub fn pc_arm(&self) -> u32 {
+        self.pc.wrapping_sub(8)
+    }
 }
+
+// static

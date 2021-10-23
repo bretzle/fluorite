@@ -51,7 +51,7 @@ mod tests {
 
     #[test]
     fn cpu_mode() {
-        let mut reg = StatusRegister::default();
+        let mut reg = StatusRegister::new();
 
         assert_eq!(reg.raw(), 0);
 
