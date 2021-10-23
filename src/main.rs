@@ -1,7 +1,7 @@
-use crate::{armcore::Arm7tdmi, cpu::GbaCpu};
+use crate::cpu::GbaCpu;
+use fluorite_arm::cpu::Arm7tdmi;
 use fluorite_common::Shared;
 
-mod armcore;
 mod cpu;
 
 fn main() {

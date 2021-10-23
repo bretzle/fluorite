@@ -23,26 +23,33 @@ pub trait BitIndex: Sized {
     fn set_bit_range(&mut self, pos: Range<usize>, val: Self) -> &mut Self;
 }
 
-impl BitIndex for u32 {
-    fn bit(&self, pos: usize) -> bool {
-        *self & 1 << pos != 0
-    }
-
-    fn bit_range(&self, pos: Range<usize>) -> Self {
-        *self << Self::SIZE - pos.end >> Self::SIZE - pos.end + pos.start
-    }
-
-    fn set_bit(&mut self, pos: usize, val: bool) -> &mut Self {
-        *self ^= (Self::MIN.wrapping_sub(val as Self) ^ *self) & 1 << pos;
-        self
-    }
-
-    fn set_bit_range(&mut self, pos: Range<usize>, val: Self) -> &mut Self {
-        let mask = !(Self::MIN.bit_range(pos.start..pos.end) << pos.start);
-        *self = *self & mask | val << pos.start;
-        self
-    }
+macro_rules! bit_index_impl {
+	( $($ty:ty),* ) => {$(
+		impl BitIndex for $ty {
+			fn bit(&self, pos: usize) -> bool {
+				*self & 1 << pos != 0
+			}
+		
+			fn bit_range(&self, pos: Range<usize>) -> Self {
+				*self << Self::SIZE - pos.end >> Self::SIZE - pos.end + pos.start
+			}
+		
+			fn set_bit(&mut self, pos: usize, val: bool) -> &mut Self {
+				*self ^= (Self::MIN.wrapping_sub(val as Self) ^ *self) & 1 << pos;
+				self
+			}
+		
+			fn set_bit_range(&mut self, pos: Range<usize>, val: Self) -> &mut Self {
+				let mask = !(Self::MIN.bit_range(pos.start..pos.end) << pos.start);
+				*self = *self & mask | val << pos.start;
+				self
+			}
+		}
+	)*};
 }
+
+
+bit_index_impl!(u32, u16, u8);
 
 #[cfg(test)]
 mod tests {
@@ -50,63 +57,63 @@ mod tests {
 
     #[test]
     fn bit() {
-        assert_eq!(0x01.bit(0), true);
-        assert_eq!(0x80.bit(7), true);
-        assert_eq!(0xFE.bit(0), false);
-        assert_eq!(0x7F.bit(7), false);
+        assert_eq!(0x01u32.bit(0), true);
+        assert_eq!(0x80u32.bit(7), true);
+        assert_eq!(0xFEu32.bit(0), false);
+        assert_eq!(0x7Fu32.bit(7), false);
     }
 
     #[test]
     #[should_panic]
     fn bit_panic() {
-        0.bit(32);
+        0u32.bit(32);
     }
 
     #[test]
     fn set_bit() {
-        assert_eq!(*0x01.set_bit(0, false), 0);
-        assert_eq!(*0x80.set_bit(7, false), 0);
-        assert_eq!(*0xFE.set_bit(0, true), 0xFF);
-        assert_eq!(*0x7F.set_bit(7, true), 0xFF);
-        assert_eq!(*0x01.set_bit(0, true), 1);
-        assert_eq!(*0x80.set_bit(7, true), 0x80);
-        assert_eq!(*0xFE.set_bit(0, false), 0xFE);
-        assert_eq!(*0x7F.set_bit(7, false), 0x7F);
+        assert_eq!(*0x01u32.set_bit(0, false), 0);
+        assert_eq!(*0x80u32.set_bit(7, false), 0);
+        assert_eq!(*0xFEu32.set_bit(0, true), 0xFF);
+        assert_eq!(*0x7Fu32.set_bit(7, true), 0xFF);
+        assert_eq!(*0x01u32.set_bit(0, true), 1);
+        assert_eq!(*0x80u32.set_bit(7, true), 0x80);
+        assert_eq!(*0xFEu32.set_bit(0, false), 0xFE);
+        assert_eq!(*0x7Fu32.set_bit(7, false), 0x7F);
     }
 
     #[test]
     #[should_panic]
     fn set_bit_panic() {
-        0.set_bit(33, false);
+        0u32.set_bit(33, false);
     }
 
     #[test]
     fn bit_range() {
-        assert_eq!(0xAA.bit_range(0..3), 2);
-        assert_eq!(0xAA.bit_range(4..8), 10);
+        assert_eq!(0xAAu32.bit_range(0..3), 2);
+        assert_eq!(0xAAu32.bit_range(4..8), 10);
     }
 
     #[test]
     #[should_panic]
     fn bit_range_panic() {
-        0.bit_range(5..33);
+        0u32.bit_range(5..33);
     }
 
     #[test]
     fn set_bit_range() {
-        assert_eq!(*0xAA.set_bit_range(0..3, 0b0110), 0xAE);
-        assert_eq!(*0xAA.set_bit_range(4..8, 0b1100), 0xEA);
+        assert_eq!(*0xAAu32.set_bit_range(0..3, 0b0110), 0xAE);
+        assert_eq!(*0xAAu32.set_bit_range(4..8, 0b1100), 0xEA);
     }
 
     #[test]
     #[should_panic]
     fn set_bit_range_bounds_panic() {
-        0.set_bit_range(5..33, 0);
+        0u32.set_bit_range(5..33, 0);
     }
 
     #[test]
     #[should_panic]
     fn set_bit_range_value_length_panic() {
-        0.set_bit_range(5..33, 0x1F);
+        0u32.set_bit_range(5..33, 0x1F);
     }
 }

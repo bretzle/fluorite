@@ -1,4 +1,5 @@
 use modular_bitfield::prelude::*;
+use std::fmt;
 
 static_assertions::assert_eq_size!(StatusRegister, u32);
 
@@ -32,6 +33,16 @@ pub enum CpuState {
     THUMB = 1,
 }
 
+impl fmt::Display for CpuState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use CpuState::*;
+        match self {
+            ARM => write!(f, "ARM"),
+            THUMB => write!(f, "THUMB"),
+        }
+    }
+}
+
 #[derive(BitfieldSpecifier, Copy, Clone, Debug, PartialEq)]
 #[repr(u32)]
 #[bits = 5]
@@ -43,6 +54,21 @@ pub enum CpuMode {
     Abort = 0b10111,
     Undefined = 0b11011,
     System = 0b11111,
+}
+
+impl fmt::Display for CpuMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use CpuMode::*;
+        match self {
+            User => write!(f, "USR"),
+            Fiq => write!(f, "FIQ"),
+            Irq => write!(f, "IRQ"),
+            Supervisor => write!(f, "SVC"),
+            Abort => write!(f, "ABT"),
+            Undefined => write!(f, "UND"),
+            System => write!(f, "SYS"),
+        }
+    }
 }
 
 #[cfg(test)]
