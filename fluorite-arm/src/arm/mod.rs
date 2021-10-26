@@ -1,4 +1,5 @@
-use crate::{alu::*, Addr, InstructionDecoder};
+use crate::{Addr, InstructionDecoder, alu::*, cpu::Arm7tdmi};
+use byteorder::{LittleEndian, ReadBytesExt};
 use enum_primitive_derive::*;
 use fluorite_common::BitIndex;
 use num_traits::FromPrimitive;
@@ -28,8 +29,10 @@ impl InstructionDecoder for ArmInstruction {
         Self { fmt, raw, pc: addr }
     }
 
-    fn decode_bytes(_bytes: &[u8], _addr: Addr) -> Self {
-        todo!()
+    fn decode_bytes(bytes: &[u8], addr: Addr) -> Self {
+        let mut rdr = std::io::Cursor::new(bytes);
+        let raw = rdr.read_u32::<LittleEndian>().unwrap();
+        Self::decode(raw, addr)
     }
 
     fn get_raw(&self) -> Self::IntType {

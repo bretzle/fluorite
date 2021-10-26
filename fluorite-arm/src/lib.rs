@@ -1,7 +1,10 @@
-mod alu;
+pub mod alu;
 pub mod arm;
 pub mod cpu;
-mod registers;
+pub mod disassembler;
+pub mod exception;
+pub mod memory;
+pub mod registers;
 pub mod thumb;
 
 use arm::ArmInstruction;

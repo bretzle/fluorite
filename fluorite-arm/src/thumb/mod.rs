@@ -4,6 +4,7 @@ use super::{
     alu::{AluOpCode, BarrelShiftOpCode},
     Addr, InstructionDecoder,
 };
+use byteorder::{LittleEndian, ReadBytesExt};
 use enum_primitive_derive::*;
 use fluorite_common::BitIndex;
 use num_traits::FromPrimitive;
@@ -31,8 +32,10 @@ impl InstructionDecoder for ThumbInstruction {
         Self::new(raw.into(), raw, addr)
     }
 
-    fn decode_bytes(_bytes: &[u8], _addr: Addr) -> Self {
-        todo!()
+    fn decode_bytes(bytes: &[u8], addr: Addr) -> Self {
+        let mut rdr = std::io::Cursor::new(bytes);
+        let raw = rdr.read_u16::<LittleEndian>().unwrap();
+        Self::decode(raw, addr)
     }
 
     fn get_raw(&self) -> Self::IntType {
