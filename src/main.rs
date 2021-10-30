@@ -3,7 +3,7 @@ use fluorite_common::Shared;
 
 // mod cpu;
 
-const DATA: &[u8] = include_bytes!("../roms/beeg.bin");
+const DATA: &[u8] = include_bytes!("../roms/first-1.bin");
 
 struct SysBus {
     bios: Vec<u8>,
