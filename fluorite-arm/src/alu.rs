@@ -34,26 +34,17 @@ pub enum AluOpCode {
 impl AluOpCode {
     pub fn is_settings_flags(&self) -> bool {
         use AluOpCode::*;
-        match self {
-            TST | TEQ | CMP | CMN => true,
-            _ => false,
-        }
+        matches!(self, TST | TEQ | CMP | CMN)
     }
 
     pub fn is_logical(&self) -> bool {
         use AluOpCode::*;
-        match self {
-            MOV | MVN | ORR | EOR | AND | BIC | TST | TEQ => true,
-            _ => false,
-        }
+        matches!(self, MOV | MVN | ORR | EOR | AND | BIC | TST | TEQ)
     }
 
     pub fn is_arithmetic(&self) -> bool {
         use AluOpCode::*;
-        match self {
-            ADD | ADC | SUB | SBC | RSB | RSC | CMP | CMN => true,
-            _ => false,
-        }
+        matches!(self, ADD | ADC | SUB | SBC | RSB | RSC | CMP | CMN)
     }
 }
 
@@ -188,9 +179,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
     pub(crate) fn register_shift(&mut self, shift: &ShiftedRegister, carry: &mut bool) -> u32 {
         match shift.shift_by {
             ShiftRegisterBy::ByAmount(amount) => {
-                let ret =
-                    self.barrel_shift_op(shift.bs_op, self.get_reg(shift.reg), amount, carry, true);
-                ret
+                self.barrel_shift_op(shift.bs_op, self.get_reg(shift.reg), amount, carry, true)
             }
             ShiftRegisterBy::ByRegister(rs) => {
                 self.shift_by_register(shift.bs_op, shift.reg, rs, carry)
@@ -227,28 +216,6 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         }
         let amount = self.get_reg(rs) & 0xff;
         self.barrel_shift_op(bs_op, val, amount, carry, false)
-    }
-
-    fn register_shift_const<const BS_OP: u8, const SHIFT_BY_REG: bool>(
-        &mut self,
-        offset: u32,
-        reg: usize,
-        carry: &mut bool,
-    ) -> u32 {
-        let op = match BS_OP {
-            0 => BarrelShiftOpCode::LSL,
-            1 => BarrelShiftOpCode::LSR,
-            2 => BarrelShiftOpCode::ASR,
-            3 => BarrelShiftOpCode::ROR,
-            _ => unsafe { std::hint::unreachable_unchecked() },
-        };
-        if SHIFT_BY_REG {
-            let rs = offset.bit_range(8..12) as usize;
-            self.shift_by_register(op, reg, rs, carry)
-        } else {
-            let amount = offset.bit_range(7..12) as u32;
-            self.barrel_shift_op(op, self.get_reg(reg), amount, carry, true)
-        }
     }
 
     pub(crate) fn alu_update_flags(&mut self, result: u32, _is_arithmetic: bool, c: bool, v: bool) {

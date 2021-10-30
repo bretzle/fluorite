@@ -9,9 +9,7 @@ edition = "2021"
 fluorite-common = { path = "fluorite-common" }
 fluorite-arm = { path = "fluorite-arm" }
 
-log = "0.4.14"
 color-eyre = "0.5.11"
-simple_logger = "1.13.0"
 
 [build-dependencies]
 fluorite-common = { path = "fluorite-common" }

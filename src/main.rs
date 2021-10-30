@@ -35,7 +35,7 @@ impl MemoryInterface for SysBus {
     }
 
     fn store_16(&mut self, addr: Addr, val: u16) {
-        let a = (val & 0x00FF >> 0) as u8;
+        let a = (val & 0x00FF) as u8;
         let b = (val & 0xFF00 >> 8) as u8;
 
         self.bios[addr as usize] = a;
@@ -43,7 +43,7 @@ impl MemoryInterface for SysBus {
     }
 
     fn store_32(&mut self, addr: Addr, val: u32) {
-        let a = (val & 0x000000FF >> 0) as u8;
+        let a = (val & 0x000000FF) as u8;
         let b = (val & 0x0000FF00 >> 8) as u8;
         let c = (val & 0x00FF0000 >> 16) as u8;
         let d = (val & 0xFF000000 >> 24) as u8;
@@ -57,7 +57,6 @@ impl MemoryInterface for SysBus {
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
-    simple_logger::init()?;
 
     let bus = Shared::new(SysBus {
         bios: DATA.to_vec(),

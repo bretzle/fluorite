@@ -92,11 +92,9 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
                 self.pipeline[1] = fetched;
 
                 let cond = ArmCond::from_u8(inst.bit_range(28..32) as u8).unwrap();
-                if cond != ArmCond::AL {
-                    if !self.check_cond(cond) {
-                        self.advance_arm();
-                        return;
-                    }
+                if cond != ArmCond::AL && !self.check_cond(cond) {
+                    self.advance_arm();
+                    return;
                 }
 
                 match self.execute_arm(inst) {
@@ -152,7 +150,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         self.advance_thumb();
     }
 
-    pub(crate) fn change_mode(&mut self, old: CpuMode, new: CpuMode) {
+    pub(crate) fn change_mode(&mut self, _old: CpuMode, _new: CpuMode) {
         todo!()
     }
 }

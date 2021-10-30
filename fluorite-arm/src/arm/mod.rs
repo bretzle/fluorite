@@ -66,35 +66,33 @@ pub enum ArmFormat {
 impl From<u32> for ArmFormat {
     fn from(raw: u32) -> ArmFormat {
         use ArmFormat::*;
-        if (0x0fff_fff0 & raw) == 0x012f_ff10 {
+        if (0x0FFF_FFF0 & raw) == 0x012F_FF10 {
             BranchExchange
-        } else if (0x0e00_0000 & raw) == 0x0a00_0000 {
+        } else if (0x0E00_0000 & raw) == 0x0A00_0000 {
             BranchLink
-        } else if (0xe000_0010 & raw) == 0x0600_0000 {
-            Undefined
-        } else if (0x0fb0_0ff0 & raw) == 0x0100_0090 {
+        } else if (0x0FB0_0FF0 & raw) == 0x0100_0090 {
             SingleDataSwap
-        } else if (0x0fc0_00f0 & raw) == 0x0000_0090 {
+        } else if (0x0FC0_00F0 & raw) == 0x0000_0090 {
             Multiply
-        } else if (0x0f80_00f0 & raw) == 0x0080_0090 {
+        } else if (0x0F80_00F0 & raw) == 0x0080_0090 {
             MultiplyLong
-        } else if (0x0fbf_0fff & raw) == 0x010f_0000 {
+        } else if (0x0FBF_0FFF & raw) == 0x010F_0000 {
             MoveFromStatus
-        } else if (0x0fbf_fff0 & raw) == 0x0129_f000 {
+        } else if (0x0FBF_FFF0 & raw) == 0x0129_F000 {
             MoveToStatus
-        } else if (0x0dbf_f000 & raw) == 0x0128_f000 {
+        } else if (0x0DBF_F000 & raw) == 0x0128_F000 {
             MoveToFlags
-        } else if (0x0c00_0000 & raw) == 0x0400_0000 {
+        } else if (0x0C00_0000 & raw) == 0x0400_0000 {
             SingleDataTransfer
-        } else if (0x0e40_0F90 & raw) == 0x0000_0090 {
+        } else if (0x0E40_0F90 & raw) == 0x0000_0090 {
             HalfwordDataTransferRegOffset
-        } else if (0x0e40_0090 & raw) == 0x0040_0090 {
+        } else if (0x0E40_0090 & raw) == 0x0040_0090 {
             HalfwordDataTransferImmediateOffset
-        } else if (0x0e00_0000 & raw) == 0x0800_0000 {
+        } else if (0x0E00_0000 & raw) == 0x0800_0000 {
             BlockDataTransfer
-        } else if (0x0f00_0000 & raw) == 0x0f00_0000 {
+        } else if (0x0F00_0000 & raw) == 0x0F00_0000 {
             SoftwareInterrupt
-        } else if (0x0c00_0000 & raw) == 0x0000_0000 {
+        } else if (0x0C00_0000 & raw) == 0x0000_0000 {
             DataProcessing
         } else {
             Undefined

@@ -1,3 +1,6 @@
+#![allow(clippy::too_many_arguments)]
+
+use super::{ArmDecodeHelper, ArmHalfwordTransferType};
 use crate::{
     alu::{AluOpCode, ShiftRegisterBy, ShiftedRegister},
     arm::ArmInstruction,
@@ -8,8 +11,6 @@ use crate::{
 };
 use fluorite_common::BitIndex;
 use num_traits::FromPrimitive;
-
-use super::{ArmDecodeHelper, ArmHalfwordTransferType};
 
 impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
     pub(crate) fn execute_arm(&mut self, inst: u32) -> CpuAction {
@@ -174,12 +175,8 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
             };
         }
 
-        if !load || base_reg != dest_reg {
-            if !pre_index {
-                self.set_reg(base_reg, effective_addr);
-            } else if writeback {
-                self.set_reg(base_reg, effective_addr);
-            }
+        if (!load || base_reg != dest_reg) && (!pre_index || writeback) {
+            self.set_reg(base_reg, effective_addr);
         }
 
         ret

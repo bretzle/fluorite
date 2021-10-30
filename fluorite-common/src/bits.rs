@@ -29,16 +29,16 @@ macro_rules! bit_index_impl {
 			fn bit(&self, pos: usize) -> bool {
 				*self & 1 << pos != 0
 			}
-		
+
 			fn bit_range(&self, pos: Range<usize>) -> Self {
 				*self << Self::SIZE - pos.end >> Self::SIZE - pos.end + pos.start
 			}
-		
+
 			fn set_bit(&mut self, pos: usize, val: bool) -> &mut Self {
 				*self ^= (Self::MIN.wrapping_sub(val as Self) ^ *self) & 1 << pos;
 				self
 			}
-		
+
 			fn set_bit_range(&mut self, pos: Range<usize>, val: Self) -> &mut Self {
 				let mask = !(Self::MIN.bit_range(pos.start..pos.end) << pos.start);
 				*self = *self & mask | val << pos.start;
@@ -47,7 +47,6 @@ macro_rules! bit_index_impl {
 		}
 	)*};
 }
-
 
 bit_index_impl!(usize, u128, u64, u32, u16, u8);
 

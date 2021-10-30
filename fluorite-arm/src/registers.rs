@@ -1,3 +1,5 @@
+#![allow(clippy::identity_op)]
+
 use modular_bitfield::prelude::*;
 use std::fmt;
 

@@ -91,7 +91,7 @@ fn is_lsl0(shift: &ShiftedRegister) -> bool {
 impl fmt::Display for ShiftedRegister {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let reg = reg_string(self.reg).to_string();
-        if !is_lsl0(&self) {
+        if !is_lsl0(self) {
             write!(f, "{}", reg)
         } else {
             match self.shift_by {

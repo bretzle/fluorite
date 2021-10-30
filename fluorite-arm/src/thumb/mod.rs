@@ -328,17 +328,12 @@ pub enum ThumbAluOps {
 impl ThumbAluOps {
     pub fn is_setting_flags(&self) -> bool {
         use ThumbAluOps::*;
-        match self {
-            TST | CMP | CMN => true,
-            _ => false,
-        }
+        matches!(self, TST | CMP | CMN)
     }
+
     pub fn is_arithmetic(&self) -> bool {
         use ThumbAluOps::*;
-        match self {
-            ADC | SBC | NEG | CMP | CMN => true,
-            _ => false,
-        }
+        matches!(self, ADC | SBC | NEG | CMP | CMN)
     }
 }
 
