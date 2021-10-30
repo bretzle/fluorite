@@ -1,10 +1,11 @@
 use modular_bitfield::prelude::*;
+use std::fmt;
 
 static_assertions::assert_eq_size!(StatusRegister, u32);
 
 #[bitfield]
 #[repr(u32)]
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct StatusRegister {
     pub mode: CpuMode,
     pub state: CpuState,
@@ -20,16 +21,20 @@ pub struct StatusRegister {
     pub n: bool,
 }
 
-impl StatusRegister {
-    fn raw(&self) -> u32 {
-        u32::from_le_bytes(self.clone().into_bytes())
-    }
-}
-
 #[derive(BitfieldSpecifier, Copy, Clone, Debug, PartialEq)]
 pub enum CpuState {
     ARM = 0,
     THUMB = 1,
+}
+
+impl fmt::Display for CpuState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use CpuState::*;
+        match self {
+            ARM => write!(f, "ARM"),
+            THUMB => write!(f, "THUMB"),
+        }
+    }
 }
 
 #[derive(BitfieldSpecifier, Copy, Clone, Debug, PartialEq)]
@@ -45,9 +50,30 @@ pub enum CpuMode {
     System = 0b11111,
 }
 
+impl fmt::Display for CpuMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use CpuMode::*;
+        match self {
+            User => write!(f, "USR"),
+            Fiq => write!(f, "FIQ"),
+            Irq => write!(f, "IRQ"),
+            Supervisor => write!(f, "SVC"),
+            Abort => write!(f, "ABT"),
+            Undefined => write!(f, "UND"),
+            System => write!(f, "SYS"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    impl StatusRegister {
+        fn raw(&self) -> u32 {
+            u32::from_le_bytes(self.clone().into_bytes())
+        }
+    }
 
     #[test]
     fn cpu_mode() {
