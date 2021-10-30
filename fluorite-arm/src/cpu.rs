@@ -1,8 +1,8 @@
 use crate::{
-    arm::{ArmCond, ArmInstruction},
+    arm::ArmCond,
     memory::MemoryInterface,
     registers::{CpuMode, CpuState, StatusRegister},
-    Addr, InstructionDecoder,
+    Addr,
 };
 use fluorite_common::{BitIndex, Shared};
 use num_traits::FromPrimitive;
@@ -11,10 +11,10 @@ pub struct Arm7tdmi<Memory: MemoryInterface> {
     pub(crate) bus: Shared<Memory>,
 
     // registers
-    pc: Addr,
+    pub(crate) pc: Addr,
     gpr: [u32; 15],
-    cspr: StatusRegister,
-    _spsr: (),
+    pub(crate) cspr: StatusRegister,
+    pub(crate) spsr: StatusRegister,
     _banked: (),
 
     // pipelining
@@ -30,7 +30,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
             pc: 0,
             gpr: [0; 15],
             cspr: StatusRegister::new().with_mode(CpuMode::System),
-            _spsr: (),
+            spsr: StatusRegister::new(),
             _banked: (),
             pipeline: [0; 2],
             _options: (),
@@ -112,6 +112,10 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         self.pc = self.pc.wrapping_add(4)
     }
 
+    fn advance_thumb(&mut self) {
+        self.pc = self.pc.wrapping_add(2)
+    }
+
     pub(crate) fn check_cond(&self, cond: ArmCond) -> bool {
         use ArmCond::*;
         match cond {
@@ -132,6 +136,24 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
             AL => true,
             Invalid => unreachable!(),
         }
+    }
+
+    pub(crate) fn reload_pipeline_arm(&mut self) {
+        self.pipeline[0] = self.load_32(self.pc);
+        self.advance_arm();
+        self.pipeline[1] = self.load_32(self.pc);
+        self.advance_arm();
+    }
+
+    pub(crate) fn reload_pipeline_thumb(&mut self) {
+        self.pipeline[0] = self.load_16(self.pc) as u32;
+        self.advance_thumb();
+        self.pipeline[1] = self.load_16(self.pc) as u32;
+        self.advance_thumb();
+    }
+
+    pub(crate) fn change_mode(&mut self, old: CpuMode, new: CpuMode) {
+        todo!()
     }
 }
 

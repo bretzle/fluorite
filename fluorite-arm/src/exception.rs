@@ -13,7 +13,7 @@ pub enum Exception {
 }
 
 impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
-    pub fn exception(&mut self, e: Exception, lr: u32) {
+    pub fn exception(&mut self, _e: Exception, _lr: u32) {
         todo!()
     }
 
@@ -21,7 +21,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         todo!()
     }
 
-    pub fn software_interrupt(&mut self, lr: u32) {
+    pub fn software_interrupt(&mut self, _lr: u32) {
         todo!()
     }
 }

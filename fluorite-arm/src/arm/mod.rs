@@ -1,4 +1,4 @@
-use crate::{Addr, InstructionDecoder, alu::*, cpu::Arm7tdmi};
+use crate::{alu::*, Addr, InstructionDecoder};
 use byteorder::{LittleEndian, ReadBytesExt};
 use enum_primitive_derive::*;
 use fluorite_common::BitIndex;

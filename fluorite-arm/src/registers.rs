@@ -5,7 +5,7 @@ static_assertions::assert_eq_size!(StatusRegister, u32);
 
 #[bitfield]
 #[repr(u32)]
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct StatusRegister {
     pub mode: CpuMode,
     pub state: CpuState,
@@ -19,12 +19,6 @@ pub struct StatusRegister {
     pub c: bool,
     pub z: bool,
     pub n: bool,
-}
-
-impl StatusRegister {
-    fn raw(&self) -> u32 {
-        u32::from_le_bytes(self.clone().into_bytes())
-    }
 }
 
 #[derive(BitfieldSpecifier, Copy, Clone, Debug, PartialEq)]
@@ -74,6 +68,12 @@ impl fmt::Display for CpuMode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    impl StatusRegister {
+        fn raw(&self) -> u32 {
+            u32::from_le_bytes(self.clone().into_bytes())
+        }
+    }
 
     #[test]
     fn cpu_mode() {

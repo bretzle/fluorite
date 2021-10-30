@@ -49,7 +49,7 @@ macro_rules! bit_index_impl {
 }
 
 
-bit_index_impl!(u32, u16, u8);
+bit_index_impl!(usize, u128, u64, u32, u16, u8);
 
 #[cfg(test)]
 mod tests {
