@@ -7,7 +7,7 @@ static_assertions::assert_eq_size!(StatusRegister, u32);
 
 #[bitfield]
 #[repr(u32)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct StatusRegister {
     pub mode: CpuMode,
     pub state: CpuState,
@@ -65,6 +65,16 @@ impl fmt::Display for CpuMode {
             System => write!(f, "SYS"),
         }
     }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct BankedRegisters {
+    pub gpr_banked_r13: [u32; 6],
+    pub gpr_banked_r14: [u32; 6],
+    // r8-r12 are banked for fiq mode
+    pub gpr_banked_old_r8_12: [u32; 5],
+    pub gpr_banked_fiq_r8_12: [u32; 5],
+    pub spsr_bank: [StatusRegister; 6],
 }
 
 #[cfg(test)]

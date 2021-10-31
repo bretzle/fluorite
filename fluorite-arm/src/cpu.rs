@@ -1,7 +1,7 @@
 use crate::{
     arm::ArmCond,
     memory::MemoryInterface,
-    registers::{CpuMode, CpuState, StatusRegister},
+    registers::{BankedRegisters, CpuMode, CpuState, StatusRegister},
     Addr,
 };
 use fluorite_common::{BitIndex, Shared};
@@ -15,7 +15,7 @@ pub struct Arm7tdmi<Memory: MemoryInterface> {
     gpr: [u32; 15],
     pub(crate) cspr: StatusRegister,
     pub(crate) spsr: StatusRegister,
-    _banked: (),
+    banks: BankedRegisters,
 
     // pipelining
     pipeline: [u32; 2],
@@ -31,7 +31,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
             gpr: [0; 15],
             cspr: StatusRegister::new().with_mode(CpuMode::System),
             spsr: StatusRegister::new(),
-            _banked: (),
+            banks: BankedRegisters::default(),
             pipeline: [0; 2],
             _options: (),
         }
@@ -152,6 +152,19 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
 
     pub(crate) fn change_mode(&mut self, _old: CpuMode, _new: CpuMode) {
         todo!()
+    }
+
+    pub fn skip_bios(&mut self) {
+        self.banks.gpr_banked_r13[0] = 0x0300_7f00; // USR/SYS
+        self.banks.gpr_banked_r13[1] = 0x0300_7f00; // FIQ
+        self.banks.gpr_banked_r13[2] = 0x0300_7fa0; // IRQ
+        self.banks.gpr_banked_r13[3] = 0x0300_7fe0; // SVC
+        self.banks.gpr_banked_r13[4] = 0x0300_7f00; // ABT
+        self.banks.gpr_banked_r13[5] = 0x0300_7f00; // UND
+
+        self.pc = 0x0800_0000;
+        self.gpr[13] = 0x0300_7F00;
+        self.cspr = StatusRegister::from(0x5F)
     }
 }
 
