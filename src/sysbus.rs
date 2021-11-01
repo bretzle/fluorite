@@ -1,5 +1,6 @@
-use crate::{bios::Bios, cartridge::Cartridge};
+use crate::{bios::Bios, cartridge::Cartridge, iodev::IoDevices};
 use fluorite_arm::{memory::MemoryInterface, Addr};
+use fluorite_common::Shared;
 
 pub const BIOS_ADDR: u32 = 0x0000_0000;
 pub const EWRAM_ADDR: u32 = 0x0200_0000;
@@ -23,15 +24,18 @@ pub struct SysBus {
     ewram: Box<[u8]>,
     iwram: Box<[u8]>,
     cartridge: Cartridge,
+
+	io: Shared<IoDevices>,
 }
 
 impl SysBus {
-    pub fn new(bios: &[u8], rom: &[u8]) -> Self {
+    pub fn new(bios: &[u8], rom: &[u8], io: &Shared<IoDevices>) -> Self {
         Self {
             bios: Bios::new(bios),
             ewram: vec![0; 256 * 1024].into_boxed_slice(),
             iwram: vec![0; 32 * 1024].into_boxed_slice(),
             cartridge: Cartridge::new(rom).unwrap(),
+            io: io.clone(),
         }
     }
 
@@ -102,7 +106,14 @@ impl Bus for SysBus {
             BIOS_ADDR => {}
             EWRAM_ADDR => self.ewram.write_16(addr & 0x3_fffe, val),
             IWRAM_ADDR => self.iwram.write_16(addr & 0x7ffe, val),
-            IOMEM_ADDR => todo!(),
+            IOMEM_ADDR => {
+                let addr = if addr & 0xFFFE == 0x8000 {
+                    0x800
+                } else {
+                    addr & 0x00FFFFFE
+                };
+                self.io.write_16(addr, val)
+            }
             PALRAM_ADDR | VRAM_ADDR | OAM_ADDR => todo!(),
             GAMEPAK_WS0_LO => self.cartridge.write_16(addr, val),
             GAMEPAK_WS2_HI => self.cartridge.write_16(addr, val),

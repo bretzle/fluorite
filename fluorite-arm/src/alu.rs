@@ -224,4 +224,59 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         self.cspr.set_c(c);
         self.cspr.set_v(v);
     }
+
+    pub(crate) fn alu_sub_flags(
+        &self,
+        a: u32,
+        b: u32,
+        carry: &mut bool,
+        overflow: &mut bool,
+    ) -> u32 {
+        let res = a.wrapping_sub(b);
+        *carry = b <= a;
+        *overflow = (a as i32).overflowing_sub(b as i32).1;
+        res
+    }
+
+    pub(crate) fn alu_add_flags(
+        &self,
+        a: u32,
+        b: u32,
+        carry: &mut bool,
+        overflow: &mut bool,
+    ) -> u32 {
+        let res = a.wrapping_add(b);
+        *carry = add_carry_result(a as u64, b as u64);
+        *overflow = (a as i32).overflowing_add(b as i32).1;
+        res
+    }
+
+    pub(crate) fn alu_adc_flags(
+        &self,
+        a: u32,
+        b: u32,
+        carry: &mut bool,
+        overflow: &mut bool,
+    ) -> u32 {
+        let c = self.cspr.c() as u64;
+        let res = (a as u64) + (b as u64) + c;
+        *carry = res > 0xFFFFFFFF;
+        *overflow = (!(a ^ b) & (b ^ (res as u32))).bit(31);
+        res as u32
+    }
+
+    pub(crate) fn alu_sbc_flags(
+        &self,
+        a: u32,
+        b: u32,
+        carry: &mut bool,
+        overflow: &mut bool,
+    ) -> u32 {
+        self.alu_adc_flags(a, !b, carry, overflow)
+    }
+}
+
+#[inline]
+fn add_carry_result(a: u64, b: u64) -> bool {
+    a.wrapping_add(b) > 0xFFFFFFFF
 }

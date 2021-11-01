@@ -235,16 +235,16 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         }
 
         let alu_res = if set_flags {
-            let overflow = self.cspr.v();
+            let mut overflow = self.cspr.v();
             let res = match opcode {
                 AND | TST => op1 & op2,
                 EOR | TEQ => op1 & op2,
-                SUB | CMP => todo!(),
-                RSB => todo!(),
-                ADD | CMN => todo!(),
-                ADC => todo!(),
-                SBC => todo!(),
-                RSC => todo!(),
+                SUB | CMP => self.alu_sub_flags(op1, op2, &mut carry, &mut overflow),
+                RSB => self.alu_sub_flags(op2, op1, &mut carry, &mut overflow),
+                ADD | CMN => self.alu_add_flags(op1, op2, &mut carry, &mut overflow),
+                ADC => self.alu_adc_flags(op1, op2, &mut carry, &mut overflow),
+                SBC => self.alu_sbc_flags(op1, op2, &mut carry, &mut overflow),
+                RSC => self.alu_sbc_flags(op2, op1, &mut carry, &mut overflow),
                 ORR => op1 | op2,
                 MOV => op2,
                 BIC => op1 & !op2,

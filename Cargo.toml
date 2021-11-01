@@ -10,6 +10,8 @@ fluorite-common = { path = "fluorite-common" }
 fluorite-arm = { path = "fluorite-arm" }
 
 color-eyre = "0.5.11"
+modular-bitfield = "0.11"
+static_assertions = "1.1"
 
 [build-dependencies]
 fluorite-common = { path = "fluorite-common" }
