@@ -11,13 +11,25 @@ mod bios;
 mod cartridge;
 mod consts;
 mod cpu;
+mod dma;
 mod gpu;
+mod interrupt;
 mod iodev;
-mod sysbus;
 mod sched;
+mod sysbus;
 
 struct MiniFb {
     window: minifb::Window,
+}
+
+pub trait VideoInterface {
+    fn render(&mut self, buffer: &[u32]);
+}
+
+impl VideoInterface for MiniFb {
+    fn render(&mut self, buffer: &[u32]) {
+        self.window.update_with_buffer(buffer, 240, 160).unwrap();
+    }
 }
 
 fn main() -> color_eyre::Result<()> {
@@ -41,7 +53,7 @@ fn main() -> color_eyre::Result<()> {
         )?,
     }));
 
-    let mut gba = Gba::new();
+    let mut gba = Gba::new(fb.clone());
 
     gba.skip_bios();
 
@@ -56,4 +68,19 @@ fn main() -> color_eyre::Result<()> {
     }
 
     Ok(())
+}
+
+#[macro_export]
+macro_rules! index2d {
+    ($x:expr, $y:expr, $w:expr) => {
+        $w * $y + $x
+    };
+    ($t:ty, $x:expr, $y:expr, $w:expr) => {
+        (($w as $t) * ($y as $t) + ($x as $t)) as $t
+    };
+}
+
+pub trait GpuMemoryMappedIO {
+    fn read(&self) -> u16;
+    fn write(&mut self, value: u16);
 }

@@ -5,7 +5,7 @@ use crate::{
     alu::{AluOpCode, ShiftRegisterBy, ShiftedRegister},
     arm::ArmInstruction,
     cpu::{Arm7tdmi, CpuAction},
-    memory::MemoryInterface,
+    memory::{MemoryAccess::*, MemoryInterface},
     registers::{CpuMode, CpuState},
     Addr, InstructionDecoder, REG_LR, REG_PC,
 };
@@ -17,12 +17,12 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         use crate::arm::ArmFormat::*;
         let decoded = ArmInstruction::decode(inst, self.pc_arm());
 
-        println!(
-            "{:8x}:\t{:08x} \t{}",
-            self.pc_arm(),
-            decoded.get_raw(),
-            decoded
-        );
+        // println!(
+        //     "{:8x}:\t{:08x} \t{}",
+        //     self.pc_arm(),
+        //     decoded.get_raw(),
+        //     decoded
+        // );
 
         let func = match decoded.fmt {
             BranchExchange => Self::bx,
@@ -234,7 +234,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
             })
         };
 
-        let mut result = CpuAction::AdvancePC;
+        let mut result = CpuAction::AdvancePC(Seq);
         if let Some(alu_res) = alu_res {
             self.set_reg(rd, alu_res as u32);
             if rd == REG_PC {
@@ -267,7 +267,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         let bs_op = inst.bit_range(5..7) as u8;
         let shift_by_reg = inst.bit(4);
 
-        let mut result = CpuAction::AdvancePC;
+        let mut result = CpuAction::AdvancePC(NonSeq);
 
         let base_reg = inst.bit_range(16..20) as usize;
         let dest_reg = inst.bit_range(12..16) as usize;
@@ -299,9 +299,9 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
 
         if load {
             let data = if byte {
-                self.load_8(addr) as u32
+                self.load_8(addr, NonSeq) as u32
             } else {
-                self.ldr_word(addr)
+                self.ldr_word(addr, NonSeq)
             };
 
             self.set_reg(dest_reg, data);
@@ -320,9 +320,9 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
                 self.get_reg(dest_reg)
             };
             if byte {
-                self.store_8(addr, value as u8);
+                self.store_8(addr, value as u8, NonSeq);
             } else {
-                self.store_aligned_32(addr & !0x3, value);
+                self.store_aligned_32(addr & !0x3, value, NonSeq);
             };
         }
 
@@ -374,7 +374,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         pre_index: bool,
         add: bool,
     ) -> CpuAction {
-        let mut result = CpuAction::AdvancePC;
+        let mut result = CpuAction::AdvancePC(NonSeq);
 
         let offset = if add {
             offset
@@ -401,9 +401,9 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
 
         if load {
             let data = match transfer_type {
-                ArmHalfwordTransferType::SignedByte => self.load_8(addr) as u8 as i8 as u32,
-                ArmHalfwordTransferType::SignedHalfwords => self.ldr_sign_half(addr),
-                ArmHalfwordTransferType::UnsignedHalfwords => self.ldr_half(addr),
+                ArmHalfwordTransferType::SignedByte => self.load_8(addr, NonSeq) as u8 as i8 as u32,
+                ArmHalfwordTransferType::SignedHalfwords => self.ldr_sign_half(addr, NonSeq),
+                ArmHalfwordTransferType::UnsignedHalfwords => self.ldr_half(addr, NonSeq),
             };
 
             self.set_reg(dest_reg, data);
@@ -424,7 +424,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
 
             match transfer_type {
                 ArmHalfwordTransferType::UnsignedHalfwords => {
-                    self.store_aligned_16(addr, value as u16);
+                    self.store_aligned_16(addr, value as u16, NonSeq);
                 }
                 _ => panic!("invalid HS flags for L=0"),
             };

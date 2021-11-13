@@ -105,7 +105,7 @@ impl Scheduler {
         self.timestamp
     }
 
-	pub fn timestamp_of_next_event(&self) -> usize {
+    pub fn timestamp_of_next_event(&self) -> usize {
         self.events.peek().unwrap_or_else(|| unreachable!()).time
     }
 
@@ -114,7 +114,11 @@ impl Scheduler {
         self.events.push(event)
     }
 
-	pub fn pop_pending_event(&mut self) -> Option<(EventType, usize)> {
+    pub fn push_gpu_event(&mut self, e: GpuEvent, cycles: usize) {
+        self.push(EventType::Gpu(e), cycles);
+    }
+
+    pub fn pop_pending_event(&mut self) -> Option<(EventType, usize)> {
         if let Some(event) = self.events.peek() {
             if self.timestamp >= event.time {
                 // remove the event
@@ -132,15 +136,19 @@ impl Scheduler {
         }
     }
 
-	pub fn fast_forward_to_next(&mut self) {
+    pub fn fast_forward_to_next(&mut self) {
         self.timestamp += self.get_cycles_to_next_event();
     }
 
-	pub fn get_cycles_to_next_event(&self) -> usize {
+    pub fn get_cycles_to_next_event(&self) -> usize {
         if let Some(event) = self.events.peek() {
             event.time - self.timestamp
         } else {
             0
         }
+    }
+
+    pub fn update(&mut self, cycles: usize) {
+        self.timestamp += cycles;
     }
 }

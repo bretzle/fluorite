@@ -57,3 +57,4 @@ pub const VRAM_OBJ_TILES_START_BITMAP: u32 = 0x1_4000;
 pub const IO_BASE: Addr = 0x0400_0000;
 pub const REG_DISPCNT: Addr = 0x0400_0000;  // R/W  LCD Control
 pub const REG_DISPSTAT: Addr = 0x0400_0004; // R/W  General LCD Status (STAT,LYC)
+pub const REG_HALTCNT: Addr = 0x0400_0301;

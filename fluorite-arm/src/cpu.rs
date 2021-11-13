@@ -1,9 +1,4 @@
-use crate::{
-    arm::ArmCond,
-    memory::MemoryInterface,
-    registers::{BankedRegisters, CpuMode, CpuState, StatusRegister},
-    Addr,
-};
+use crate::{Addr, arm::ArmCond, memory::{MemoryAccess::{self, *}, MemoryInterface}, registers::{BankedRegisters, CpuMode, CpuState, StatusRegister}};
 use fluorite_common::{BitIndex, Shared};
 use num_traits::FromPrimitive;
 
@@ -19,6 +14,7 @@ pub struct Arm7tdmi<Memory: MemoryInterface> {
 
     // pipelining
     pipeline: [u32; 2],
+	next_fetch_access: MemoryAccess,
 
     _options: (),
 }
@@ -33,6 +29,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
             spsr: StatusRegister::new(),
             banks: BankedRegisters::default(),
             pipeline: [0; 2],
+			next_fetch_access: MemoryAccess::NonSeq,
             _options: (),
         }
     }
@@ -86,7 +83,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
             CpuState::ARM => {
                 let pc = self.pc & !3;
 
-                let fetched = self.load_32(pc);
+                let fetched = self.load_32(pc, self.next_fetch_access);
                 let inst = self.pipeline[0];
                 self.pipeline[0] = self.pipeline[1];
                 self.pipeline[1] = fetched;
@@ -94,11 +91,15 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
                 let cond = ArmCond::from_u8(inst.bit_range(28..32) as u8).unwrap();
                 if cond != ArmCond::AL && !self.check_cond(cond) {
                     self.advance_arm();
+                    self.next_fetch_access = MemoryAccess::NonSeq;
                     return;
                 }
 
                 match self.execute_arm(inst) {
-                    CpuAction::AdvancePC => self.advance_arm(),
+                    CpuAction::AdvancePC(access) => {
+                        self.next_fetch_access = access;
+                        self.advance_arm();
+                    }
                     CpuAction::PipelineFlushed => {}
                 }
             }
@@ -137,17 +138,19 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
     }
 
     pub(crate) fn reload_pipeline_arm(&mut self) {
-        self.pipeline[0] = self.load_32(self.pc);
+        self.pipeline[0] = self.load_32(self.pc, NonSeq);
         self.advance_arm();
-        self.pipeline[1] = self.load_32(self.pc);
+        self.pipeline[1] = self.load_32(self.pc, Seq);
         self.advance_arm();
+        self.next_fetch_access = Seq;
     }
 
     pub(crate) fn reload_pipeline_thumb(&mut self) {
-        self.pipeline[0] = self.load_16(self.pc) as u32;
+        self.pipeline[0] = self.load_16(self.pc, NonSeq) as u32;
         self.advance_thumb();
-        self.pipeline[1] = self.load_16(self.pc) as u32;
+        self.pipeline[1] = self.load_16(self.pc, Seq) as u32;
         self.advance_thumb();
+        self.next_fetch_access = Seq;
     }
 
     pub(crate) fn change_mode(&mut self, _old: CpuMode, _new: CpuMode) {
@@ -169,6 +172,6 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
 }
 
 pub enum CpuAction {
-    AdvancePC,
+    AdvancePC(MemoryAccess),
     PipelineFlushed,
 }

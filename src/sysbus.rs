@@ -1,5 +1,10 @@
-use crate::{bios::Bios, cartridge::Cartridge, consts::*, iodev::IoDevices};
-use fluorite_arm::{memory::MemoryInterface, Addr};
+use crate::dma::DmaNotifier;
+use crate::iodev::WaitControl;
+use crate::{bios::Bios, cartridge::Cartridge, consts::*, iodev::IoDevices, sched::Scheduler};
+use fluorite_arm::{
+    memory::{MemoryAccess, MemoryAccessWidth, MemoryInterface},
+    Addr,
+};
 use fluorite_common::Shared;
 
 #[derive(Clone)]
@@ -10,21 +15,56 @@ pub struct SysBus {
     cartridge: Cartridge,
 
     io: Shared<IoDevices>,
+    scheduler: Shared<Scheduler>,
+
+    cycle_luts: CycleLookupTables,
 }
 
 impl SysBus {
-    pub fn new(bios: &[u8], rom: &[u8], io: &Shared<IoDevices>) -> Self {
+    pub fn new(
+        bios: &[u8],
+        rom: &[u8],
+        scheduler: &Shared<Scheduler>,
+        io: &Shared<IoDevices>,
+    ) -> Self {
+        let mut luts = CycleLookupTables::default();
+        luts.init();
+        luts.update_gamepak_waitstates(io.waitcnt);
+
         Self {
             bios: Bios::new(bios),
             ewram: vec![0; 256 * 1024].into_boxed_slice(),
             iwram: vec![0; 32 * 1024].into_boxed_slice(),
             cartridge: Cartridge::new(rom).unwrap(),
             io: io.clone(),
+            scheduler: scheduler.clone(),
+            cycle_luts: luts,
         }
     }
 
     fn read_invalid(&mut self, addr: Addr) -> u32 {
         panic!("invalid read @{:08X}", addr)
+    }
+
+    pub fn add_cycles(&mut self, addr: Addr, access: MemoryAccess, width: MemoryAccessWidth) {
+        use MemoryAccess::*;
+        use MemoryAccessWidth::*;
+        let page = ((addr >> 24) & 0xF) as usize;
+
+        let cycles = unsafe {
+            match width {
+                MemoryAccess8 | MemoryAccess16 => match access {
+                    NonSeq => self.cycle_luts.n_cycles16.get_unchecked(page),
+                    Seq => self.cycle_luts.s_cycles16.get_unchecked(page),
+                },
+                MemoryAccess32 => match access {
+                    NonSeq => self.cycle_luts.n_cycles32.get_unchecked(page),
+                    Seq => self.cycle_luts.s_cycles32.get_unchecked(page),
+                },
+            }
+        };
+
+        self.scheduler.update(*cycles);
     }
 }
 
@@ -159,33 +199,38 @@ impl Bus for SysBus {
 }
 
 impl MemoryInterface for SysBus {
-    fn load_8(&mut self, addr: Addr) -> u8 {
+    fn load_8(&mut self, addr: Addr, access: MemoryAccess) -> u8 {
+        self.add_cycles(addr, access, MemoryAccessWidth::MemoryAccess8);
         self.read_8(addr)
     }
 
-    fn load_16(&mut self, addr: Addr) -> u16 {
+    fn load_16(&mut self, addr: Addr, access: MemoryAccess) -> u16 {
+        self.add_cycles(addr, access, MemoryAccessWidth::MemoryAccess16);
         self.read_16(addr)
     }
 
-    fn load_32(&mut self, addr: Addr) -> u32 {
+    fn load_32(&mut self, addr: Addr, access: MemoryAccess) -> u32 {
+        self.add_cycles(addr, access, MemoryAccessWidth::MemoryAccess32);
         self.read_32(addr)
     }
 
-    fn store_8(&mut self, addr: Addr, val: u8) {
-        self.write_8(addr, val);
+    fn store_8(&mut self, addr: Addr, value: u8, access: MemoryAccess) {
+        self.add_cycles(addr, access, MemoryAccessWidth::MemoryAccess8);
+        self.write_8(addr, value);
     }
 
-    fn store_16(&mut self, addr: Addr, val: u16) {
-        self.write_16(addr, val);
+    fn store_16(&mut self, addr: Addr, value: u16, access: MemoryAccess) {
+        self.add_cycles(addr, access, MemoryAccessWidth::MemoryAccess8);
+        self.write_16(addr, value);
     }
 
-    fn store_32(&mut self, addr: Addr, val: u32) {
-        self.write_32(addr, val);
+    fn store_32(&mut self, addr: Addr, value: u32, access: MemoryAccess) {
+        self.add_cycles(addr, access, MemoryAccessWidth::MemoryAccess8);
+        self.write_32(addr, value);
     }
 
     fn idle_cycle(&mut self) {
-        // TODO
-		// self.scheduler.update(1) 
+        self.scheduler.update(1)
     }
 }
 
@@ -196,5 +241,105 @@ impl Bus for Box<[u8]> {
 
     fn write_8(&mut self, addr: Addr, val: u8) {
         self[addr as usize] = val;
+    }
+}
+
+impl DmaNotifier for SysBus {
+    fn notify(&mut self, timing: u16) {
+        // TODO
+    }
+}
+
+#[derive(Clone)]
+struct CycleLookupTables {
+    n_cycles32: Box<[usize]>,
+    s_cycles32: Box<[usize]>,
+    n_cycles16: Box<[usize]>,
+    s_cycles16: Box<[usize]>,
+}
+
+const CYCLE_LUT_SIZE: usize = 0x100;
+
+impl Default for CycleLookupTables {
+    fn default() -> CycleLookupTables {
+        CycleLookupTables {
+            n_cycles32: vec![1; CYCLE_LUT_SIZE].into_boxed_slice(),
+            s_cycles32: vec![1; CYCLE_LUT_SIZE].into_boxed_slice(),
+            n_cycles16: vec![1; CYCLE_LUT_SIZE].into_boxed_slice(),
+            s_cycles16: vec![1; CYCLE_LUT_SIZE].into_boxed_slice(),
+        }
+    }
+}
+
+impl CycleLookupTables {
+    pub fn init(&mut self) {
+        self.n_cycles32[PAGE_EWRAM] = 6;
+        self.s_cycles32[PAGE_EWRAM] = 6;
+        self.n_cycles16[PAGE_EWRAM] = 3;
+        self.s_cycles16[PAGE_EWRAM] = 3;
+
+        self.n_cycles32[PAGE_OAM] = 2;
+        self.s_cycles32[PAGE_OAM] = 2;
+        self.n_cycles16[PAGE_OAM] = 1;
+        self.s_cycles16[PAGE_OAM] = 1;
+
+        self.n_cycles32[PAGE_VRAM] = 2;
+        self.s_cycles32[PAGE_VRAM] = 2;
+        self.n_cycles16[PAGE_VRAM] = 1;
+        self.s_cycles16[PAGE_VRAM] = 1;
+
+        self.n_cycles32[PAGE_PALRAM] = 2;
+        self.s_cycles32[PAGE_PALRAM] = 2;
+        self.n_cycles16[PAGE_PALRAM] = 1;
+        self.s_cycles16[PAGE_PALRAM] = 1;
+    }
+
+    pub fn update_gamepak_waitstates(&mut self, waitcnt: WaitControl) {
+        static S_GAMEPAK_NSEQ_CYCLES: [usize; 4] = [4, 3, 2, 8];
+        static S_GAMEPAK_WS0_SEQ_CYCLES: [usize; 2] = [2, 1];
+        static S_GAMEPAK_WS1_SEQ_CYCLES: [usize; 2] = [4, 1];
+        static S_GAMEPAK_WS2_SEQ_CYCLES: [usize; 2] = [8, 1];
+
+        let ws0_first_access = waitcnt.ws0_first_access() as usize;
+        let ws1_first_access = waitcnt.ws1_first_access() as usize;
+        let ws2_first_access = waitcnt.ws2_first_access() as usize;
+        let ws0_second_access = waitcnt.ws0_second_access() as usize;
+        let ws1_second_access = waitcnt.ws1_second_access() as usize;
+        let ws2_second_access = waitcnt.ws2_second_access() as usize;
+
+        // update SRAM access
+        let sram_wait_cycles = 1 + S_GAMEPAK_NSEQ_CYCLES[waitcnt.sram_wait_control() as usize];
+        self.n_cycles32[PAGE_SRAM_LO] = sram_wait_cycles;
+        self.n_cycles32[PAGE_SRAM_LO] = sram_wait_cycles;
+        self.n_cycles16[PAGE_SRAM_HI] = sram_wait_cycles;
+        self.n_cycles16[PAGE_SRAM_HI] = sram_wait_cycles;
+        self.s_cycles32[PAGE_SRAM_LO] = sram_wait_cycles;
+        self.s_cycles32[PAGE_SRAM_LO] = sram_wait_cycles;
+        self.s_cycles16[PAGE_SRAM_HI] = sram_wait_cycles;
+        self.s_cycles16[PAGE_SRAM_HI] = sram_wait_cycles;
+
+        // update both pages of each waitstate
+        for i in 0..2 {
+            self.n_cycles16[PAGE_GAMEPAK_WS0 + i] = 1 + S_GAMEPAK_NSEQ_CYCLES[ws0_first_access];
+            self.s_cycles16[PAGE_GAMEPAK_WS0 + i] = 1 + S_GAMEPAK_WS0_SEQ_CYCLES[ws0_second_access];
+
+            self.n_cycles16[PAGE_GAMEPAK_WS1 + i] = 1 + S_GAMEPAK_NSEQ_CYCLES[ws1_first_access];
+            self.s_cycles16[PAGE_GAMEPAK_WS1 + i] = 1 + S_GAMEPAK_WS1_SEQ_CYCLES[ws1_second_access];
+
+            self.n_cycles16[PAGE_GAMEPAK_WS2 + i] = 1 + S_GAMEPAK_NSEQ_CYCLES[ws2_first_access];
+            self.s_cycles16[PAGE_GAMEPAK_WS2 + i] = 1 + S_GAMEPAK_WS2_SEQ_CYCLES[ws2_second_access];
+
+            // ROM 32bit accesses are split into two 16bit accesses 1N+1S
+            self.n_cycles32[PAGE_GAMEPAK_WS0 + i] =
+                self.n_cycles16[PAGE_GAMEPAK_WS0 + i] + self.s_cycles16[PAGE_GAMEPAK_WS0 + i];
+            self.n_cycles32[PAGE_GAMEPAK_WS1 + i] =
+                self.n_cycles16[PAGE_GAMEPAK_WS1 + i] + self.s_cycles16[PAGE_GAMEPAK_WS1 + i];
+            self.n_cycles32[PAGE_GAMEPAK_WS2 + i] =
+                self.n_cycles16[PAGE_GAMEPAK_WS2 + i] + self.s_cycles16[PAGE_GAMEPAK_WS2 + i];
+
+            self.s_cycles32[PAGE_GAMEPAK_WS0 + i] = 2 * self.s_cycles16[PAGE_GAMEPAK_WS0 + i];
+            self.s_cycles32[PAGE_GAMEPAK_WS1 + i] = 2 * self.s_cycles16[PAGE_GAMEPAK_WS1 + i];
+            self.s_cycles32[PAGE_GAMEPAK_WS2 + i] = 2 * self.s_cycles16[PAGE_GAMEPAK_WS2 + i];
+        }
     }
 }

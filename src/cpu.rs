@@ -1,38 +1,44 @@
-use std::any::Any;
-use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 use fluorite_arm::cpu::Arm7tdmi;
 use fluorite_common::Shared;
 
 use crate::consts::CYCLES_FULL_REFRESH;
+use crate::gpu::Gpu;
+use crate::interrupt::IrqBitMask;
 use crate::iodev::{HaltState, IoDevices};
 use crate::sched::{EventType, Scheduler};
 use crate::sysbus::SysBus;
+use crate::VideoInterface;
 
 static BIOS: &[u8] = include_bytes!("../roms/gba_bios.bin");
 static ROM: &[u8] = include_bytes!("../roms/beeg.bin");
 
-pub struct Gba {
+pub struct Gba<T: VideoInterface> {
     cpu: Arm7tdmi<SysBus>,
     sysbus: Shared<SysBus>,
     io: Shared<IoDevices>,
     scheduler: Shared<Scheduler>,
+
+    device: Rc<RefCell<T>>,
 }
 
-impl Gba {
-    pub fn new() -> Self {
-        let io = Shared::new(IoDevices::new());
-        let sysbus = Shared::new(SysBus::new(BIOS, ROM, &io));
-        let cpu = Arm7tdmi::new(sysbus.clone());
+impl<T: VideoInterface> Gba<T> {
+    pub fn new(device: Rc<RefCell<T>>) -> Self {
+        let interrupt_flags = Rc::new(Cell::new(IrqBitMask::new()));
         let scheduler = Shared::new(Scheduler::new());
+        let gpu = Gpu::new(scheduler.clone(), interrupt_flags.clone());
+        let io = Shared::new(IoDevices::new(gpu));
+        let sysbus = Shared::new(SysBus::new(BIOS, ROM, &scheduler, &io));
+        let cpu = Arm7tdmi::new(sysbus.clone());
 
         Self {
             cpu,
             sysbus,
             io,
             scheduler,
+            device,
         }
     }
 
@@ -43,9 +49,9 @@ impl Gba {
 
     pub fn frame(&mut self) {
         // TODO: poll user input
-        static mut extra: usize = 0;
+        static mut EXTRA: usize = 0;
         unsafe {
-            extra = self.run(CYCLES_FULL_REFRESH - extra);
+            EXTRA = self.run(CYCLES_FULL_REFRESH - EXTRA);
         }
     }
 
@@ -104,7 +110,7 @@ impl Gba {
 
     fn handle_event(&mut self, event: EventType, cycles_late: usize, running: &mut bool) {
         let io = &mut (*self.io);
-        match event {
+        match dbg!(event) {
             EventType::RunLimitReached => {
                 *running = false;
             }
@@ -112,10 +118,21 @@ impl Gba {
             EventType::TimerOverflow(channel_id) => todo!(),
             EventType::Gpu(event) => {
                 io.gpu
-                    .on_event(event, cycles_late, &mut *self.sysbus, &self.video_device)
+                    .on_event(event, cycles_late, &mut *self.sysbus, &self.device)
             }
             EventType::Apu(event) => todo!(),
         }
+    }
+
+    fn dma_step(&mut self) {
+        todo!()
+    }
+
+    fn cpu_step(&mut self) {
+        if self.io.intc.irq_pending() {
+            todo!()
+        }
+        self.cpu.step();
     }
 }
 
