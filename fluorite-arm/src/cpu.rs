@@ -1,4 +1,12 @@
-use crate::{Addr, arm::ArmCond, memory::{MemoryAccess::{self, *}, MemoryInterface}, registers::{BankedRegisters, CpuMode, CpuState, StatusRegister}};
+use crate::{
+    arm::ArmCond,
+    memory::{
+        MemoryAccess::{self, *},
+        MemoryInterface,
+    },
+    registers::{BankedRegisters, CpuMode, CpuState, StatusRegister},
+    Addr,
+};
 use fluorite_common::{BitIndex, Shared};
 use num_traits::FromPrimitive;
 
@@ -14,7 +22,7 @@ pub struct Arm7tdmi<Memory: MemoryInterface> {
 
     // pipelining
     pipeline: [u32; 2],
-	next_fetch_access: MemoryAccess,
+    next_fetch_access: MemoryAccess,
 
     _options: (),
 }
@@ -29,7 +37,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
             spsr: StatusRegister::new(),
             banks: BankedRegisters::default(),
             pipeline: [0; 2],
-			next_fetch_access: MemoryAccess::NonSeq,
+            next_fetch_access: MemoryAccess::NonSeq,
             _options: (),
         }
     }
@@ -58,7 +66,14 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
     pub fn set_reg(&mut self, reg: usize, val: u32) {
         match reg {
             0..=14 => self.gpr[reg] = val,
-            15 => todo!(),
+            15 => {
+                self.pc = {
+                    match self.cspr.state() {
+                        CpuState::THUMB => val & !1,
+                        CpuState::ARM => val & !3,
+                    }
+                }
+            }
             _ => panic!("invalid register {}", reg),
         }
     }

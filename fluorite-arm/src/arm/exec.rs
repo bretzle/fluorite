@@ -442,13 +442,160 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
     }
 
     fn ldm_stm(&mut self, inst: u32) -> CpuAction {
-        let _load = inst.bit(20);
-        let _writeback = inst.bit(21);
-        let _flag_s = inst.bit(22);
-        let _add = inst.bit(23);
-        let _pre_index = inst.bit(24);
+        let load = inst.bit(20);
+        let writeback = inst.bit(21);
+        let flag_s = inst.bit(22);
+        let add = inst.bit(23);
+        let pre_index = inst.bit(24);
 
-        todo!()
+        let mut result = CpuAction::AdvancePC(NonSeq);
+
+        let mut full = pre_index;
+        let ascending = add;
+        let mut writeback = writeback;
+        let base_reg = inst.bit_range(16..20) as usize;
+        let mut base_addr = self.get_reg(base_reg);
+
+        let rlist = inst.register_list();
+
+        if flag_s {
+            match self.cspr.mode() {
+                CpuMode::User | CpuMode::System => {
+                    panic!("LDM/STM with S bit in unprivileged mode")
+                }
+                _ => {}
+            };
+        }
+
+        let user_bank_transfer = if flag_s {
+            if load {
+                !rlist.bit(REG_PC)
+            } else {
+                true
+            }
+        } else {
+            false
+        };
+
+        let old_mode = self.cspr.mode();
+        if user_bank_transfer {
+            self.change_mode(old_mode, CpuMode::User);
+        }
+
+        let psr_transfer = flag_s & load & rlist.bit(REG_PC);
+
+        let rlist_count = rlist.count_ones();
+
+        let old_base = base_addr;
+
+        if rlist != 0 && !ascending {
+            base_addr = base_addr.wrapping_sub(rlist_count * 4);
+            if writeback {
+                self.set_reg(base_reg, base_addr);
+                writeback = false;
+            }
+            full = !full;
+        }
+
+        let mut addr = base_addr;
+
+        if rlist != 0 {
+            if load {
+                let mut access = NonSeq;
+                for r in 0..16 {
+                    if rlist.bit(r) {
+                        if r == base_reg {
+                            writeback = false;
+                        }
+                        if full {
+                            addr = addr.wrapping_add(4);
+                        }
+                        let val = self.load_32(addr, access);
+                        access = Seq;
+                        self.set_reg(r, val);
+                        if r == REG_PC {
+                            if psr_transfer {
+                                self.transfer_spsr_mode();
+                            }
+                            self.reload_pipeline_arm();
+                            result = CpuAction::PipelineFlushed;
+                        }
+                        if !full {
+                            addr = addr.wrapping_add(4);
+                        }
+                    }
+                }
+                self.idle_cycle();
+            } else {
+                let mut first = true;
+                let mut access = NonSeq;
+                for r in 0..16 {
+                    if rlist.bit(r) {
+                        let val = if r != base_reg {
+                            if r == REG_PC {
+                                self.pc_arm() + 12
+                            } else {
+                                self.get_reg(r)
+                            }
+                        } else {
+                            if first {
+                                old_base
+                            } else {
+                                let x = rlist_count * 4;
+                                if ascending {
+                                    old_base + x
+                                } else {
+                                    old_base - x
+                                }
+                            }
+                        };
+
+                        if full {
+                            addr = addr.wrapping_add(4);
+                        }
+
+                        first = false;
+
+                        self.store_aligned_32(addr, val, access);
+                        access = Seq;
+                        if !full {
+                            addr = addr.wrapping_add(4);
+                        }
+                    }
+                }
+            }
+        } else {
+            if load {
+                let val = self.ldr_word(addr, NonSeq);
+                self.set_reg(REG_PC, val & !3);
+                self.reload_pipeline_arm();
+                result = CpuAction::PipelineFlushed;
+            } else {
+                // block data store with empty rlist
+                let addr = match (ascending, full) {
+                    (false, false) => addr.wrapping_sub(0x3c),
+                    (false, true) => addr.wrapping_sub(0x40),
+                    (true, false) => addr,
+                    (true, true) => addr.wrapping_add(4),
+                };
+                self.store_aligned_32(addr, self.pc + 4, NonSeq);
+            }
+            addr = if ascending {
+                addr.wrapping_add(0x40)
+            } else {
+                addr.wrapping_sub(0x40)
+            };
+        }
+
+        if user_bank_transfer {
+            self.change_mode(self.cspr.mode(), old_mode);
+        }
+
+        if writeback {
+            self.set_reg(base_reg, addr as u32);
+        }
+
+        result
     }
 
     /// Multiply and Multiply-Accumulate (MUL, MLA)

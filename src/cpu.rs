@@ -110,7 +110,7 @@ impl<T: VideoInterface> Gba<T> {
 
     fn handle_event(&mut self, event: EventType, cycles_late: usize, running: &mut bool) {
         let io = &mut (*self.io);
-        match dbg!(event) {
+        match event {
             EventType::RunLimitReached => {
                 *running = false;
             }

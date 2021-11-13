@@ -90,7 +90,32 @@ pub trait Bus {
 
 impl Bus for SysBus {
     fn read_8(&mut self, addr: Addr) -> u8 {
-        todo!()
+        match addr & 0xff000000 {
+            BIOS_ADDR => {
+                if addr <= 0x3fff {
+                    self.bios.read_8(addr)
+                } else {
+                    self.read_invalid(addr) as u8
+                }
+            }
+            EWRAM_ADDR => self.ewram.read_8(addr & 0x3_ffff),
+            IWRAM_ADDR => self.iwram.read_8(addr & 0x7fff),
+            IOMEM_ADDR => {
+                let addr = if addr & 0xffff == 0x8000 {
+                    0x800
+                } else {
+                    addr & 0x00ffffff
+                };
+                self.io.read_8(addr)
+            }
+            PALRAM_ADDR | VRAM_ADDR | OAM_ADDR => self.io.gpu.read_8(addr),
+            GAMEPAK_WS0_LO | GAMEPAK_WS0_HI | GAMEPAK_WS1_LO | GAMEPAK_WS1_HI | GAMEPAK_WS2_LO => {
+                self.cartridge.read_8(addr)
+            }
+            GAMEPAK_WS2_HI => self.cartridge.read_8(addr),
+            SRAM_LO | SRAM_HI => self.cartridge.read_8(addr),
+            _ => self.read_invalid(addr) as u8,
+        }
     }
 
     fn read_16(&mut self, addr: Addr) -> u16 {

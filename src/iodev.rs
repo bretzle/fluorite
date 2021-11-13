@@ -1,6 +1,6 @@
 use std::{cell::Cell, rc::Rc};
 
-use crate::{GpuMemoryMappedIO, consts::*, gpu::Gpu, interrupt::InterruptController, sysbus::Bus};
+use crate::{consts::*, gpu::Gpu, interrupt::InterruptController, sysbus::Bus, GpuMemoryMappedIO};
 use fluorite_arm::Addr;
 use modular_bitfield::{bitfield, prelude::B2};
 
@@ -68,7 +68,12 @@ impl DmaController {
 
 impl Bus for IoDevices {
     fn read_8(&mut self, addr: Addr) -> u8 {
-        todo!()
+        let t = self.read_16(addr & !1);
+        if addr & 1 != 0 {
+            (t >> 8) as u8
+        } else {
+            t as u8
+        }
     }
 
     fn read_16(&mut self, addr: Addr) -> u16 {
@@ -77,6 +82,7 @@ impl Bus for IoDevices {
         match io_addr {
             REG_DISPCNT => self.gpu.dispcnt.read(),
             REG_DISPSTAT => self.gpu.dispstat.into(),
+            REG_VCOUNT => self.gpu.vcount as u16,
             _ => {
                 panic!(
                     "Unimplemented read from 0x{:08X} {}",
@@ -116,6 +122,8 @@ impl Bus for IoDevices {
 const fn io_reg_string(addr: Addr) -> &'static str {
     match addr {
         REG_DISPCNT => "REG_DISPCNT",
+        REG_DISPSTAT => "REG_DISPSTAT",
+        REG_VCOUNT => "REG_VCOUNT",
         _ => "UNKNOWN",
     }
 }
