@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use fluorite_arm::Addr;
 
 pub const WORK_RAM_SIZE: usize = 256 * 1024;

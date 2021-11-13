@@ -10,14 +10,6 @@ pub struct ViewPort {
 }
 
 impl ViewPort {
-    pub fn new(w: i32, h: i32) -> Self {
-        Self {
-            origin: (0, 0),
-            w,
-            h,
-        }
-    }
-
     pub fn contains_point(&self, p: Point) -> bool {
         let (mut x, mut y) = p;
 
@@ -32,11 +24,6 @@ pub static SCREEN_VIEWPORT: ViewPort = ViewPort {
     origin: (0, 0),
     w: DISPLAY_WIDTH as i32,
     h: DISPLAY_HEIGHT as i32,
-};
-pub static MODE5_VIEWPORT: ViewPort = ViewPort {
-    origin: (0, 0),
-    w: 160,
-    h: 128,
 };
 
 pub mod utils {

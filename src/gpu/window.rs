@@ -53,12 +53,10 @@ impl Window {
         self.contains_y(y) && (x >= left && x < right)
     }
 
-    #[inline]
     pub fn left(&self) -> usize {
         self.left as usize
     }
 
-    #[inline]
     pub fn right(&self) -> usize {
         let left = self.left as usize;
         let mut right = self.right as usize;
@@ -68,12 +66,10 @@ impl Window {
         right
     }
 
-    #[inline]
     pub fn top(&self) -> usize {
         self.top as usize
     }
 
-    #[inline]
     pub fn bottom(&self) -> usize {
         let top = self.top as usize;
         let mut bottom = self.bottom as usize;
@@ -83,7 +79,6 @@ impl Window {
         bottom
     }
 
-    #[inline]
     pub fn contains_y(&self, y: usize) -> bool {
         let top = self.top();
         let bottom = self.bottom();

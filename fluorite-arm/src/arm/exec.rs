@@ -180,7 +180,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
             let shifted_reg = ShiftedRegister {
                 reg: reg as usize,
                 bs_op: inst.get_bs_op(),
-                shift_by: shift_by,
+                shift_by,
                 added: None,
             };
             self.register_shift(&shifted_reg, &mut carry)
@@ -327,9 +327,8 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         }
 
         if !load || base_reg != dest_reg {
-            if !pre_index {
+            if !pre_index || writeback {
                 self.set_reg(base_reg, effective_addr);
-            } else if writeback {
                 self.set_reg(base_reg, effective_addr);
             }
         }
@@ -431,9 +430,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         }
 
         if !load || base_reg != dest_reg {
-            if !pre_index {
-                self.set_reg(base_reg, effective_addr);
-            } else if writeback {
+            if !pre_index || writeback {
                 self.set_reg(base_reg, effective_addr);
             }
         }
@@ -627,7 +624,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
 
     /// ARM Software Interrupt
     /// Execution Time: 2S+1N
-    fn swi(&mut self, inst: u32) -> CpuAction {
+    fn swi(&mut self, _inst: u32) -> CpuAction {
         todo!()
     }
 }

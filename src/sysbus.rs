@@ -171,7 +171,7 @@ impl Bus for SysBus {
         }
     }
 
-    fn write_8(&mut self, addr: Addr, val: u8) {
+    fn write_8(&mut self, _addr: Addr, _val: u8) {
         todo!()
     }
 
@@ -270,7 +270,7 @@ impl Bus for Box<[u8]> {
 }
 
 impl DmaNotifier for SysBus {
-    fn notify(&mut self, timing: u16) {
+    fn notify(&mut self, _timing: u16) {
         // TODO
     }
 }

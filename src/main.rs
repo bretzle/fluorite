@@ -35,11 +35,6 @@ impl VideoInterface for MiniFb {
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
 
-    // let mut cpu = Gba::new();
-    // cpu.skip_bios();
-
-    // cpu.run();
-
     let fb = Rc::new(RefCell::new(MiniFb {
         window: Window::new(
             "fluorite",
@@ -53,21 +48,19 @@ fn main() -> color_eyre::Result<()> {
         )?,
     }));
 
-    let mut gba = Gba::new(fb.clone());
+    let mut gba = Gba::new(fb);
 
     gba.skip_bios();
 
-    let frame_time = Duration::new(0, 1_000_000_000 / 60);
+    // let frame_time = Duration::new(0, 1_000_000_000 / 60);
     loop {
-        let start_time = Instant::now();
+        // let start_time = Instant::now();
         gba.frame();
 
         // TODO: update window title with fps
 
         // TODO: Add fps limiter
     }
-
-    Ok(())
 }
 
 #[macro_export]

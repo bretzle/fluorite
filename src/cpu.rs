@@ -114,13 +114,13 @@ impl<T: VideoInterface> Gba<T> {
             EventType::RunLimitReached => {
                 *running = false;
             }
-            EventType::DmaActivateChannel(channel_id) => todo!(),
-            EventType::TimerOverflow(channel_id) => todo!(),
+            EventType::DmaActivateChannel(_channel_id) => todo!(),
+            EventType::TimerOverflow(_channel_id) => todo!(),
             EventType::Gpu(event) => {
                 io.gpu
                     .on_event(event, cycles_late, &mut *self.sysbus, &self.device)
             }
-            EventType::Apu(event) => todo!(),
+            EventType::Apu(_event) => todo!(),
         }
     }
 

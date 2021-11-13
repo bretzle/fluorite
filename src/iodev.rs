@@ -1,5 +1,3 @@
-use std::{cell::Cell, rc::Rc};
-
 use crate::{consts::*, gpu::Gpu, interrupt::InterruptController, sysbus::Bus, GpuMemoryMappedIO};
 use fluorite_arm::Addr;
 use modular_bitfield::{bitfield, prelude::B2};
@@ -93,7 +91,7 @@ impl Bus for IoDevices {
         }
     }
 
-    fn write_8(&mut self, addr: Addr, val: u8) {
+    fn write_8(&mut self, _addr: Addr, _val: u8) {
         todo!()
     }
 

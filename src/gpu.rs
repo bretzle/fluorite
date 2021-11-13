@@ -110,7 +110,7 @@ impl Gpu {
     fn handle_hdraw_end<D: DmaNotifier>(&mut self, notifier: &mut D) -> (GpuEvent, usize) {
         self.dispstat.set_hblank_flag(true);
         if self.dispstat.hblank_irq_enable() {
-            interrupt::signal_irq(&self.interrupt_flags, Interrupt::LCD_HBlank);
+            interrupt::signal_irq(&self.interrupt_flags, Interrupt::LcdHBlank);
         };
         notifier.notify(TIMING_HBLANK);
 
@@ -149,7 +149,7 @@ impl Gpu {
             self.dispstat.set_vblank_flag(true);
             self.dispstat.set_hblank_flag(false);
             if self.dispstat.vblank_irq_enable() {
-                interrupt::signal_irq(&self.interrupt_flags, Interrupt::LCD_VBlank);
+                interrupt::signal_irq(&self.interrupt_flags, Interrupt::LcdVBlank);
             };
 
             notifier.notify(TIMING_VBLANK);
@@ -165,7 +165,7 @@ impl Gpu {
     fn handle_vblank_hdraw_end(&mut self) -> (GpuEvent, usize) {
         self.dispstat.set_hblank_flag(true);
         if self.dispstat.hblank_irq_enable() {
-            interrupt::signal_irq(&self.interrupt_flags, Interrupt::LCD_HBlank);
+            interrupt::signal_irq(&self.interrupt_flags, Interrupt::LcdHBlank);
         };
         (GpuEvent::VBlankHBlank, CYCLES_HBLANK)
     }
@@ -191,7 +191,7 @@ impl Gpu {
             .set_vcount_flag(vcount_setting as usize == self.vcount);
 
         if self.dispstat.vcount_irq_enable() && self.dispstat.vcount_flag() {
-            interrupt::signal_irq(&self.interrupt_flags, Interrupt::LCD_VCounterMatch);
+            interrupt::signal_irq(&self.interrupt_flags, Interrupt::LcdVCounterMatch);
         }
     }
 
@@ -420,11 +420,11 @@ impl Gpu {
 }
 
 impl Bus for Gpu {
-    fn read_8(&mut self, addr: Addr) -> u8 {
+    fn read_8(&mut self, _addr: Addr) -> u8 {
         todo!()
     }
 
-    fn write_8(&mut self, addr: Addr, val: u8) {
+    fn write_8(&mut self, _addr: Addr, _val: u8) {
         todo!()
     }
 
@@ -760,23 +760,23 @@ impl RenderLayer {
     pub fn background(bg: usize, pixel: Rgb15, priority: u16) -> RenderLayer {
         RenderLayer {
             kind: RenderLayerKind::from_usize(1 << bg).unwrap(),
-            pixel: pixel,
-            priority: priority,
+            pixel,
+            priority,
         }
     }
 
     pub fn objects(pixel: Rgb15, priority: u16) -> RenderLayer {
         RenderLayer {
             kind: RenderLayerKind::Objects,
-            pixel: pixel,
-            priority: priority,
+            pixel,
+            priority,
         }
     }
 
     pub fn backdrop(pixel: Rgb15) -> RenderLayer {
         RenderLayer {
             kind: RenderLayerKind::Backdrop,
-            pixel: pixel,
+            pixel,
             priority: 4,
         }
     }

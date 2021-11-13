@@ -18,11 +18,11 @@ impl Bios {
 }
 
 impl Bus for Bios {
-    fn read_8(&mut self, addr: Addr) -> u8 {
+    fn read_8(&mut self, _addr: Addr) -> u8 {
         todo!()
     }
 
-    fn read_16(&mut self, addr: Addr) -> u16 {
+    fn read_16(&mut self, _addr: Addr) -> u16 {
         todo!()
     }
 
@@ -37,7 +37,7 @@ impl Bus for Bios {
         }
     }
 
-    fn write_8(&mut self, addr: Addr, val: u8) {}
-    fn write_16(&mut self, addr: Addr, val: u16) {}
-    fn write_32(&mut self, addr: Addr, val: u32) {}
+    fn write_8(&mut self, _addr: Addr, _val: u8) {}
+    fn write_16(&mut self, _addr: Addr, _val: u16) {}
+    fn write_32(&mut self, _addr: Addr, _val: u32) {}
 }
