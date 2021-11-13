@@ -1,8 +1,12 @@
-use crate::{gpu::Gpu, sysbus::Bus};
+use crate::{consts::*, gpu::Gpu, sysbus::Bus};
 use fluorite_arm::Addr;
 
-pub const IO_BASE: Addr = 0x0400_0000;
-pub const REG_DISPCNT: Addr = 0x0400_0000; // R/W  LCD Control
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum HaltState {
+    Running,
+    Halt, // In Halt mode, the CPU is paused as long as (IE AND IF)=0,
+    Stop, // In Stop mode, most of the hardware including sound and video are paused
+}
 
 pub struct IoDevices {
     pub gpu: Gpu,
@@ -20,7 +24,19 @@ impl Bus for IoDevices {
     }
 
     fn read_16(&mut self, addr: Addr) -> u16 {
-        todo!()
+        let io_addr = addr + IO_BASE;
+
+        match io_addr {
+            REG_DISPCNT => self.gpu.dispcnt.into(),
+            REG_DISPSTAT => self.gpu.dispstat.into(),
+            _ => {
+                panic!(
+                    "Unimplemented read from 0x{:08X} {}",
+                    io_addr,
+                    io_reg_string(io_addr)
+                )
+            }
+        }
     }
 
     fn write_8(&mut self, addr: Addr, val: u8) {

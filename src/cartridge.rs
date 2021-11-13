@@ -1,9 +1,7 @@
-use std::str::from_utf8;
-
+use crate::{consts::*, sysbus::Bus};
 use color_eyre::{eyre::eyre, Result};
 use fluorite_arm::Addr;
-
-use crate::sysbus::{Bus, SRAM_HI, SRAM_LO};
+use std::str::from_utf8;
 
 #[derive(Clone, Debug)]
 pub struct Cartridge {

@@ -1,22 +1,6 @@
-use crate::{bios::Bios, cartridge::Cartridge, iodev::IoDevices};
+use crate::{bios::Bios, cartridge::Cartridge, consts::*, iodev::IoDevices};
 use fluorite_arm::{memory::MemoryInterface, Addr};
 use fluorite_common::Shared;
-
-pub const BIOS_ADDR: u32 = 0x0000_0000;
-pub const EWRAM_ADDR: u32 = 0x0200_0000;
-pub const IWRAM_ADDR: u32 = 0x0300_0000;
-pub const IOMEM_ADDR: u32 = 0x0400_0000;
-pub const PALRAM_ADDR: u32 = 0x0500_0000;
-pub const VRAM_ADDR: u32 = 0x0600_0000;
-pub const OAM_ADDR: u32 = 0x0700_0000;
-pub const GAMEPAK_WS0_LO: u32 = 0x0800_0000;
-pub const GAMEPAK_WS0_HI: u32 = 0x0900_0000;
-pub const GAMEPAK_WS1_LO: u32 = 0x0A00_0000;
-pub const GAMEPAK_WS1_HI: u32 = 0x0B00_0000;
-pub const GAMEPAK_WS2_LO: u32 = 0x0C00_0000;
-pub const GAMEPAK_WS2_HI: u32 = 0x0D00_0000;
-pub const SRAM_LO: u32 = 0x0E00_0000;
-pub const SRAM_HI: u32 = 0x0F00_0000;
 
 #[derive(Clone)]
 pub struct SysBus {
@@ -25,7 +9,7 @@ pub struct SysBus {
     iwram: Box<[u8]>,
     cartridge: Cartridge,
 
-	io: Shared<IoDevices>,
+    io: Shared<IoDevices>,
 }
 
 impl SysBus {
@@ -70,7 +54,32 @@ impl Bus for SysBus {
     }
 
     fn read_16(&mut self, addr: Addr) -> u16 {
-        todo!()
+        match addr & 0xFF000000 {
+            BIOS_ADDR => {
+                if addr <= 0x3FFE {
+                    self.bios.read_16(addr)
+                } else {
+                    self.read_invalid(addr) as u16
+                }
+            }
+            EWRAM_ADDR => self.ewram.read_16(addr & 0x3FFFE),
+            IWRAM_ADDR => self.iwram.read_16(addr & 0x7FFE),
+            IOMEM_ADDR => {
+                let addr = if addr & 0xFFFE == 0x8000 {
+                    0x800
+                } else {
+                    addr & 0xFFFFFE
+                };
+                self.io.read_16(addr)
+            }
+            PALRAM_ADDR | VRAM_ADDR | OAM_ADDR => self.io.gpu.read_16(addr),
+            GAMEPAK_WS0_LO | GAMEPAK_WS0_HI | GAMEPAK_WS1_LO | GAMEPAK_WS1_HI | GAMEPAK_WS2_LO => {
+                self.cartridge.read_16(addr)
+            }
+            GAMEPAK_WS2_HI => self.cartridge.read_16(addr),
+            SRAM_LO | SRAM_HI => self.cartridge.read_16(addr),
+            _ => self.read_invalid(addr) as u16,
+        }
     }
 
     fn read_32(&mut self, addr: Addr) -> u32 {
@@ -104,8 +113,8 @@ impl Bus for SysBus {
     fn write_16(&mut self, addr: Addr, val: u16) {
         match addr & 0xFF000000 {
             BIOS_ADDR => {}
-            EWRAM_ADDR => self.ewram.write_16(addr & 0x3_fffe, val),
-            IWRAM_ADDR => self.iwram.write_16(addr & 0x7ffe, val),
+            EWRAM_ADDR => self.ewram.write_16(addr & 0x3_FFFE, val),
+            IWRAM_ADDR => self.iwram.write_16(addr & 0x7FFE, val),
             IOMEM_ADDR => {
                 let addr = if addr & 0xFFFE == 0x8000 {
                     0x800
@@ -114,7 +123,7 @@ impl Bus for SysBus {
                 };
                 self.io.write_16(addr, val)
             }
-            PALRAM_ADDR | VRAM_ADDR | OAM_ADDR => todo!(),
+            PALRAM_ADDR | VRAM_ADDR | OAM_ADDR => self.io.gpu.write_16(addr, val),
             GAMEPAK_WS0_LO => self.cartridge.write_16(addr, val),
             GAMEPAK_WS2_HI => self.cartridge.write_16(addr, val),
             SRAM_LO | SRAM_HI => self.cartridge.write_16(addr, val),
@@ -125,7 +134,27 @@ impl Bus for SysBus {
     }
 
     fn write_32(&mut self, addr: Addr, val: u32) {
-        todo!()
+        match addr & 0xFF000000 {
+            BIOS_ADDR => {}
+            EWRAM_ADDR => self.ewram.write_32(addr & 0x3_FFFC, val),
+            IWRAM_ADDR => self.iwram.write_32(addr & 0x7FFC, val),
+            IOMEM_ADDR => {
+                let addr = if addr & 0xFFFC == 0x8000 {
+                    0x800
+                } else {
+                    addr & 0x00FFFFFC
+                };
+                self.io.write_32(addr, val)
+            }
+            PALRAM_ADDR | VRAM_ADDR | OAM_ADDR => self.io.gpu.write_32(addr, val),
+            GAMEPAK_WS0_LO => self.cartridge.write_32(addr, val),
+            GAMEPAK_WS2_HI => self.cartridge.write_32(addr, val),
+            SRAM_LO | SRAM_HI => self.cartridge.write_32(addr, val),
+            _ => {
+                // warn!("trying to write invalid address {:#x}", addr);
+                // TODO open bus
+            }
+        }
     }
 }
 
@@ -152,6 +181,11 @@ impl MemoryInterface for SysBus {
 
     fn store_32(&mut self, addr: Addr, val: u32) {
         self.write_32(addr, val);
+    }
+
+    fn idle_cycle(&mut self) {
+        // TODO
+		// self.scheduler.update(1) 
     }
 }
 

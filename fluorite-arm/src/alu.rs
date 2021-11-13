@@ -274,6 +274,31 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
     ) -> u32 {
         self.alu_adc_flags(a, !b, carry, overflow)
     }
+
+    // TODO: make this use const generics
+    pub fn register_shift_const(
+        &mut self,
+        offset: u32,
+        reg: usize,
+        carry: &mut bool,
+        bs_op: u8,
+        shift_by_reg: bool,
+    ) -> u32 {
+        let op = match bs_op {
+            0 => BarrelShiftOpCode::LSL,
+            1 => BarrelShiftOpCode::LSR,
+            2 => BarrelShiftOpCode::ASR,
+            3 => BarrelShiftOpCode::ROR,
+            _ => unreachable!(),
+        };
+        if shift_by_reg {
+            let rs = offset.bit_range(8..12) as usize;
+            self.shift_by_register(op, reg, rs, carry)
+        } else {
+            let amount = offset.bit_range(7..12) as u32;
+            self.barrel_shift_op(op, self.get_reg(reg), amount, carry, true)
+        }
+    }
 }
 
 #[inline]

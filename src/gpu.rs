@@ -1,30 +1,31 @@
+use crate::consts::*;
 use crate::sysbus::Bus;
 use fluorite_arm::Addr;
+use static_assertions::assert_eq_size;
 use std::fmt;
-
-const VRAM_OBJ_TILES_START_TEXT: u32 = 0x1_0000;
-const VRAM_OBJ_TILES_START_BITMAP: u32 = 0x1_4000;
 
 pub struct Gpu {
     pub dispcnt: DisplayControl,
+    pub dispstat: DisplayStatus,
 
-	pub palette_ram: Vec<u8>,
-	pub vram: Vec<u8>,
-	pub oam: Vec<u8>,
+    pub palette_ram: Box<[u8]>,
+    pub vram: Box<[u8]>,
+    pub oam: Box<[u8]>,
 
-	pub(crate) vram_obj_tiles_start: u32,
+    pub(crate) vram_obj_tiles_start: u32,
 }
 
 impl Gpu {
     pub fn new() -> Self {
         Self {
             dispcnt: DisplayControl::from(0x80),
+            dispstat: DisplayStatus::new(),
 
-			palette_ram: vec![0; 1 * 1024],
-			vram: vec![0; 128 * 1024],
-			oam: vec![0;  1 * 1024],
+            palette_ram: vec![0; 1 * 1024].into_boxed_slice(),
+            vram: vec![0; 128 * 1024].into_boxed_slice(),
+            oam: vec![0; 1 * 1024].into_boxed_slice(),
 
-			vram_obj_tiles_start: VRAM_OBJ_TILES_START_TEXT,
+            vram_obj_tiles_start: VRAM_OBJ_TILES_START_TEXT,
         }
     }
 
@@ -54,17 +55,30 @@ impl Bus for Gpu {
     }
 
     fn write_16(&mut self, addr: Addr, val: u16) {
-        todo!()
+        let page = addr as usize >> 24;
+
+        match page {
+            PAGE_PALRAM => self.palette_ram.write_16(addr & 0x3FE, val),
+            PAGE_VRAM => {
+                let mut ofs = addr & ((VIDEO_RAM_SIZE as u32) - 1);
+                if ofs > 0x18000 {
+                    ofs -= 0x8000;
+                }
+                self.vram.write_16(ofs, val)
+            }
+            PAGE_OAM => self.oam.write_16(addr & 0x3FE, val),
+            _ => unreachable!("{addr} ({page})"),
+        }
     }
 }
 
 use modular_bitfield::prelude::*;
 
-static_assertions::assert_eq_size!(DisplayControl, u16);
+assert_eq_size!(DisplayControl, u16);
 
 #[bitfield]
 #[repr(u16)]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default)]
 pub struct DisplayControl {
     pub mode: LcdMode,
     #[skip]
@@ -83,7 +97,7 @@ pub struct DisplayControl {
     pub enable_obj_window: bool,
 }
 
-#[derive(BitfieldSpecifier, Clone, Debug, PartialEq)]
+#[derive(BitfieldSpecifier, Copy, Clone, Debug, PartialEq)]
 #[bits = 3]
 #[repr(u8)]
 pub enum LcdMode {
@@ -108,4 +122,21 @@ impl fmt::Display for LcdMode {
             LcdMode::Prohibited => write!(f, "prohibited"),
         }
     }
+}
+
+assert_eq_size!(DisplayStatus, u16);
+
+#[bitfield]
+#[repr(u16)]
+#[derive(Debug, Copy, Clone, Default)]
+pub struct DisplayStatus {
+    pub vblank_flag: bool,
+    pub hblank_flag: bool,
+    pub vcount_flag: bool,
+    pub vblank_irq_enable: bool,
+    pub hblank_irq_enable: bool,
+    pub vcount_irq_enable: bool,
+    #[skip]
+    _reserved: B2,
+    pub vcount_setting: u8,
 }

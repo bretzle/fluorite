@@ -8,6 +8,8 @@ pub trait MemoryInterface {
     fn store_8(&mut self, addr: Addr, val: u8);
     fn store_16(&mut self, addr: Addr, val: u16);
     fn store_32(&mut self, addr: Addr, val: u32);
+
+    fn idle_cycle(&mut self);
 }
 
 #[allow(dead_code)]
@@ -75,5 +77,9 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         } else {
             self.load_16(addr) as i16 as i32 as u32
         }
+    }
+
+    pub(crate) fn idle_cycle(&mut self) {
+        self.bus.idle_cycle()
     }
 }
