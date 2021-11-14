@@ -26,6 +26,9 @@ members = [
 	"fluorite-arm"
 ]
 
+[profile.dev]
+overflow-checks = false
+
 [profile.release]
 lto = true
 codegen-units = 1
