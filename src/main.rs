@@ -1,4 +1,4 @@
-use cpu::Gba;
+use gba::Gba;
 use minifb::{Window, WindowOptions};
 use std::fmt::Write;
 use std::{
@@ -10,7 +10,7 @@ use std::{
 mod bios;
 mod cartridge;
 mod consts;
-mod cpu;
+mod gba;
 mod dma;
 mod gpu;
 mod interrupt;

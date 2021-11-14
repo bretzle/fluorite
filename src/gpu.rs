@@ -1,6 +1,6 @@
 use self::render::Point;
 use self::window::{WindowFlags, WindowInfo, WindowType};
-use crate::cpu::NUM_RENDER_TIMES;
+use crate::gba::NUM_RENDER_TIMES;
 use crate::dma::{DmaNotifier, TIMING_HBLANK, TIMING_VBLANK};
 use crate::gpu::render::{utils, SCREEN_VIEWPORT};
 use crate::interrupt::{Interrupt, SharedInterruptFlags};
