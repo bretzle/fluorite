@@ -1,11 +1,11 @@
+use cpu::Gba;
+use minifb::{Window, WindowOptions};
+use std::fmt::Write;
 use std::{
     cell::RefCell,
     rc::Rc,
     time::{Duration, Instant},
 };
-
-use cpu::Gba;
-use minifb::{Window, WindowOptions};
 
 mod bios;
 mod cartridge;
@@ -48,19 +48,36 @@ fn main() -> color_eyre::Result<()> {
         )?,
     }));
 
-    let mut gba = Gba::new(fb);
+    let mut counter = FpsCounter::default();
+    let mut gba = Gba::new(fb.clone());
 
     gba.skip_bios();
+    let mut title = "".to_string();
 
-    // let frame_time = Duration::new(0, 1_000_000_000 / 60);
     loop {
-        // let start_time = Instant::now();
         gba.frame();
 
-        // TODO: update window title with fps
+        if let Some(real) = counter.tick() {
+            let time = gba.render_time();
+            let fps = 1.0 / time.as_secs_f64();
+            title.clear();
+            write!(
+                &mut title,
+                "yoshi_dma fps: {} | Render: {} ({:?})",
+                real,
+                fps.round(),
+                time
+            )?;
 
-        // TODO: Add fps limiter
+            let w = &mut fb.borrow_mut().window;
+            w.set_title(&title);
+            if !w.is_open() {
+                break;
+            }
+        }
     }
+
+    Ok(())
 }
 
 #[macro_export]
@@ -76,4 +93,34 @@ macro_rules! index2d {
 pub trait GpuMemoryMappedIO {
     fn read(&self) -> u16;
     fn write(&mut self, value: u16);
+}
+
+pub struct FpsCounter {
+    count: u32,
+    timer: Instant,
+}
+
+const SECOND: Duration = Duration::from_secs(1);
+
+impl Default for FpsCounter {
+    fn default() -> FpsCounter {
+        FpsCounter {
+            count: 0,
+            timer: Instant::now(),
+        }
+    }
+}
+
+impl FpsCounter {
+    pub fn tick(&mut self) -> Option<u32> {
+        self.count += 1;
+        if self.timer.elapsed() >= SECOND {
+            let fps = self.count;
+            self.timer = Instant::now();
+            self.count = 0;
+            Some(fps)
+        } else {
+            None
+        }
+    }
 }

@@ -1,14 +1,8 @@
 use crate::{
-    consts::*,
-    dma::DmaController,
-    gpu::Gpu,
-    interrupt::{InterruptController, SharedInterruptFlags},
-    sched::Scheduler,
-    sysbus::{Bus, SysBus},
+    consts::*, dma::DmaController, gpu::Gpu, interrupt::InterruptController, sysbus::Bus,
     GpuMemoryMappedIO,
 };
 use fluorite_arm::Addr;
-use fluorite_common::Shared;
 use modular_bitfield::{bitfield, prelude::B2};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -97,7 +91,7 @@ impl Bus for IoDevices {
 
         match io_addr {
             REG_DISPCNT => self.gpu.write_dispcnt(val),
-			REG_DISPSTAT => self.gpu.dispstat.write(val),
+            REG_DISPSTAT => self.gpu.dispstat.write(val),
             REG_HALTCNT => {
                 if val & 0x80 != 0 {
                     self.haltcnt = HaltState::Stop;

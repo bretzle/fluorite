@@ -1,5 +1,6 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::time::Duration;
 
 use fluorite_arm::cpu::Arm7tdmi;
 use fluorite_common::Shared;
@@ -15,6 +16,8 @@ use crate::VideoInterface;
 
 static BIOS: &[u8] = include_bytes!("../roms/gba_bios.bin");
 static ROM: &[u8] = include_bytes!("../roms/yoshi_dma.gba");
+
+pub const NUM_RENDER_TIMES: usize = 25;
 
 pub struct Gba<T: VideoInterface> {
     cpu: Arm7tdmi<SysBus>,
@@ -135,6 +138,12 @@ impl<T: VideoInterface> Gba<T> {
             todo!()
         }
         self.cpu.step();
+    }
+
+    pub fn render_time(&self) -> Duration {
+        let sum: Duration = self.io.gpu.render_times.iter().sum();
+
+        sum / (NUM_RENDER_TIMES as u32)
     }
 }
 

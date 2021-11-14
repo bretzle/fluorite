@@ -1,5 +1,6 @@
 use self::render::Point;
 use self::window::{WindowFlags, WindowInfo, WindowType};
+use crate::cpu::NUM_RENDER_TIMES;
 use crate::dma::{DmaNotifier, TIMING_HBLANK, TIMING_VBLANK};
 use crate::gpu::render::{utils, SCREEN_VIEWPORT};
 use crate::interrupt::{Interrupt, SharedInterruptFlags};
@@ -8,12 +9,13 @@ use crate::sysbus::Bus;
 use crate::{consts::*, index2d, interrupt, GpuMemoryMappedIO, VideoInterface};
 use arrayvec::ArrayVec;
 use fluorite_arm::Addr;
-use fluorite_common::Shared;
+use fluorite_common::{CircularBuffer, Shared};
 use modular_bitfield::prelude::*;
 use static_assertions::assert_eq_size;
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 mod render;
 mod window;
@@ -38,6 +40,9 @@ pub struct Gpu {
     pub(crate) obj_buffer: Box<[ObjBufferEntry]>,
     pub(crate) frame_buffer: Box<[u32]>,
     pub(crate) bg_line: [Box<[Rgb15]>; 4],
+
+    pub render_times: CircularBuffer<Duration, NUM_RENDER_TIMES>,
+    current_frame_time: Duration,
 }
 
 impl Gpu {
@@ -69,6 +74,9 @@ impl Gpu {
                 vec![Rgb15::TRANSPARENT; DISPLAY_WIDTH].into_boxed_slice(),
                 vec![Rgb15::TRANSPARENT; DISPLAY_WIDTH].into_boxed_slice(),
             ],
+
+            render_times: CircularBuffer::new([Duration::MAX; NUM_RENDER_TIMES]),
+            current_frame_time: Duration::ZERO,
         }
     }
 
@@ -97,6 +105,7 @@ impl Gpu {
         T: VideoInterface,
         D: DmaNotifier,
     {
+        let now = Instant::now();
         let (next_event, cycles) = match event {
             GpuEvent::HDraw => self.handle_hdraw_end(notifier),
             GpuEvent::HBlank => self.handle_hblank_end(notifier, device),
@@ -105,6 +114,13 @@ impl Gpu {
         };
         self.scheduler
             .push_gpu_event(next_event, cycles - extra_cycles);
+
+        if self.vcount != DISPLAY_HEIGHT {
+            self.current_frame_time += now.elapsed();
+		} else {
+			self.render_times.push(self.current_frame_time);
+			self.current_frame_time = Duration::ZERO;
+        }
     }
 
     fn handle_hdraw_end<D: DmaNotifier>(&mut self, notifier: &mut D) -> (GpuEvent, usize) {
@@ -297,7 +313,7 @@ impl Gpu {
         }
     }
 
-	fn render_mode3(&mut self, bg: usize) {
+    fn render_mode3(&mut self, bg: usize) {
         let _y = self.vcount;
 
         let pa = self.bg_aff[bg - 2].pa as i32;
@@ -444,7 +460,7 @@ impl Gpu {
         &self.obj_buffer[index2d!(x, y, DISPLAY_WIDTH)]
     }
 
-	pub fn skip_bios(&mut self) {
+    pub fn skip_bios(&mut self) {
         for i in 0..2 {
             self.bg_aff[i].pa = 0x100;
             self.bg_aff[i].pb = 0;

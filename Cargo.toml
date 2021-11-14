@@ -25,3 +25,7 @@ members = [
 	"fluorite-common",
 	"fluorite-arm"
 ]
+
+[profile.release]
+lto = true
+codegen-units = 1
