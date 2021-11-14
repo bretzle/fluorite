@@ -5,6 +5,7 @@ use fluorite_arm::cpu::Arm7tdmi;
 use fluorite_common::Shared;
 
 use crate::consts::CYCLES_FULL_REFRESH;
+use crate::dma::DmaController;
 use crate::gpu::Gpu;
 use crate::interrupt::IrqBitMask;
 use crate::iodev::{HaltState, IoDevices};
@@ -13,7 +14,7 @@ use crate::sysbus::SysBus;
 use crate::VideoInterface;
 
 static BIOS: &[u8] = include_bytes!("../roms/gba_bios.bin");
-static ROM: &[u8] = include_bytes!("../roms/beeg.bin");
+static ROM: &[u8] = include_bytes!("../roms/yoshi_dma.gba");
 
 pub struct Gba<T: VideoInterface> {
     cpu: Arm7tdmi<SysBus>,
@@ -29,7 +30,8 @@ impl<T: VideoInterface> Gba<T> {
         let interrupt_flags = Rc::new(Cell::new(IrqBitMask::new()));
         let scheduler = Shared::new(Scheduler::new());
         let gpu = Gpu::new(scheduler.clone(), interrupt_flags.clone());
-        let io = Shared::new(IoDevices::new(gpu));
+        let dmac = DmaController::new(interrupt_flags.clone(), scheduler.clone());
+        let io = Shared::new(IoDevices::new(gpu, dmac));
         let sysbus = Shared::new(SysBus::new(BIOS, ROM, &scheduler, &io));
         let cpu = Arm7tdmi::new(sysbus.clone());
 
@@ -44,7 +46,7 @@ impl<T: VideoInterface> Gba<T> {
 
     pub fn skip_bios(&mut self) {
         self.cpu.skip_bios();
-        // TODO: self.io.gpu.skip_bios();
+        self.io.gpu.skip_bios();
     }
 
     pub fn frame(&mut self) {
@@ -114,7 +116,7 @@ impl<T: VideoInterface> Gba<T> {
             EventType::RunLimitReached => {
                 *running = false;
             }
-            EventType::DmaActivateChannel(_channel_id) => todo!(),
+            EventType::DmaActivateChannel(channel_id) => self.io.dmac.activate_channel(channel_id),
             EventType::TimerOverflow(_channel_id) => todo!(),
             EventType::Gpu(event) => {
                 io.gpu
@@ -125,7 +127,7 @@ impl<T: VideoInterface> Gba<T> {
     }
 
     fn dma_step(&mut self) {
-        todo!()
+        self.io.dmac.perform_work(&mut self.sysbus);
     }
 
     fn cpu_step(&mut self) {

@@ -23,6 +23,29 @@ pub enum Interrupt {
     GamePak = 13,
 }
 
+impl Interrupt {
+    pub fn from_usize(val: usize) -> Option<Self> {
+        let ret = match val {
+			0 => Interrupt::LcdVBlank,
+            1 => Interrupt::LcdHBlank,
+            2 => Interrupt::LcdVCounterMatch,
+            3 => Interrupt::Timer0Overflow,
+            4 => Interrupt::Timer1Overflow,
+            5 => Interrupt::Timer2Overflow,
+            6 => Interrupt::Timer3Overflow,
+            7 => Interrupt::SerialCommunication,
+            8 => Interrupt::Dma0,
+            9 => Interrupt::Dma1,
+            10 => Interrupt::Dma2,
+            11 => Interrupt::Dma3,
+            12 => Interrupt::Keypad,
+            13 => Interrupt::GamePak,
+            _ => return None,
+        };
+        Some(ret)
+    }
+}
+
 static_assertions::assert_eq_size!(IrqBitMask, u16);
 #[bitfield]
 #[repr(u16)]

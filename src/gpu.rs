@@ -74,7 +74,7 @@ impl Gpu {
 
     pub fn write_dispcnt(&mut self, val: u16) {
         let old = self.dispcnt.mode;
-        self.dispcnt = val.into();
+        self.dispcnt.write(val);
         let new = self.dispcnt.mode;
 
         if old != new {
@@ -252,9 +252,8 @@ impl Gpu {
                 // self.finalize_scanline(2, 3);
             }
             3 => {
-                todo!();
-                // self.render_mode3(2);
-                // self.finalize_scanline(2, 2);
+                self.render_mode3(2);
+                self.finalize_scanline(2, 2);
             }
             4 => {
                 self.render_mode4(2);
@@ -295,6 +294,33 @@ impl Gpu {
             }
         } else {
             todo!();
+        }
+    }
+
+	fn render_mode3(&mut self, bg: usize) {
+        let _y = self.vcount;
+
+        let pa = self.bg_aff[bg - 2].pa as i32;
+        let pc = self.bg_aff[bg - 2].pc as i32;
+        let ref_point = self.get_ref_point(bg);
+
+        let wraparound = self.bgcnt[bg].affine_wraparound;
+
+        for x in 0..DISPLAY_WIDTH {
+            let mut t = utils::transform_bg_point(ref_point, x as i32, pa, pc);
+            if !SCREEN_VIEWPORT.contains_point(t) {
+                if wraparound {
+                    t.0 = t.0.rem_euclid(SCREEN_VIEWPORT.w);
+                    t.1 = t.1.rem_euclid(SCREEN_VIEWPORT.h);
+                } else {
+                    self.bg_line[bg][x] = Rgb15::TRANSPARENT;
+                    continue;
+                }
+            }
+            let pixel_index = index2d!(u32, t.0, t.1, DISPLAY_WIDTH);
+            let pixel_ofs = 2 * pixel_index;
+            let color = Rgb15(self.vram.read_16(pixel_ofs));
+            self.bg_line[bg][x] = color;
         }
     }
 
@@ -416,6 +442,15 @@ impl Gpu {
 
     fn obj_buffer_get(&self, x: usize, y: usize) -> &ObjBufferEntry {
         &self.obj_buffer[index2d!(x, y, DISPLAY_WIDTH)]
+    }
+
+	pub fn skip_bios(&mut self) {
+        for i in 0..2 {
+            self.bg_aff[i].pa = 0x100;
+            self.bg_aff[i].pb = 0;
+            self.bg_aff[i].pc = 0;
+            self.bg_aff[i].pd = 0x100;
+        }
     }
 }
 
@@ -552,6 +587,22 @@ pub struct DisplayStatus {
     #[skip]
     _reserved: B2,
     pub vcount_setting: u8,
+}
+
+impl GpuMemoryMappedIO for DisplayStatus {
+    #[inline]
+    fn write(&mut self, value: u16) {
+        // *self = value.into()
+        self.set_vblank_irq_enable((value >> 3) & 1 != 0);
+        self.set_hblank_irq_enable((value >> 4) & 1 != 0);
+        self.set_vcount_irq_enable((value >> 5) & 1 != 0);
+        self.set_vcount_setting(usize::from((value >> 8) & 0xff) as u8);
+    }
+
+    #[inline]
+    fn read(&self) -> u16 {
+        u16::from(*self)
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
