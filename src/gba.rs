@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use fluorite_arm::cpu::Arm7tdmi;
-use fluorite_common::Shared;
+use fluorite_common::{Shared, WeakPointer};
 
 use crate::consts::CYCLES_FULL_REFRESH;
 use crate::dma::DmaController;
@@ -15,7 +15,7 @@ use crate::sysbus::SysBus;
 use crate::VideoInterface;
 
 static BIOS: &[u8] = include_bytes!("../roms/gba_bios.bin");
-static ROM: &[u8] = include_bytes!("../roms/yoshi_dma.gba");
+static ROM: &[u8] = include_bytes!("../roms/irqDemo.gba");
 
 pub const NUM_RENDER_TIMES: usize = 25;
 
@@ -34,9 +34,11 @@ impl<T: VideoInterface> Gba<T> {
         let scheduler = Shared::new(Scheduler::new());
         let gpu = Gpu::new(scheduler.clone(), interrupt_flags.clone());
         let dmac = DmaController::new(interrupt_flags.clone(), scheduler.clone());
-        let io = Shared::new(IoDevices::new(gpu, dmac));
-        let sysbus = Shared::new(SysBus::new(BIOS, ROM, &scheduler, &io));
+        let mut io = Shared::new(IoDevices::new(gpu, dmac));
+        let mut sysbus = Shared::new(SysBus::new(BIOS, ROM, &scheduler, &io));
         let cpu = Arm7tdmi::new(sysbus.clone());
+
+		io.set_sysbus_ptr(WeakPointer::new(&mut *sysbus as *mut SysBus));
 
         Self {
             cpu,

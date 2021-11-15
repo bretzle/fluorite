@@ -23,6 +23,18 @@ pub struct StatusRegister {
     pub n: bool,
 }
 
+impl StatusRegister {
+    const FLAG_BITMASK: u32 = 0xf000_0000;
+
+    // TODO: check that this works correctly
+    pub fn set_flag_bits(&mut self, value: u32) {
+        let mut raw = u32::from(*self);
+        raw &= !Self::FLAG_BITMASK;
+        raw |= Self::FLAG_BITMASK & value;
+        *self = raw.into();
+    }
+}
+
 #[derive(BitfieldSpecifier, Copy, Clone, Debug, PartialEq)]
 pub enum CpuState {
     ARM = 0,
@@ -50,6 +62,19 @@ pub enum CpuMode {
     Abort = 0b10111,
     Undefined = 0b11011,
     System = 0b11111,
+}
+
+impl CpuMode {
+    pub fn bank_index(&self) -> usize {
+        match self {
+            CpuMode::User | CpuMode::System => 0,
+            CpuMode::Fiq => 1,
+            CpuMode::Irq => 2,
+            CpuMode::Supervisor => 3,
+            CpuMode::Abort => 4,
+            CpuMode::Undefined => 5,
+        }
+    }
 }
 
 impl fmt::Display for CpuMode {

@@ -187,7 +187,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         }
     }
 
-    fn barrel_shift_op(
+    pub fn barrel_shift_op(
         &mut self,
         shift: BarrelShiftOpCode,
         val: u32,

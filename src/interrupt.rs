@@ -26,7 +26,7 @@ pub enum Interrupt {
 impl Interrupt {
     pub fn from_usize(val: usize) -> Option<Self> {
         let ret = match val {
-			0 => Interrupt::LcdVBlank,
+            0 => Interrupt::LcdVBlank,
             1 => Interrupt::LcdHBlank,
             2 => Interrupt::LcdVCounterMatch,
             3 => Interrupt::Timer0Overflow,
@@ -71,7 +71,7 @@ pub struct IrqBitMask {
 
 pub struct InterruptController {
     pub master_enable: bool,
-    enable: IrqBitMask,
+    pub enable: IrqBitMask,
     flags: Rc<Cell<IrqBitMask>>,
 }
 impl InterruptController {
@@ -85,6 +85,12 @@ impl InterruptController {
 
     pub fn irq_pending(&self) -> bool {
         self.master_enable & ((u16::from(self.flags.get()) & u16::from(self.enable)) != 0)
+    }
+
+    pub fn clear(&mut self, value: u16) {
+        let _if = self.flags.get();
+        let new_if = u16::from(_if) & !value;
+        self.flags.set(new_if.into());
     }
 }
 

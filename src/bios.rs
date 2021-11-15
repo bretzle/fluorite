@@ -15,6 +15,11 @@ impl Bios {
             last_opcode: 0xE129F000,
         }
     }
+
+	// TODO: check if read is allowed
+	fn read_allowed(&self) -> bool {
+		true
+	}
 }
 
 impl Bus for Bios {
@@ -22,13 +27,17 @@ impl Bus for Bios {
         todo!()
     }
 
-    fn read_16(&mut self, _addr: Addr) -> u16 {
-        todo!()
+    fn read_16(&mut self, addr: Addr) -> u16 {
+        if self.read_allowed() {
+            self.rom.read_16(addr) as u16
+        } else {
+            (self.last_opcode >> ((addr & 2) << 3)) as u16
+        }
     }
 
     fn read_32(&mut self, addr: Addr) -> u32 {
-        // TODO: check if read is allowed
-        if true {
+        
+        if self.read_allowed() {
             let val = self.rom.read_32(addr);
             self.last_opcode = val;
             val

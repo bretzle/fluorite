@@ -15,10 +15,10 @@ pub struct Arm7tdmi<Memory: MemoryInterface> {
 
     // registers
     pub(crate) pc: Addr,
-    gpr: [u32; 15],
+    pub(crate) gpr: [u32; 15],
     pub(crate) cspr: StatusRegister,
     pub(crate) spsr: StatusRegister,
-    banks: BankedRegisters,
+    pub(crate) banks: BankedRegisters,
 
     // pipelining
     pipeline: [u32; 2],
@@ -118,7 +118,21 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
                     CpuAction::PipelineFlushed => {}
                 }
             }
-            CpuState::THUMB => todo!(),
+            CpuState::THUMB => {
+                let pc = self.pc & !1;
+
+                let fetched_now = self.load_16(pc, self.next_fetch_access);
+                let insn = self.pipeline[0];
+                self.pipeline[0] = self.pipeline[1];
+                self.pipeline[1] = fetched_now as u32;
+                match self.execute_thumb(insn as u16) {
+                    CpuAction::AdvancePC(access) => {
+                        self.advance_thumb();
+                        self.next_fetch_access = access;
+                    }
+                    CpuAction::PipelineFlushed => {}
+                }
+            }
         }
     }
 
@@ -168,8 +182,36 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         self.next_fetch_access = Seq;
     }
 
-    pub(crate) fn change_mode(&mut self, _old: CpuMode, _new: CpuMode) {
-        todo!()
+    pub(crate) fn change_mode(&mut self, old: CpuMode, new: CpuMode) {
+        let new_index = new.bank_index();
+        let old_index = old.bank_index();
+
+        if new_index == old_index {
+            return;
+        }
+
+        let banks = &mut self.banks;
+
+        banks.spsr_bank[old_index] = self.spsr;
+        banks.gpr_banked_r13[old_index] = self.gpr[13];
+        banks.gpr_banked_r14[old_index] = self.gpr[14];
+
+        self.spsr = banks.spsr_bank[new_index];
+        self.gpr[13] = banks.gpr_banked_r13[new_index];
+        self.gpr[14] = banks.gpr_banked_r14[new_index];
+
+        if new == CpuMode::Fiq {
+            for r in 0..5 {
+                banks.gpr_banked_old_r8_12[r] = self.gpr[r + 8];
+                self.gpr[r + 8] = banks.gpr_banked_fiq_r8_12[r];
+            }
+        } else if old == CpuMode::Fiq {
+            for r in 0..5 {
+                banks.gpr_banked_fiq_r8_12[r] = self.gpr[r + 8];
+                self.gpr[r + 8] = banks.gpr_banked_old_r8_12[r];
+            }
+        }
+        self.cspr.set_mode(new);
     }
 
     pub fn skip_bios(&mut self) {
@@ -183,6 +225,18 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         self.pc = 0x0800_0000;
         self.gpr[13] = 0x0300_7F00;
         self.cspr = StatusRegister::from(0x5F)
+    }
+
+    pub(crate) fn get_required_multipiler_array_cycles(&self, rs: u32) -> usize {
+        if rs & 0xff == rs {
+            1
+        } else if rs & 0xffff == rs {
+            2
+        } else if rs & 0xffffff == rs {
+            3
+        } else {
+            4
+        }
     }
 }
 

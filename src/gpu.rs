@@ -1,7 +1,7 @@
 use self::render::Point;
-use self::window::{WindowFlags, WindowInfo, WindowType};
-use crate::gba::NUM_RENDER_TIMES;
+use self::window::{Window, WindowInfo, WindowType};
 use crate::dma::{DmaNotifier, TIMING_HBLANK, TIMING_VBLANK};
+use crate::gba::NUM_RENDER_TIMES;
 use crate::gpu::render::{utils, SCREEN_VIEWPORT};
 use crate::interrupt::{Interrupt, SharedInterruptFlags};
 use crate::sched::{GpuEvent, Scheduler};
@@ -20,6 +20,8 @@ use std::time::{Duration, Instant};
 mod render;
 mod window;
 
+pub use window::WindowFlags;
+
 pub struct Gpu {
     interrupt_flags: SharedInterruptFlags,
     scheduler: Shared<Scheduler>,
@@ -28,10 +30,18 @@ pub struct Gpu {
     pub dispcnt: DisplayControl,
     pub dispstat: DisplayStatus,
 
-    pub bg_aff: [BgAffine; 2],
-
     pub bgcnt: [BgControl; 4],
+    pub bg_vofs: [u16; 4],
+    pub bg_hofs: [u16; 4],
+    pub bg_aff: [BgAffine; 2],
+    pub win0: Window,
+    pub win1: Window,
+    pub winout_flags: WindowFlags,
+    pub winobj_flags: WindowFlags,
+    pub mosaic: RegMosaic,
     pub bldcnt: BlendControl,
+    pub bldalpha: BlendAlpha,
+    pub bldy: u16,
     pub palette_ram: Box<[u8]>,
     pub vram: Box<[u8]>,
     pub oam: Box<[u8]>,
@@ -55,7 +65,7 @@ impl Gpu {
 
             vcount: 0,
             dispcnt: DisplayControl::from(0x80),
-            dispstat: DisplayStatus::new(),
+            dispstat: DisplayStatus::default(),
 
             bg_aff: [BgAffine::default(); 2],
 
@@ -77,6 +87,15 @@ impl Gpu {
 
             render_times: CircularBuffer::new([Duration::MAX; NUM_RENDER_TIMES]),
             current_frame_time: Duration::ZERO,
+            bg_vofs: [0; 4],
+            bg_hofs: [0; 4],
+            win0: Window::default(),
+            win1: Window::default(),
+            winout_flags: WindowFlags::from(0),
+            winobj_flags: WindowFlags::from(0),
+            mosaic: RegMosaic::default(),
+            bldalpha: BlendAlpha::default(),
+            bldy: 0,
         }
     }
 
@@ -117,9 +136,9 @@ impl Gpu {
 
         if self.vcount != DISPLAY_HEIGHT {
             self.current_frame_time += now.elapsed();
-		} else {
-			self.render_times.push(self.current_frame_time);
-			self.current_frame_time = Duration::ZERO;
+        } else {
+            self.render_times.push(self.current_frame_time);
+            self.current_frame_time = Duration::ZERO;
         }
     }
 
@@ -699,6 +718,28 @@ pub struct BgControl {
     pub size: u8,
 }
 
+impl GpuMemoryMappedIO for BgControl {
+    fn write(&mut self, value: u16) {
+        self.priority = (value >> 0) & 0b11;
+        self.character_base_block = (value >> 2) & 0b11;
+        self.mosaic = (value >> 6) & 1 != 0;
+        self.palette256 = (value >> 7) & 1 != 0;
+        self.screen_base_block = (value >> 8) & 0b11111;
+        self.affine_wraparound = (value >> 13) & 1 != 0;
+        self.size = ((value >> 14) & 0b11) as u8;
+    }
+
+    fn read(&self) -> u16 {
+        self.priority
+            | self.character_base_block << 2
+            | u16::from(self.mosaic) << 6
+            | u16::from(self.palette256) << 7
+            | self.screen_base_block << 8
+            | u16::from(self.affine_wraparound) << 13
+            | u16::from(self.size) << 14
+    }
+}
+
 bitflags::bitflags! {
     #[derive(Default)]
     pub struct BlendFlags: u16 {
@@ -850,5 +891,34 @@ impl RenderLayer {
 
     pub(super) fn is_object(&self) -> bool {
         self.kind == RenderLayerKind::Objects
+    }
+}
+
+#[bitfield]
+#[repr(u16)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct RegMosaic {
+    bg_hsize: B4,
+    bg_vsize: B4,
+    obj_hsize: B4,
+    obj_vsize: B4,
+}
+
+#[derive(Debug, Default, Copy, Clone)]
+pub struct BlendAlpha {
+    pub eva: u16,
+    pub evb: u16,
+}
+
+impl GpuMemoryMappedIO for BlendAlpha {
+    #[inline]
+    fn write(&mut self, value: u16) {
+        self.eva = value & 0x1f;
+        self.evb = (value >> 8) & 0x1f;
+    }
+
+    #[inline]
+    fn read(&self) -> u16 {
+        self.eva | self.evb << 8
     }
 }

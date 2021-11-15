@@ -1,4 +1,4 @@
-#![allow(clippy::too_many_arguments)]
+#![allow(clippy::too_many_arguments, non_snake_case)]
 
 use super::{ArmDecodeHelper, ArmHalfwordTransferType};
 use crate::{
@@ -6,7 +6,7 @@ use crate::{
     arm::ArmInstruction,
     cpu::{Arm7tdmi, CpuAction},
     memory::{MemoryAccess::*, MemoryInterface},
-    registers::{CpuMode, CpuState},
+    registers::{CpuMode, CpuState, StatusRegister},
     Addr, InstructionDecoder, REG_LR, REG_PC,
 };
 use fluorite_common::BitIndex;
@@ -25,21 +25,21 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         // );
 
         let func = match decoded.fmt {
-            BranchExchange => Self::bx,
-            BranchLink => Self::b_bl,
-            SoftwareInterrupt => Self::swi,
-            Multiply => Self::mul_mla,
-            MultiplyLong => Self::mull_mlal,
-            SingleDataTransfer => Self::ldr_str,
-            HalfwordDataTransferRegOffset => Self::ldr_str_hs_reg,
-            HalfwordDataTransferImmediateOffset => Self::ldr_str_hs_imm,
-            DataProcessing => Self::data_processing,
-            BlockDataTransfer => Self::ldm_stm,
-            SingleDataSwap => Self::swp,
-            MoveFromStatus => Self::mrs,
-            MoveToStatus => Self::transfer_to_status,
+            BranchExchange => Self::arm_bx,
+            BranchLink => Self::arm_b_bl,
+            SoftwareInterrupt => Self::arm_swi,
+            Multiply => Self::arm_mul_mla,
+            MultiplyLong => Self::arm_mull_mlal,
+            SingleDataTransfer => Self::arm_ldr_str,
+            HalfwordDataTransferRegOffset => Self::arm_ldr_str_hs_reg,
+            HalfwordDataTransferImmediateOffset => Self::arm_ldr_str_hs_imm,
+            DataProcessing => Self::arm_data_processing,
+            BlockDataTransfer => Self::arm_ldm_stm,
+            SingleDataSwap => Self::arm_swp,
+            MoveFromStatus => Self::arm_mrs,
+            MoveToStatus => Self::arm_transfer_to_status,
             MoveToFlags => unreachable!(), // what is this???
-            Undefined => Self::undefined,
+            Undefined => Self::arm_undefined,
         };
 
         func(self, inst)
@@ -67,7 +67,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
     //     self.ldr_str_common(inst, offset, hs, load, writeback, pre_index, add)
     // }
 
-    fn undefined(&mut self, insn: u32) -> CpuAction {
+    fn arm_undefined(&mut self, insn: u32) -> CpuAction {
         panic!(
             "executing undefined arm instruction {:08x} at @{:08x}",
             insn,
@@ -77,7 +77,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
 
     /// Branch and Branch with Link (B, BL)
     /// Execution Time: 2S + 1N
-    fn b_bl(&mut self, inst: u32) -> CpuAction {
+    fn arm_b_bl(&mut self, inst: u32) -> CpuAction {
         let link = inst.bit(24);
 
         if link {
@@ -89,42 +89,105 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         CpuAction::PipelineFlushed
     }
 
-    fn branch_exchange(&mut self, mut addr: Addr) -> CpuAction {
+    pub(crate) fn branch_exchange(&mut self, mut addr: Addr) -> CpuAction {
         if addr.bit(0) {
             addr = addr & !0x1;
             self.cspr.set_state(CpuState::THUMB);
             self.pc = addr;
             self.reload_pipeline_thumb();
+            println!("[CPU] State: Arm -> Thumb")
         } else {
             addr = addr & !0x3;
             self.cspr.set_state(CpuState::ARM);
             self.pc = addr;
             self.reload_pipeline_arm();
+            println!("[CPU] State: Thumb -> Arm")
         }
         CpuAction::PipelineFlushed
     }
 
     /// Branch and Exchange (BX)
     /// Cycles 2S+1N
-    fn bx(&mut self, insn: u32) -> CpuAction {
+    fn arm_bx(&mut self, insn: u32) -> CpuAction {
         self.branch_exchange(self.get_reg(insn.bit_range(0..4) as usize))
     }
 
     /// Move from status register
     /// 1S
-    fn mrs(&mut self, insn: u32) -> CpuAction {
-        let _spsr_flag = insn.bit(22);
+    fn arm_mrs(&mut self, insn: u32) -> CpuAction {
+        let SPSR_FLAG = insn.bit(22);
 
-        todo!()
+        let rd = insn.bit_range(12..16) as usize;
+        let result = if SPSR_FLAG {
+            self.spsr.into()
+        } else {
+            self.cspr.into()
+        };
+        self.set_reg(rd, result);
+
+        CpuAction::AdvancePC(Seq)
     }
 
     /// Move to status register
     /// 1S
-    fn transfer_to_status(&mut self, i: u32) -> CpuAction {
-        let _imm = i.bit(25);
-        let _spsr_flag = i.bit(22);
+    fn arm_transfer_to_status(&mut self, inst: u32) -> CpuAction {
+        let imm = inst.bit(25);
+        let spsr_flag = inst.bit(22);
 
-        todo!()
+        let value = if imm {
+            let immediate = inst & 0xFF;
+            let rotate = 2 * inst.bit_range(8..12);
+            let mut carry = self.cspr.c();
+            let v = self.ror(immediate, rotate, &mut carry, false, true);
+            self.cspr.set_c(carry);
+            v
+        } else {
+            self.get_reg((inst & 0xF) as usize)
+        };
+
+        let f = inst.bit(19);
+        let s = inst.bit(18);
+        let x = inst.bit(17);
+        let c = inst.bit(16);
+
+        let mut mask = 0;
+        if f {
+            mask |= 0xff << 24;
+        }
+        if s {
+            mask |= 0xff << 16;
+        }
+        if x {
+            mask |= 0xff << 8;
+        }
+        if c {
+            mask |= 0xff << 0;
+        }
+
+        match self.cspr.mode() {
+            CpuMode::User => {
+                if spsr_flag {
+                    panic!("User mode cant access SPSR")
+                }
+                self.cspr.set_flag_bits(value)
+            }
+            _ => {
+                if spsr_flag {
+                    self.spsr = StatusRegister::from(value);
+                } else {
+                    let old_mode = self.cspr.mode();
+                    let new_psr =
+                        StatusRegister::from((u32::from(self.cspr) & !mask) | (value & mask));
+                    let new_mode = new_psr.mode();
+                    if old_mode != new_mode {
+                        self.change_mode(old_mode, new_mode);
+                    }
+                    self.cspr = new_psr;
+                }
+            }
+        }
+
+        CpuAction::AdvancePC(Seq)
     }
 
     fn transfer_spsr_mode(&mut self) {
@@ -139,7 +202,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
     ///
     /// Cycles: 1S+x+y (from GBATEK)
     ///         Add x=1I cycles if Op2 shifted-by-register. Add y=1S+1N cycles if Rd=R15.
-    fn data_processing(&mut self, inst: u32) -> CpuAction {
+    fn arm_data_processing(&mut self, inst: u32) -> CpuAction {
         let op = inst.bit_range(21..25) as u8;
         let imm = inst.bit(25);
         let mut set_flags = inst.bit(20);
@@ -218,8 +281,8 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         } else {
             let c = carry as u32;
             Some(match opcode {
-                AND => op1 & op2,
-                EOR => op1 ^ op2,
+                AND | TST => op1 & op2,
+                EOR | TEQ => op1 ^ op2,
                 SUB => op1.wrapping_sub(op2),
                 RSB => op2.wrapping_sub(op1),
                 ADD => op1.wrapping_add(op2),
@@ -230,7 +293,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
                 MOV => op2,
                 BIC => op1 & (!op2),
                 MVN => !op2,
-                _ => panic!("DataProcessing should be a PSR transfer"),
+                _ => panic!("DataProcessing should be a PSR transfer: ({})", opcode),
             })
         };
 
@@ -257,7 +320,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
     /// STR{cond}{B}{T} Rd,<Address>    | 2N            | ----  |  [Rn+/-<offset>]=Rd
     /// ------------------------------------------------------------------------------
     /// For LDR, add y=1S+1N if Rd=R15.
-    fn ldr_str(&mut self, inst: u32) -> CpuAction {
+    fn arm_ldr_str(&mut self, inst: u32) -> CpuAction {
         let load = inst.bit(20);
         let writeback = inst.bit(21);
         let byte = inst.bit(22);
@@ -340,7 +403,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         result
     }
 
-    fn ldr_str_hs_reg(&mut self, inst: u32) -> CpuAction {
+    fn arm_ldr_str_hs_reg(&mut self, inst: u32) -> CpuAction {
         let hs = (inst as u8 & 0b1100000) >> 5;
         let load = inst.bit(20);
         let writeback = inst.bit(21);
@@ -351,7 +414,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         self.ldr_str_hs_common(inst, offset, hs, load, writeback, pre_index, add)
     }
 
-    fn ldr_str_hs_imm(&mut self, inst: u32) -> CpuAction {
+    fn arm_ldr_str_hs_imm(&mut self, inst: u32) -> CpuAction {
         let hs = (inst as u8 & 0b1100000) >> 5;
         let load = inst.bit(20);
         let writeback = inst.bit(21);
@@ -438,7 +501,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         result
     }
 
-    fn ldm_stm(&mut self, inst: u32) -> CpuAction {
+    fn arm_ldm_stm(&mut self, inst: u32) -> CpuAction {
         let load = inst.bit(20);
         let writeback = inst.bit(21);
         let flag_s = inst.bit(22);
@@ -597,16 +660,48 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
 
     /// Multiply and Multiply-Accumulate (MUL, MLA)
     /// Execution Time: 1S+mI for MUL, and 1S+(m+1)I for MLA.
-    fn mul_mla(&mut self, inst: u32) -> CpuAction {
-        let _update_flags = inst.bit(20);
-        let _accumulate = inst.bit(21);
+    fn arm_mul_mla(&mut self, inst: u32) -> CpuAction {
+        let UPDATE_FLAGS = inst.bit(20);
+        let ACCUMULATE = inst.bit(21);
 
-        todo!()
+        let rd = inst.bit_range(16..20) as usize;
+        let rn = inst.bit_range(12..16) as usize;
+        let rs = inst.bit_range(8..12) as usize;
+        let rm = inst.bit_range(0..4) as usize;
+
+        // // check validity
+        // assert!(!(REG_PC == rd || REG_PC == rn || REG_PC == rs || REG_PC == rm));
+        // assert!(rd != rm);
+
+        let op1 = self.get_reg(rm);
+        let op2 = self.get_reg(rs);
+        let mut result = op1.wrapping_mul(op2);
+
+        if ACCUMULATE {
+            result = result.wrapping_add(self.get_reg(rn));
+            self.idle_cycle();
+        }
+
+        self.set_reg(rd, result);
+
+        let m = self.get_required_multipiler_array_cycles(op2);
+        for _ in 0..m {
+            self.idle_cycle();
+        }
+
+        if UPDATE_FLAGS {
+            self.cspr.set_n((result as i32) < 0);
+            self.cspr.set_z(result == 0);
+            self.cspr.set_c(false);
+            self.cspr.set_v(false);
+        }
+
+        CpuAction::AdvancePC(Seq)
     }
 
     /// Multiply Long and Multiply-Accumulate Long (MULL, MLAL)
     /// Execution Time: 1S+(m+1)I for MULL, and 1S+(m+2)I for MLAL
-    fn mull_mlal(&mut self, inst: u32) -> CpuAction {
+    fn arm_mull_mlal(&mut self, inst: u32) -> CpuAction {
         let _update_flags = inst.bit(20);
         let _accumulate = inst.bit(21);
         let _u_flag = inst.bit(22);
@@ -616,7 +711,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
 
     /// ARM Opcodes: Memory: Single Data Swap (SWP)
     /// Execution Time: 1S+2N+1I. That is, 2N data cycles, 1S code cycle, plus 1I.
-    fn swp(&mut self, inst: u32) -> CpuAction {
+    fn arm_swp(&mut self, inst: u32) -> CpuAction {
         let _byte = inst.bit(22);
 
         todo!()
@@ -624,7 +719,8 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
 
     /// ARM Software Interrupt
     /// Execution Time: 2S+1N
-    fn swi(&mut self, _inst: u32) -> CpuAction {
-        todo!()
+    fn arm_swi(&mut self, inst: u32) -> CpuAction {
+        self.software_interrupt(self.pc - 4, inst.swi_comment()); // Implies 2S + 1N
+        CpuAction::PipelineFlushed
     }
 }

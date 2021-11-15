@@ -66,6 +66,10 @@ impl SysBus {
 
         self.scheduler.update(*cycles);
     }
+
+    pub fn on_waitcnt_written(&mut self, waitcnt: WaitControl) {
+        self.cycle_luts.update_gamepak_waitstates(waitcnt);
+    }
 }
 
 pub trait Bus {
@@ -171,8 +175,27 @@ impl Bus for SysBus {
         }
     }
 
-    fn write_8(&mut self, _addr: Addr, _val: u8) {
-        todo!()
+    fn write_8(&mut self, addr: Addr, val: u8) {
+        match addr & 0xff000000 {
+            BIOS_ADDR => {}
+            EWRAM_ADDR => self.ewram.write_8(addr & 0x3_ffff, val),
+            IWRAM_ADDR => self.iwram.write_8(addr & 0x7fff, val),
+            IOMEM_ADDR => {
+                let addr = if addr & 0xffff == 0x8000 {
+                    0x800
+                } else {
+                    addr & 0x00ffffff
+                };
+                self.io.write_8(addr, val)
+            }
+            PALRAM_ADDR | VRAM_ADDR | OAM_ADDR => self.io.gpu.write_8(addr, val),
+            GAMEPAK_WS0_LO => self.cartridge.write_8(addr, val),
+            GAMEPAK_WS2_HI => self.cartridge.write_8(addr, val),
+            SRAM_LO | SRAM_HI => self.cartridge.write_8(addr, val),
+            _ => {
+                println!("trying to write invalid address {:#x}", addr);
+            }
+        }
     }
 
     fn write_16(&mut self, addr: Addr, val: u16) {
@@ -216,8 +239,7 @@ impl Bus for SysBus {
             GAMEPAK_WS2_HI => self.cartridge.write_32(addr, val),
             SRAM_LO | SRAM_HI => self.cartridge.write_32(addr, val),
             _ => {
-                // warn!("trying to write invalid address {:#x}", addr);
-                // TODO open bus
+                println!("trying to write invalid address {:#x}", addr);
             }
         }
     }

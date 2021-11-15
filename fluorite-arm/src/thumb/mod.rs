@@ -286,6 +286,20 @@ pub enum OpFormat3 {
     SUB = 3,
 }
 
+impl OpFormat3 {
+    pub fn from_u8(val: u8) -> Option<Self> {
+        use OpFormat3::*;
+        let ret = match val {
+            0 => MOV,
+            1 => CMP,
+            2 => ADD,
+            3 => SUB,
+            _ => return None,
+        };
+        Some(ret)
+    }
+}
+
 impl From<OpFormat3> for AluOpCode {
     fn from(op: OpFormat3) -> AluOpCode {
         match op {
