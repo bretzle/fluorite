@@ -1,6 +1,9 @@
 use gba::Gba;
 use minifb::{Window, WindowOptions};
 use std::fmt::Write;
+use std::fs::File;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -10,8 +13,8 @@ use std::{
 mod bios;
 mod cartridge;
 mod consts;
-mod gba;
 mod dma;
+mod gba;
 mod gpu;
 mod interrupt;
 mod iodev;
@@ -32,8 +35,25 @@ impl VideoInterface for MiniFb {
     }
 }
 
+static BIOS: &[u8] = include_bytes!("../roms/gba_bios.bin");
+
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
+
+    let (rom, name) = {
+        let mut file_path = PathBuf::new();
+        match std::env::args().skip(1).next() {
+            Some(s) => file_path.push(s),
+            None => file_path.push("roms/beeg.bin"),
+        };
+        let mut file = File::open(&file_path)?;
+        let mut buf = vec![];
+        file.read_to_end(&mut buf)?;
+        (
+            buf,
+            file_path.file_stem().unwrap().to_string_lossy().to_string(),
+        )
+    };
 
     let fb = Rc::new(RefCell::new(MiniFb {
         window: Window::new(
@@ -49,7 +69,7 @@ fn main() -> color_eyre::Result<()> {
     }));
 
     let mut counter = FpsCounter::default();
-    let mut gba = Gba::new(fb.clone());
+    let mut gba = Gba::new(fb.clone(), BIOS, &rom);
 
     gba.skip_bios();
     let mut title = "".to_string();
@@ -63,7 +83,8 @@ fn main() -> color_eyre::Result<()> {
             title.clear();
             write!(
                 &mut title,
-                "yoshi_dma fps: {} | Render: {} ({:?})",
+                "{} | fps: {} | Render: {} ({:?})",
+                name,
                 real,
                 fps.round(),
                 time

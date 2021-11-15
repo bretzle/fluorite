@@ -21,6 +21,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         use crate::thumb::ThumbFormat::*;
         let decoded = ThumbInstruction::decode(inst, self.pc_thumb());
 
+		#[cfg(debug_assertions)]
         println!(
             "{:8x}:\t{:08x} \t{}",
             self.pc_thumb(),
