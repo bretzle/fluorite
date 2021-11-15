@@ -21,13 +21,12 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         use crate::thumb::ThumbFormat::*;
         let decoded = ThumbInstruction::decode(inst, self.pc_thumb());
 
-		#[cfg(debug_assertions)]
-        println!(
-            "{:8x}:\t{:08x} \t{}",
-            self.pc_thumb(),
-            decoded.get_raw(),
-            decoded
-        );
+        // println!(
+        //     "{:8x}:\t{:08x} \t{}",
+        //     self.pc_thumb(),
+        //     decoded.get_raw(),
+        //     decoded
+        // );
 
         let func = match decoded.fmt {
             MoveShiftedReg => Self::thumb_move_shifted_reg,

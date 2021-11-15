@@ -17,13 +17,12 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         use crate::arm::ArmFormat::*;
         let decoded = ArmInstruction::decode(inst, self.pc_arm());
 
-		#[cfg(debug_assertions)]
-        println!(
-            "{:8x}:\t{:08x} \t{}",
-            self.pc_arm(),
-            decoded.get_raw(),
-            decoded
-        );
+        // println!(
+        //     "{:8x}:\t{:08x} \t{}",
+        //     self.pc_arm(),
+        //     decoded.get_raw(),
+        //     decoded
+        // );
 
         let func = match decoded.fmt {
             BranchExchange => Self::arm_bx,

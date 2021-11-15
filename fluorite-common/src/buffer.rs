@@ -15,7 +15,7 @@ impl<T, const N: usize> CircularBuffer<T, N> {
         }
 
         self.data[self.idx] = val;
-		self.idx += 1;
+        self.idx += 1;
     }
 
     pub fn iter(&self) -> std::slice::Iter<T> {

@@ -14,7 +14,6 @@ use crate::sched::{EventType, Scheduler};
 use crate::sysbus::SysBus;
 use crate::VideoInterface;
 
-
 pub const NUM_RENDER_TIMES: usize = 25;
 
 pub struct Gba<T: VideoInterface> {
@@ -31,12 +30,12 @@ impl<T: VideoInterface> Gba<T> {
         let interrupt_flags = Rc::new(Cell::new(IrqBitMask::new()));
         let scheduler = Shared::new(Scheduler::new());
         let gpu = Gpu::new(scheduler.clone(), interrupt_flags.clone());
-        let dmac = DmaController::new(interrupt_flags.clone(), scheduler.clone());
+        let dmac = DmaController::new(interrupt_flags, scheduler.clone());
         let mut io = Shared::new(IoDevices::new(gpu, dmac));
         let mut sysbus = Shared::new(SysBus::new(bios, rom, &scheduler, &io));
         let cpu = Arm7tdmi::new(sysbus.clone());
 
-		io.set_sysbus_ptr(WeakPointer::new(&mut *sysbus as *mut SysBus));
+        io.set_sysbus_ptr(WeakPointer::new(&mut *sysbus as *mut SysBus));
 
         Self {
             cpu,

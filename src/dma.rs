@@ -29,7 +29,7 @@ impl DmaController {
                 DmaChannel::new(0, interrupt_flags.clone()),
                 DmaChannel::new(1, interrupt_flags.clone()),
                 DmaChannel::new(2, interrupt_flags.clone()),
-                DmaChannel::new(3, interrupt_flags.clone()),
+                DmaChannel::new(3, interrupt_flags),
             ],
             pending_set: 0,
             scheduler,
@@ -187,7 +187,8 @@ impl DmaChannel {
             self.running = false;
         }
         self.ctrl = ctrl;
-        return start_immediately;
+
+        start_immediately
     }
 
     fn transfer(&mut self, bus: &mut SysBus) {
@@ -202,7 +203,7 @@ impl DmaChannel {
 
         if self.id == 3 && word_size == 2 {
             // TODO:
-			// if let BackupMedia::Eeprom(eeprom) = &mut bus.cartridge.backup {
+            // if let BackupMedia::Eeprom(eeprom) = &mut bus.cartridge.backup {
             //     eeprom.on_dma3_transfer(
             //         self.internal.src_addr,
             //         self.internal.dst_addr,

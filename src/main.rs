@@ -1,9 +1,11 @@
+#![allow(clippy::identity_op)]
+
 use gba::Gba;
 use minifb::{Window, WindowOptions};
 use std::fmt::Write;
 use std::fs::File;
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -42,7 +44,7 @@ fn main() -> color_eyre::Result<()> {
 
     let (rom, name) = {
         let mut file_path = PathBuf::new();
-        match std::env::args().skip(1).next() {
+        match std::env::args().nth(1) {
             Some(s) => file_path.push(s),
             None => file_path.push("roms/beeg.bin"),
         };
