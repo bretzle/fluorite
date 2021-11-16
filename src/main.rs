@@ -1,7 +1,7 @@
 #![allow(clippy::identity_op)]
 
 use gba::Gba;
-use minifb::{Window, WindowOptions};
+use raylib::prelude::*;
 use std::fmt::Write;
 use std::fs::File;
 use std::io::Read;
@@ -23,21 +23,40 @@ mod iodev;
 mod sched;
 mod sysbus;
 
-struct MiniFb {
-    window: minifb::Window,
-}
-
 pub trait VideoInterface {
     fn render(&mut self, buffer: &[u32]);
 }
 
-impl VideoInterface for MiniFb {
-    fn render(&mut self, buffer: &[u32]) {
-        self.window.update_with_buffer(buffer, 240, 160).unwrap();
+static BIOS: &[u8] = include_bytes!("../roms/gba_bios.bin");
+
+struct Screen {
+    tex: RenderTexture2D,
+    buffer: [u8; 4 * 240 * 160],
+}
+
+impl Screen {
+    pub fn get_tex(&self) -> &RenderTexture2D {
+        &self.tex
     }
 }
 
-static BIOS: &[u8] = include_bytes!("../roms/gba_bios.bin");
+impl VideoInterface for Screen {
+    fn render(&mut self, buffer: &[u32]) {
+        let now = Instant::now();
+        for (idx, byte) in buffer.iter().enumerate() {
+            let a = ((byte >> 24) & 0xFF) as u8;
+            let r = ((byte >> 16) & 0xFF) as u8;
+            let g = ((byte >> 8) & 0xFF) as u8;
+            let b = ((byte >> 0) & 0xFF) as u8;
+            self.buffer[idx * 4 + 0] = r;
+            self.buffer[idx * 4 + 1] = g;
+            self.buffer[idx * 4 + 2] = b;
+            self.buffer[idx * 4 + 3] = 255 - a;
+        }
+        self.tex.update_texture(&self.buffer);
+        println!("Texture upload took: {:?}", now.elapsed());
+    }
+}
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
@@ -57,26 +76,29 @@ fn main() -> color_eyre::Result<()> {
         )
     };
 
-    let fb = Rc::new(RefCell::new(MiniFb {
-        window: Window::new(
-            "fluorite",
-            240,
-            160,
-            WindowOptions {
-                borderless: true,
-                scale: minifb::Scale::X4,
-                ..Default::default()
-            },
-        )?,
-    }));
+    let (mut rl, thread) = raylib::init()
+        .size(240 * 4, 160 * 4)
+        .title("Fluorite")
+        .vsync()
+        .build();
 
+    rl.set_exit_key(None);
+
+    println!("--------------");
+
+    let tex = rl.load_render_texture(&thread, 240, 160).unwrap();
+
+    let device = Rc::new(RefCell::new(Screen {
+        tex,
+        buffer: [0; 4 * 240 * 160],
+    }));
     let mut counter = FpsCounter::default();
-    let mut gba = Gba::new(fb.clone(), BIOS, &rom);
+    let mut gba = Gba::new(device.clone(), BIOS, &rom);
 
     gba.skip_bios();
     let mut title = "".to_string();
 
-    loop {
+    while !rl.window_should_close() {
         gba.frame();
 
         if let Some(real) = counter.tick() {
@@ -91,13 +113,19 @@ fn main() -> color_eyre::Result<()> {
                 fps.round(),
                 time
             )?;
-
-            let w = &mut fb.borrow_mut().window;
-            w.set_title(&title);
-            if !w.is_open() {
-                break;
-            }
+            rl.set_window_title(&thread, &title);
         }
+
+        let mut d = rl.begin_drawing(&thread);
+        d.clear_background(Color::BLACK);
+        // d.draw_texture(device.borrow().get_tex(), 100, 100, Color::WHITE);
+        d.draw_texture_ex(
+            device.borrow().get_tex(),
+            Vector2::default(),
+            0.0,
+            4.0,
+            Color::WHITE,
+        );
     }
 
     Ok(())

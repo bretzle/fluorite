@@ -53,6 +53,7 @@ pub struct Gpu {
 
     pub render_times: CircularBuffer<Duration, NUM_RENDER_TIMES>,
     current_frame_time: Duration,
+    dirty: bool,
 }
 
 impl Gpu {
@@ -96,6 +97,7 @@ impl Gpu {
             mosaic: RegMosaic::default(),
             bldalpha: BlendAlpha::default(),
             bldy: 0,
+            dirty: true,
         }
     }
 
@@ -189,7 +191,10 @@ impl Gpu {
 
             notifier.notify(TIMING_VBLANK);
 
-            device.borrow_mut().render(&self.frame_buffer);
+            if self.dirty {
+                device.borrow_mut().render(&self.frame_buffer);
+                self.dirty = false;
+            }
 
             self.obj_buffer_reset();
 
@@ -463,7 +468,12 @@ impl Gpu {
             todo!()
         } else {
             // no blending, just use the top pixel
-            output[x] = top_layer.pixel.to_rgb24();
+            let old = &mut output[x];
+            let new = top_layer.pixel.to_rgb24();
+            if *old != new {
+                output[x] = new;
+                self.dirty = true;
+            }
         }
     }
 

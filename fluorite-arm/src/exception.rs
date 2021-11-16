@@ -30,7 +30,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
             Fiq => (CpuMode::Fiq, true, true),
         };
 
-        println!("[exception] {:?} lr={:x} new_mode={:?}", e, lr, new_mode);
+        // println!("[exception] {:?} lr={:x} new_mode={:?}", e, lr, new_mode);
 
         let new_bank = new_mode.bank_index();
         self.banks.spsr_bank[new_bank] = self.cspr;

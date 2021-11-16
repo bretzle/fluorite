@@ -95,13 +95,13 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
             self.cspr.set_state(CpuState::THUMB);
             self.pc = addr;
             self.reload_pipeline_thumb();
-            println!("[CPU] State: Arm -> Thumb")
+            // println!("[CPU] State: Arm -> Thumb")
         } else {
             addr = addr & !0x3;
             self.cspr.set_state(CpuState::ARM);
             self.pc = addr;
             self.reload_pipeline_arm();
-            println!("[CPU] State: Thumb -> Arm")
+            // println!("[CPU] State: Thumb -> Arm")
         }
         CpuAction::PipelineFlushed
     }
