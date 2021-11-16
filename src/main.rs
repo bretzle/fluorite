@@ -24,37 +24,22 @@ mod sched;
 mod sysbus;
 
 pub trait VideoInterface {
-    fn render(&mut self, buffer: &[u32]);
+    fn render(&mut self, buffer: &[u8]);
 }
 
 static BIOS: &[u8] = include_bytes!("../roms/gba_bios.bin");
 
-struct Screen {
-    tex: RenderTexture2D,
-    buffer: [u8; 4 * 240 * 160],
-}
+struct Screen(RenderTexture2D);
 
 impl Screen {
     pub fn get_tex(&self) -> &RenderTexture2D {
-        &self.tex
+        &self.0
     }
 }
 
 impl VideoInterface for Screen {
-    fn render(&mut self, buffer: &[u32]) {
-        let now = Instant::now();
-        for (idx, byte) in buffer.iter().enumerate() {
-            let a = ((byte >> 24) & 0xFF) as u8;
-            let r = ((byte >> 16) & 0xFF) as u8;
-            let g = ((byte >> 8) & 0xFF) as u8;
-            let b = ((byte >> 0) & 0xFF) as u8;
-            self.buffer[idx * 4 + 0] = r;
-            self.buffer[idx * 4 + 1] = g;
-            self.buffer[idx * 4 + 2] = b;
-            self.buffer[idx * 4 + 3] = 255 - a;
-        }
-        self.tex.update_texture(&self.buffer);
-        println!("Texture upload took: {:?}", now.elapsed());
+    fn render(&mut self, buffer: &[u8]) {
+        self.0.update_texture(buffer);
     }
 }
 
@@ -88,10 +73,7 @@ fn main() -> color_eyre::Result<()> {
 
     let tex = rl.load_render_texture(&thread, 240, 160).unwrap();
 
-    let device = Rc::new(RefCell::new(Screen {
-        tex,
-        buffer: [0; 4 * 240 * 160],
-    }));
+    let device = Rc::new(RefCell::new(Screen(tex)));
     let mut counter = FpsCounter::default();
     let mut gba = Gba::new(device.clone(), BIOS, &rom);
 
@@ -118,7 +100,6 @@ fn main() -> color_eyre::Result<()> {
 
         let mut d = rl.begin_drawing(&thread);
         d.clear_background(Color::BLACK);
-        // d.draw_texture(device.borrow().get_tex(), 100, 100, Color::WHITE);
         d.draw_texture_ex(
             device.borrow().get_tex(),
             Vector2::default(),

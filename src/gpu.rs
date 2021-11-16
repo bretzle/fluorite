@@ -48,12 +48,11 @@ pub struct Gpu {
 
     pub(crate) vram_obj_tiles_start: u32,
     pub(crate) obj_buffer: Box<[ObjBufferEntry]>,
-    pub(crate) frame_buffer: Box<[u32]>,
+    pub(crate) frame_buffer: Box<[u8]>,
     pub(crate) bg_line: [Box<[Rgb15]>; 4],
 
     pub render_times: CircularBuffer<Duration, NUM_RENDER_TIMES>,
     current_frame_time: Duration,
-    dirty: bool,
 }
 
 impl Gpu {
@@ -78,7 +77,7 @@ impl Gpu {
 
             vram_obj_tiles_start: VRAM_OBJ_TILES_START_TEXT,
             obj_buffer: vec![Default::default(); DISPLAY_WIDTH * DISPLAY_HEIGHT].into_boxed_slice(),
-            frame_buffer: vec![0; DISPLAY_WIDTH * DISPLAY_HEIGHT].into_boxed_slice(),
+            frame_buffer: vec![0; 4 * DISPLAY_WIDTH * DISPLAY_HEIGHT].into_boxed_slice(),
             bg_line: [
                 vec![Rgb15::TRANSPARENT; DISPLAY_WIDTH].into_boxed_slice(),
                 vec![Rgb15::TRANSPARENT; DISPLAY_WIDTH].into_boxed_slice(),
@@ -97,7 +96,6 @@ impl Gpu {
             mosaic: RegMosaic::default(),
             bldalpha: BlendAlpha::default(),
             bldy: 0,
-            dirty: true,
         }
     }
 
@@ -191,10 +189,7 @@ impl Gpu {
 
             notifier.notify(TIMING_VBLANK);
 
-            if self.dirty {
-                device.borrow_mut().render(&self.frame_buffer);
-                self.dirty = false;
-            }
+            device.borrow_mut().render(&self.frame_buffer);
 
             self.obj_buffer_reset();
 
@@ -237,11 +232,11 @@ impl Gpu {
 
     pub fn render_scanline(&mut self) {
         if self.dispcnt.force_blank {
-            for x in self.frame_buffer[self.vcount * DISPLAY_WIDTH..]
+            for x in self.frame_buffer[self.vcount * 4 * DISPLAY_WIDTH..]
                 .iter_mut()
                 .take(DISPLAY_WIDTH)
             {
-                *x = 0xf8f8f8;
+                *x = 0xf8;
             }
             return;
         }
@@ -419,9 +414,11 @@ impl Gpu {
         backdrop_color: Rgb15,
     ) {
         let output = unsafe {
-            let ptr = self.frame_buffer[y * DISPLAY_WIDTH..].as_mut_ptr();
-            std::slice::from_raw_parts_mut(ptr, DISPLAY_WIDTH)
+            let ptr = self.frame_buffer[y * 4 * DISPLAY_WIDTH..].as_mut_ptr();
+            std::slice::from_raw_parts_mut(ptr, DISPLAY_WIDTH * 4)
         };
+
+        // dbg!(output.len(), x, y);
 
         // The backdrop layer is the default
         let backdrop_layer = RenderLayer::backdrop(backdrop_color);
@@ -468,12 +465,18 @@ impl Gpu {
             todo!()
         } else {
             // no blending, just use the top pixel
-            let old = &mut output[x];
-            let new = top_layer.pixel.to_rgb24();
-            if *old != new {
-                output[x] = new;
-                self.dirty = true;
-            }
+            let rgb = {
+                let color = top_layer.pixel.to_rgb24();
+                let r = ((color >> 16) & 0xFF) as u8;
+                let g = ((color >> 8) & 0xFF) as u8;
+                let b = ((color >> 0) & 0xFF) as u8;
+                [r, g, b, 0xFF]
+            };
+
+            output[4 * x + 0] = rgb[0];
+            output[4 * x + 1] = rgb[1];
+            output[4 * x + 2] = rgb[2];
+            output[4 * x + 3] = rgb[3];
         }
     }
 
