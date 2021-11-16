@@ -135,15 +135,11 @@ dependencies = [
 name = "fluorite"
 version = "0.1.0"
 dependencies = [
- "arrayvec",
- "bitfield",
- "bitflags",
  "color-eyre",
  "fluorite-arm",
  "fluorite-common",
- "modular-bitfield",
+ "fluorite-gba",
  "raylib",
- "static_assertions",
 ]
 
 [[package]]
@@ -161,6 +157,19 @@ dependencies = [
 [[package]]
 name = "fluorite-common"
 version = "0.1.0"
+
+[[package]]
+name = "fluorite-gba"
+version = "0.1.0"
+dependencies = [
+ "arrayvec",
+ "bitfield",
+ "bitflags",
+ "fluorite-arm",
+ "fluorite-common",
+ "modular-bitfield",
+ "static_assertions",
+]
 
 [[package]]
 name = "fs_extra"

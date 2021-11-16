@@ -8,22 +8,17 @@ edition = "2021"
 [dependencies]
 fluorite-common = { path = "fluorite-common" }
 fluorite-arm = { path = "fluorite-arm" }
+fluorite-gba = { path = "fluorite-gba" }
 
 color-eyre = "0.5.11"
-modular-bitfield = "0.11"
-static_assertions = "1.1"
-bitfield = "0.13.2"
-arrayvec = "0.5.2"
-bitflags = "1.3.2"
 raylib = "3.7.0"
 
-[build-dependencies]
-fluorite-common = { path = "fluorite-common" }
 
 [workspace]
 members = [
 	"fluorite-common",
-	"fluorite-arm"
+	"fluorite-arm",
+	"fluorite-gba"
 ]
 
 [profile.dev]

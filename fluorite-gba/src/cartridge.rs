@@ -1,5 +1,4 @@
 use crate::{consts::*, sysbus::Bus};
-use color_eyre::{eyre::eyre, Result};
 use fluorite_arm::Addr;
 use std::str::from_utf8;
 
@@ -11,7 +10,7 @@ pub struct Cartridge {
 }
 
 impl Cartridge {
-    pub fn new(bytes: &[u8]) -> Result<Self> {
+    pub fn new(bytes: &[u8]) -> Result<Self, String> {
         let header = CartridgeHeader::parse(bytes)?;
         let size = bytes.len();
 
@@ -44,9 +43,9 @@ pub struct CartridgeHeader {
 }
 
 impl CartridgeHeader {
-    fn parse(bytes: &[u8]) -> Result<Self> {
+    fn parse(bytes: &[u8]) -> Result<Self, String> {
         if bytes.len() < 0xC0 {
-            return Err(eyre!("incomplete cartridge header"));
+            return Err("incomplete cartridge header".to_string());
         }
 
         let checksum = bytes[0xbd];
@@ -63,9 +62,12 @@ impl CartridgeHeader {
             );
         }
 
-        let game_title = from_utf8(&bytes[0xa0..0xac]).map_err(|_| eyre!("invalid game title"))?;
-        let game_code = from_utf8(&bytes[0xac..0xb0]).map_err(|_| eyre!("invalid game code"))?;
-        let maker_code = from_utf8(&bytes[0xb0..0xb2]).map_err(|_| eyre!("invalid marker code"))?;
+        let game_title =
+            from_utf8(&bytes[0xa0..0xac]).map_err(|_| "invalid game title".to_string())?;
+        let game_code =
+            from_utf8(&bytes[0xac..0xb0]).map_err(|_| "invalid game code".to_string())?;
+        let maker_code =
+            from_utf8(&bytes[0xb0..0xb2]).map_err(|_| "invalid marker code".to_string())?;
 
         Ok(Self {
             game_title: game_title.to_string(),

@@ -1,0 +1,16 @@
+[package]
+name = "fluorite-gba"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+fluorite-common = { path = "../fluorite-common" }
+fluorite-arm = { path = "../fluorite-arm" }
+
+modular-bitfield = "0.11"
+static_assertions = "1.1"
+bitfield = "0.13.2"
+arrayvec = "0.5.2"
+bitflags = "1.3.2"
