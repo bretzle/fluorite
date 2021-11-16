@@ -1,4 +1,9 @@
-#![allow(clippy::too_many_arguments, non_snake_case)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::assign_op_pattern,
+    clippy::identity_op,
+    non_snake_case
+)]
 
 use super::{OpFormat5, ThumbDecodeHelper};
 use crate::{
@@ -517,12 +522,10 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
                     if rlist.bit(r) {
                         let v = if r != RB {
                             self.gpr[r]
+                        } else if first {
+                            addr
                         } else {
-                            if first {
-                                addr
-                            } else {
-                                addr + (rlist.count_ones() - 1) * 4
-                            }
+                            addr + (rlist.count_ones() - 1) * 4
                         };
                         if first {
                             first = false;

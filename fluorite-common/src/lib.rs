@@ -7,3 +7,13 @@ pub use bits::BitIndex;
 pub use buffer::*;
 pub use ptr::WeakPointer;
 pub use shared::Shared;
+
+#[macro_export]
+macro_rules! index2d {
+    ($x:expr, $y:expr, $w:expr) => {
+        $w * $y + $x
+    };
+    ($t:ty, $x:expr, $y:expr, $w:expr) => {
+        (($w as $t) * ($y as $t) + ($x as $t)) as $t
+    };
+}

@@ -1,5 +1,3 @@
-#![allow(clippy::identity_op)]
-
 use fluorite_gba::gba::Gba;
 use fluorite_gba::VideoInterface;
 use raylib::prelude::*;

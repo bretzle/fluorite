@@ -6,7 +6,7 @@ use crate::gpu::render::{utils, SCREEN_VIEWPORT};
 use crate::interrupt::{Interrupt, SharedInterruptFlags};
 use crate::sched::{GpuEvent, Scheduler};
 use crate::sysbus::Bus;
-use crate::{consts::*, index2d, interrupt, GpuMemoryMappedIO, VideoInterface};
+use crate::{consts::*, interrupt, GpuMemoryMappedIO, VideoInterface};
 use arrayvec::ArrayVec;
 use fluorite_arm::Addr;
 use fluorite_common::{CircularBuffer, Shared};
@@ -434,7 +434,7 @@ impl Gpu {
             RenderLayer::background(*bg, self.bg_line[*bg][x], self.bgcnt[*bg].priority)
         });
 
-        let mut bot_layer = it.next().map_or(backdrop_layer, |bg| {
+        let mut _bot_layer = it.next().map_or(backdrop_layer, |bg| {
             RenderLayer::background(*bg, self.bg_line[*bg][x], self.bgcnt[*bg].priority)
         });
 
@@ -445,10 +445,10 @@ impl Gpu {
         if win.flags.obj_enabled() && self.dispcnt.enable_obj && !obj_entry.color.is_transparent() {
             let obj_layer = RenderLayer::objects(obj_entry.color, obj_entry.priority);
             if obj_layer.priority <= top_layer.priority {
-                bot_layer = top_layer;
+                _bot_layer = top_layer;
                 top_layer = obj_layer;
-            } else if obj_layer.priority <= bot_layer.priority {
-                bot_layer = obj_layer;
+            } else if obj_layer.priority <= _bot_layer.priority {
+                _bot_layer = obj_layer;
             }
         }
 
@@ -745,7 +745,7 @@ impl GpuMemoryMappedIO for DisplayStatus {
 
 #[derive(Debug, Copy, Clone)]
 pub struct ObjBufferEntry {
-    pub(crate) window: bool,
+    pub(crate) _window: bool,
     pub(crate) alpha: bool,
     pub(crate) color: Rgb15,
     pub(crate) priority: u16,
@@ -754,7 +754,7 @@ pub struct ObjBufferEntry {
 impl Default for ObjBufferEntry {
     fn default() -> ObjBufferEntry {
         ObjBufferEntry {
-            window: false,
+            _window: false,
             alpha: false,
             color: Rgb15::TRANSPARENT,
             priority: 4,
@@ -1030,9 +1030,13 @@ impl RenderLayer {
 #[repr(u16)]
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RegMosaic {
+    #[skip]
     bg_hsize: B4,
+    #[skip]
     bg_vsize: B4,
+    #[skip]
     obj_hsize: B4,
+    #[skip]
     obj_vsize: B4,
 }
 

@@ -88,10 +88,10 @@ impl Window {
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum WindowType {
-    Win0,
-    Win1,
-    WinObj,
-    WinOut,
+    _Win0,
+    _Win1,
+    _WinObj,
+    _WinOut,
     WinNone,
 }
 
@@ -106,8 +106,7 @@ impl WindowInfo {
         WindowInfo { typ, flags }
     }
 
-    #[inline]
-    pub fn is_none(&self) -> bool {
+    pub fn _is_none(&self) -> bool {
         self.typ == WindowType::WinNone
     }
 }

@@ -74,6 +74,7 @@ pub struct InterruptController {
     pub enable: IrqBitMask,
     flags: Rc<Cell<IrqBitMask>>,
 }
+
 impl InterruptController {
     pub fn new() -> Self {
         Self {
@@ -91,6 +92,12 @@ impl InterruptController {
         let _if = self.flags.get();
         let new_if = u16::from(_if) & !value;
         self.flags.set(new_if.into());
+    }
+}
+
+impl Default for InterruptController {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

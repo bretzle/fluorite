@@ -1,4 +1,9 @@
-#![allow(clippy::too_many_arguments, non_snake_case)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::assign_op_pattern,
+    clippy::identity_op,
+    non_snake_case
+)]
 
 use super::{ArmDecodeHelper, ArmHalfwordTransferType};
 use crate::{
@@ -389,11 +394,9 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
             };
         }
 
-        if !load || base_reg != dest_reg {
-            if !pre_index || writeback {
-                self.set_reg(base_reg, effective_addr);
-                self.set_reg(base_reg, effective_addr);
-            }
+        if (!load || base_reg != dest_reg) && (!pre_index || writeback) {
+            self.set_reg(base_reg, effective_addr);
+            self.set_reg(base_reg, effective_addr);
         }
 
         if !pre_index && writeback {
@@ -492,10 +495,8 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
             };
         }
 
-        if !load || base_reg != dest_reg {
-            if !pre_index || writeback {
-                self.set_reg(base_reg, effective_addr);
-            }
+        if (!load || base_reg != dest_reg) && (!pre_index || writeback) {
+            self.set_reg(base_reg, effective_addr);
         }
 
         result
@@ -597,16 +598,14 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
                             } else {
                                 self.get_reg(r)
                             }
+                        } else if first {
+                            old_base
                         } else {
-                            if first {
-                                old_base
+                            let x = rlist_count * 4;
+                            if ascending {
+                                old_base + x
                             } else {
-                                let x = rlist_count * 4;
-                                if ascending {
-                                    old_base + x
-                                } else {
-                                    old_base - x
-                                }
+                                old_base - x
                             }
                         };
 

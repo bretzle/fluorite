@@ -152,3 +152,9 @@ impl Scheduler {
         self.timestamp += cycles;
     }
 }
+
+impl Default for Scheduler {
+    fn default() -> Self {
+        Self::new()
+    }
+}

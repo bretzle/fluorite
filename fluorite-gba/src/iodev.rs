@@ -60,7 +60,9 @@ pub struct WaitControl {
     pub ws1_second_access: bool,
     pub ws2_first_access: B2,
     pub ws2_second_access: bool,
+    #[skip]
     phi_terminal_output: B2,
+    #[skip]
     prefetch: bool,
     #[skip]
     _reserved: B2,
