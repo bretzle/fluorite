@@ -13,6 +13,8 @@ fluorite-gba = { path = "fluorite-gba" }
 color-eyre = "0.5.11"
 raylib = "3.7.0"
 
+[dev-dependencies]
+criterion = "0.3"
 
 [workspace]
 members = [
@@ -20,6 +22,11 @@ members = [
 	"fluorite-arm",
 	"fluorite-gba"
 ]
+
+[[bench]]
+name = "performance"
+harness = false
+
 
 [profile.dev]
 overflow-checks = false

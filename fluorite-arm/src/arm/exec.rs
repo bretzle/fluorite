@@ -50,32 +50,10 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         func(self, inst)
     }
 
-    // fn ldr_str_hs_imm(&mut self, inst: u32) -> CpuAction {
-    //     let hs = (inst as u8 & 0b1100000) >> 5;
-    //     let load = inst.bit(20);
-    //     let writeback = inst.bit(21);
-    //     let pre_index = inst.bit(24);
-    //     let add = inst.bit(23);
-
-    //     let offset = (inst.bit_range(8..12) << 4) + inst.bit_range(0..4);
-    //     self.ldr_str_common(inst, offset, hs, load, writeback, pre_index, add)
-    // }
-
-    // fn ldr_str_hs_reg(&mut self, inst: u32) -> CpuAction {
-    //     let hs = (inst as u8 & 0b1100000) >> 5;
-    //     let load = inst.bit(20);
-    //     let writeback = inst.bit(21);
-    //     let add = inst.bit(23);
-    //     let pre_index = inst.bit(24);
-
-    //     let offset = self.get_reg((inst & 0xF) as usize);
-    //     self.ldr_str_common(inst, offset, hs, load, writeback, pre_index, add)
-    // }
-
-    fn arm_undefined(&mut self, insn: u32) -> CpuAction {
+    fn arm_undefined(&mut self, inst: u32) -> CpuAction {
         panic!(
             "executing undefined arm instruction {:08x} at @{:08x}",
-            insn,
+            inst,
             self.pc_arm()
         )
     }
@@ -113,16 +91,16 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
 
     /// Branch and Exchange (BX)
     /// Cycles 2S+1N
-    fn arm_bx(&mut self, insn: u32) -> CpuAction {
-        self.branch_exchange(self.get_reg(insn.bit_range(0..4) as usize))
+    fn arm_bx(&mut self, inst: u32) -> CpuAction {
+        self.branch_exchange(self.get_reg(inst.bit_range(0..4) as usize))
     }
 
     /// Move from status register
     /// 1S
-    fn arm_mrs(&mut self, insn: u32) -> CpuAction {
-        let SPSR_FLAG = insn.bit(22);
+    fn arm_mrs(&mut self, inst: u32) -> CpuAction {
+        let SPSR_FLAG = inst.bit(22);
 
-        let rd = insn.bit_range(12..16) as usize;
+        let rd = inst.bit_range(12..16) as usize;
         let result = if SPSR_FLAG {
             self.spsr.into()
         } else {
@@ -431,7 +409,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
     #[inline(always)]
     fn ldr_str_hs_common(
         &mut self,
-        insn: u32,
+        inst: u32,
         offset: u32,
         hs: u8,
         load: bool,
@@ -446,8 +424,8 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         } else {
             (-(offset as i32)) as u32
         };
-        let base_reg = insn.bit_range(16..20) as usize;
-        let dest_reg = insn.bit_range(12..16) as usize;
+        let base_reg = inst.bit_range(16..20) as usize;
+        let dest_reg = inst.bit_range(12..16) as usize;
         let mut addr = self.get_reg(base_reg);
         if base_reg == REG_PC {
             addr = self.pc_arm() + 8; // prefetching
@@ -701,19 +679,66 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
     /// Multiply Long and Multiply-Accumulate Long (MULL, MLAL)
     /// Execution Time: 1S+(m+1)I for MULL, and 1S+(m+2)I for MLAL
     fn arm_mull_mlal(&mut self, inst: u32) -> CpuAction {
-        let _update_flags = inst.bit(20);
-        let _accumulate = inst.bit(21);
-        let _u_flag = inst.bit(22);
+        let UPDATE_FLAGS = inst.bit(20);
+        let ACCUMULATE = inst.bit(21);
+        let U_FLAG = inst.bit(22);
 
-        todo!()
+        let rd_hi = inst.rd_hi();
+        let rd_lo = inst.rd_lo();
+        let rs = inst.rs();
+        let rm = inst.rm();
+
+        let op1 = self.get_reg(rm);
+        let op2 = self.get_reg(rs);
+        let mut result: u64 = if U_FLAG {
+            // signed
+            (op1 as i32 as i64).wrapping_mul(op2 as i32 as i64) as u64
+        } else {
+            (op1 as u64).wrapping_mul(op2 as u64)
+        };
+        if ACCUMULATE {
+            let hi = self.get_reg(rd_hi) as u64;
+            let lo = self.get_reg(rd_lo) as u64;
+            result = result.wrapping_add(hi << 32 | lo);
+            self.idle_cycle();
+        }
+        self.set_reg(rd_hi, (result >> 32) as i32 as u32);
+        self.set_reg(rd_lo, (result & 0xffffffff) as i32 as u32);
+        self.idle_cycle();
+        let m = self.get_required_multipiler_array_cycles(self.get_reg(rs));
+        for _ in 0..m {
+            self.idle_cycle();
+        }
+
+        if UPDATE_FLAGS {
+            self.cspr.set_n(result.bit(63));
+            self.cspr.set_z(result == 0);
+            self.cspr.set_c(false);
+            self.cspr.set_v(false);
+        }
+
+        CpuAction::AdvancePC(Seq)
     }
 
     /// ARM Opcodes: Memory: Single Data Swap (SWP)
     /// Execution Time: 1S+2N+1I. That is, 2N data cycles, 1S code cycle, plus 1I.
     fn arm_swp(&mut self, inst: u32) -> CpuAction {
-        let _byte = inst.bit(22);
+        let BYTE = inst.bit(22);
 
-        todo!()
+        let base_addr = self.get_reg(inst.bit_range(16..20) as usize);
+        let rd = inst.bit_range(12..16) as usize;
+        if BYTE {
+            let t = self.load_8(base_addr, NonSeq);
+            self.store_8(base_addr, self.get_reg(inst.rm()) as u8, Seq);
+            self.set_reg(rd, t as u32);
+        } else {
+            let t = self.ldr_word(base_addr, NonSeq);
+            self.store_aligned_32(base_addr, self.get_reg(inst.rm()), Seq);
+            self.set_reg(rd, t as u32);
+        }
+        self.idle_cycle();
+
+        CpuAction::AdvancePC(NonSeq)
     }
 
     /// ARM Software Interrupt
