@@ -124,7 +124,7 @@ impl Gpu {
         T: VideoInterface,
         D: DmaNotifier,
     {
-        let now = Instant::now();
+        // let now = Instant::now();
         let (next_event, cycles) = match event {
             GpuEvent::HDraw => self.handle_hdraw_end(notifier),
             GpuEvent::HBlank => self.handle_hblank_end(notifier, device),
@@ -134,12 +134,12 @@ impl Gpu {
         self.scheduler
             .push_gpu_event(next_event, cycles - extra_cycles);
 
-        if self.vcount != DISPLAY_HEIGHT {
-            self.current_frame_time += now.elapsed();
-        } else {
-            self.render_times.push(self.current_frame_time);
-            self.current_frame_time = Duration::ZERO;
-        }
+        // if self.vcount != DISPLAY_HEIGHT {
+        //     self.current_frame_time += now.elapsed();
+        // } else {
+        //     self.render_times.push(self.current_frame_time);
+        //     self.current_frame_time = Duration::ZERO;
+        // }
     }
 
     fn handle_hdraw_end<D: DmaNotifier>(&mut self, notifier: &mut D) -> (GpuEvent, usize) {
@@ -166,15 +166,26 @@ impl Gpu {
 
         if self.vcount < DISPLAY_HEIGHT {
             self.dispstat.set_hblank_flag(false);
-            self.render_scanline();
-            // update BG2/3 reference points on the end of a scanline
-            for i in 0..2 {
-                self.bg_aff[i].internal_x += self.bg_aff[i].pb as i16 as i32;
-                self.bg_aff[i].internal_y += self.bg_aff[i].pd as i16 as i32;
-            }
+            // self.render_scanline();
+            // // update BG2/3 reference points on the end of a scanline
+            // for i in 0..2 {
+            //     self.bg_aff[i].internal_x += self.bg_aff[i].pb as i16 as i32;
+            //     self.bg_aff[i].internal_y += self.bg_aff[i].pd as i16 as i32;
+            // }
 
             (GpuEvent::HDraw, CYCLES_HDRAW)
         } else {
+            let now = Instant::now();
+            for line in 0..DISPLAY_HEIGHT {
+                self.render_scanline(line);
+                for i in 0..2 {
+                    self.bg_aff[i].internal_x += self.bg_aff[i].pb as i16 as i32;
+                    self.bg_aff[i].internal_y += self.bg_aff[i].pd as i16 as i32;
+                }
+            }
+            self.render_times.push(now.elapsed());
+            // println!("{:?}", now.elapsed());
+
             // latch BG2/3 reference points on vblank
             for i in 0..2 {
                 self.bg_aff[i].internal_x = self.bg_aff[i].x;
@@ -214,7 +225,7 @@ impl Gpu {
             self.update_vcount(0);
             self.dispstat.set_vblank_flag(false);
             self.dispstat.set_hblank_flag(false);
-            self.render_scanline();
+            // self.render_scanline();
             (GpuEvent::HDraw, CYCLES_HDRAW)
         }
     }
@@ -230,9 +241,9 @@ impl Gpu {
         }
     }
 
-    pub fn render_scanline(&mut self) {
+    pub fn render_scanline(&mut self, line: usize) {
         if self.dispcnt.force_blank {
-            for x in self.frame_buffer[self.vcount * 4 * DISPLAY_WIDTH..]
+            for x in self.frame_buffer[line * 4 * DISPLAY_WIDTH..]
                 .iter_mut()
                 .take(DISPLAY_WIDTH)
             {
@@ -250,10 +261,10 @@ impl Gpu {
             0 => {
                 for bg in 0..=3 {
                     if self.dispcnt.enable_bg[bg] {
-                        self.render_reg_bg(bg);
+                        self.render_reg_bg(bg, line);
                     }
                 }
-                self.finalize_scanline(0, 3);
+                self.finalize_scanline(0, 3, line);
             }
             1 => {
                 todo!();
@@ -279,12 +290,12 @@ impl Gpu {
                 // self.finalize_scanline(2, 3);
             }
             3 => {
-                self.render_mode3(2);
-                self.finalize_scanline(2, 2);
+                self.render_mode3(2, line);
+                self.finalize_scanline(2, 2, line);
             }
             4 => {
-                self.render_mode4(2);
-                self.finalize_scanline(2, 2);
+                self.render_mode4(2, line);
+                self.finalize_scanline(2, 2, line);
             }
             5 => {
                 todo!();
@@ -302,7 +313,7 @@ impl Gpu {
         }
     }
 
-    pub fn finalize_scanline(&mut self, bg_start: usize, bg_end: usize) {
+    pub fn finalize_scanline(&mut self, bg_start: usize, bg_end: usize, line: usize) {
         let backdrop_color = Rgb15(self.palette_ram.read_16(0));
 
         // filter out disabled backgrounds and sort by priority
@@ -312,7 +323,7 @@ impl Gpu {
             .collect();
         sorted_backgrounds.sort_by_key(|bg| (self.bgcnt[*bg].priority, *bg));
 
-        let y = self.vcount;
+        let y = line;
 
         if !self.dispcnt.is_using_windows() {
             for x in 0..DISPLAY_WIDTH {
@@ -324,8 +335,8 @@ impl Gpu {
         }
     }
 
-    fn render_mode3(&mut self, bg: usize) {
-        let _y = self.vcount;
+    fn render_mode3(&mut self, bg: usize, line: usize) {
+        let _y = line;
 
         let pa = self.bg_aff[bg - 2].pa as i32;
         let pc = self.bg_aff[bg - 2].pc as i32;
@@ -351,14 +362,14 @@ impl Gpu {
         }
     }
 
-    fn render_mode4(&mut self, bg: usize) {
+    fn render_mode4(&mut self, bg: usize, line: usize) {
         let page_ofs = match self.dispcnt.display_frame_select {
             0 => 0x0600_0000 - VRAM_ADDR,
             1 => 0x0600_a000 - VRAM_ADDR,
             _ => unreachable!(),
         };
 
-        let _y = self.vcount;
+        let _y = line;
 
         let pa = self.bg_aff[bg - 2].pa as i32;
         let pc = self.bg_aff[bg - 2].pc as i32;
@@ -493,7 +504,7 @@ impl Gpu {
         }
     }
 
-    pub(crate) fn render_reg_bg(&mut self, bg: usize) {
+    pub(crate) fn render_reg_bg(&mut self, bg: usize, line: usize) {
         let (h_ofs, v_ofs) = (self.bg_hofs[bg] as u32, self.bg_vofs[bg] as u32);
         let tileset_base = self.bgcnt[bg].char_block();
         let tilemap_base = self.bgcnt[bg].screen_block();
@@ -501,7 +512,7 @@ impl Gpu {
 
         let (bg_width, bg_height) = self.bgcnt[bg].size_regular();
 
-        let screen_y = self.vcount as u32;
+        let screen_y = line as u32;
         let mut screen_x = 0;
 
         // calculate the bg coords at the top-left corner, including wraparound
