@@ -97,6 +97,7 @@ impl Bus for IoDevices {
             REG_BG3CNT => self.gpu.bgcnt[3].read(),
             REG_IME => self.intc.master_enable as u16,
             REG_POSTFLG => self.post_boot_flag as u16,
+            REG_IE => self.intc.enable.into(),
             _ => {
                 let s = io_reg_string(io_addr);
 

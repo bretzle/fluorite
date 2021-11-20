@@ -18,7 +18,7 @@ pub const NUM_RENDER_TIMES: usize = 25;
 
 pub struct Gba<T: VideoInterface> {
     cpu: Arm7tdmi<SysBus>,
-    sysbus: Shared<SysBus>,
+    pub sysbus: Shared<SysBus>,
     io: Shared<IoDevices>,
     scheduler: Shared<Scheduler>,
 
@@ -144,6 +144,10 @@ impl<T: VideoInterface> Gba<T> {
 
         sum / (NUM_RENDER_TIMES as u32)
     }
+
+	pub fn arm_cpu(&self) -> &Arm7tdmi<SysBus> {
+		&self.cpu
+	}
 }
 
 #[derive(Debug, PartialEq)]

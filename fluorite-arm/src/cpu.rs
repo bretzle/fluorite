@@ -82,6 +82,10 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         self.gpr
     }
 
+	pub fn get_cspr(&self) -> u32 {
+		self.cspr.into()
+	}
+
     pub fn word_size(&self) -> usize {
         match self.cspr.state() {
             CpuState::ARM => 4,
