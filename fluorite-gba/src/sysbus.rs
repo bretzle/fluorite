@@ -163,7 +163,12 @@ impl Bus for SysBus {
             EWRAM_ADDR => self.ewram.read_32(addr & 0x3_FFFC),
             IWRAM_ADDR => self.iwram.read_32(addr & 0x7FFC),
             IOMEM_ADDR => {
-                todo!()
+                let addr = if addr & 0xFFFC == 0x8000 {
+                    0x800
+                } else {
+                    addr & 0x00FFFFFC
+                };
+                self.io.read_32(addr)
             }
             PALRAM_ADDR | VRAM_ADDR | OAM_ADDR => todo!(),
             GAMEPAK_WS0_LO | GAMEPAK_WS0_HI | GAMEPAK_WS1_LO | GAMEPAK_WS1_HI | GAMEPAK_WS2_LO => {

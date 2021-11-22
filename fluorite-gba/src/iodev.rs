@@ -10,7 +10,7 @@ use crate::{
 };
 use fluorite_arm::Addr;
 use fluorite_common::WeakPointer;
-use modular_bitfield::{bitfield, prelude::B2};
+use modular_bitfield::{bitfield, prelude::*};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum HaltState {
@@ -95,9 +95,44 @@ impl Bus for IoDevices {
             REG_BG1CNT => self.gpu.bgcnt[1].read(),
             REG_BG2CNT => self.gpu.bgcnt[2].read(),
             REG_BG3CNT => self.gpu.bgcnt[3].read(),
+            REG_WIN0H => ((self.gpu.win0.left as u16) << 8 | (self.gpu.win0.right as u16)),
+            REG_WIN1H => ((self.gpu.win1.left as u16) << 8 | (self.gpu.win1.right as u16)),
+            REG_WIN0V => ((self.gpu.win0.top as u16) << 8 | (self.gpu.win0.bottom as u16)),
+            REG_WIN1V => ((self.gpu.win1.top as u16) << 8 | (self.gpu.win1.bottom as u16)),
+            REG_WININ => {
+                ((self.gpu.win1.flags.bits() as u16) << 8) | (self.gpu.win0.flags.bits() as u16)
+            }
+            REG_WINOUT => {
+                ((self.gpu.winobj_flags.bits() as u16) << 8) | (self.gpu.winout_flags.bits() as u16)
+            }
+            REG_BLDCNT => self.gpu.bldcnt.read(),
+            REG_BLDALPHA => self.gpu.bldalpha.read(),
+
             REG_IME => self.intc.master_enable as u16,
-            REG_POSTFLG => self.post_boot_flag as u16,
             REG_IE => self.intc.enable.into(),
+            REG_IF => self.intc.flags.get().into(),
+
+            REG_TM0CNT_L..=REG_TM3CNT_H => todo!(),
+
+            SOUND_BASE..=SOUND_END => todo!(),
+            REG_DMA0CNT_H => self.dmac.channels[0].ctrl.0,
+            REG_DMA1CNT_H => self.dmac.channels[1].ctrl.0,
+            REG_DMA2CNT_H => self.dmac.channels[2].ctrl.0,
+            REG_DMA3CNT_H => self.dmac.channels[3].ctrl.0,
+            // Even though these registers are write only,
+            // some games may still try to read them.
+            // TODO: should this be treated as an open-bus read?
+            REG_DMA0CNT_L => 0,
+            REG_DMA1CNT_L => 0,
+            REG_DMA2CNT_L => 0,
+            REG_DMA3CNT_L => 0,
+
+            REG_WAITCNT => self.waitcnt.into(),
+
+            REG_POSTFLG => self.post_boot_flag as u16,
+            REG_HALTCNT => 0,
+            REG_KEYINPUT => todo!(),
+
             _ => {
                 let s = io_reg_string(io_addr);
 
@@ -229,8 +264,8 @@ impl Bus for IoDevices {
             REG_IME => io.intc.master_enable = val != 0,
             REG_IE => io.intc.enable = val.into(),
             REG_IF => io.intc.clear(val),
-            REG_TM0CNT_L..=REG_TM3CNT_H => println!("TODO TIMER"),
-            SOUND_BASE..=SOUND_END => println!("TODO SOUND"),
+            REG_TM0CNT_L..=REG_TM3CNT_H => todo!("TODO TIMER"),
+            SOUND_BASE..=SOUND_END => todo!("TODO SOUND"),
             DMA_BASE..=REG_DMA3CNT_H => {
                 let ofs = io_addr - DMA_BASE;
                 let channel_id = (ofs / 12) as usize;
@@ -262,15 +297,6 @@ impl Bus for IoDevices {
                 }
             }
         }
-    }
-
-    fn read_32(&mut self, addr: Addr) -> u32 {
-        self.read_16(addr) as u32 | (self.read_16(addr + 2) as u32) << 16
-    }
-
-    fn write_32(&mut self, addr: Addr, val: u32) {
-        self.write_16(addr, (val & 0xffff) as u16);
-        self.write_16(addr + 2, (val >> 16) as u16);
     }
 }
 

@@ -1,3 +1,4 @@
+use self::obj::ObjMapping;
 use self::render::Point;
 use self::window::{Window, WindowInfo, WindowType};
 use crate::dma::{DmaNotifier, TIMING_HBLANK, TIMING_VBLANK};
@@ -13,10 +14,11 @@ use fluorite_common::{CircularBuffer, Shared};
 use modular_bitfield::prelude::*;
 use static_assertions::assert_eq_size;
 use std::cell::RefCell;
-use std::fmt;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
+use std::{cmp, fmt};
 
+mod obj;
 mod render;
 mod window;
 
@@ -242,8 +244,7 @@ impl Gpu {
         }
 
         if self.dispcnt.enable_obj {
-            todo!()
-            // self.render_objs();
+            self.render_objs();
         }
 
         match self.dispcnt.mode {
@@ -320,7 +321,62 @@ impl Gpu {
                 self.finalize_pixel(x, y, &win, &sorted_backgrounds, backdrop_color);
             }
         } else {
-            todo!();
+            let mut occupied = [false; DISPLAY_WIDTH];
+            let mut occupied_count = 0;
+            if self.dispcnt.enable_window0 && self.win0.contains_y(y) {
+                let win = WindowInfo::new(WindowType::Win0, self.win0.flags);
+                let backgrounds = filter_window_backgrounds(&sorted_backgrounds, win.flags);
+                for x in self.win0.left()..self.win0.right() {
+                    self.finalize_pixel(x, y, &win, &backgrounds, backdrop_color);
+                    occupied[x] = true;
+                    occupied_count += 1;
+                }
+            }
+            if occupied_count == DISPLAY_WIDTH {
+                return;
+            }
+            if self.dispcnt.enable_window1 && self.win1.contains_y(y) {
+                let win = WindowInfo::new(WindowType::Win1, self.win1.flags);
+                let backgrounds = filter_window_backgrounds(&sorted_backgrounds, win.flags);
+                for x in self.win1.left()..self.win1.right() {
+                    if occupied[x] {
+                        continue;
+                    }
+                    self.finalize_pixel(x, y, &win, &backgrounds, backdrop_color);
+                    occupied[x] = true;
+                    occupied_count += 1;
+                }
+            }
+            if occupied_count == DISPLAY_WIDTH {
+                return;
+            }
+            let win_out = WindowInfo::new(WindowType::WinOut, self.winout_flags);
+            let win_out_backgrounds = filter_window_backgrounds(&sorted_backgrounds, win_out.flags);
+            if self.dispcnt.enable_obj_window {
+                let win_obj = WindowInfo::new(WindowType::WinObj, self.winobj_flags);
+                let win_obj_backgrounds =
+                    filter_window_backgrounds(&sorted_backgrounds, win_obj.flags);
+                for x in 0..DISPLAY_WIDTH {
+                    if occupied[x] {
+                        continue;
+                    }
+                    let obj_entry = self.obj_buffer_get(x, y);
+                    if obj_entry.window {
+                        // WinObj
+                        self.finalize_pixel(x, y, &win_obj, &win_obj_backgrounds, backdrop_color);
+                    } else {
+                        // WinOut
+                        self.finalize_pixel(x, y, &win_out, &win_out_backgrounds, backdrop_color);
+                    }
+                }
+            } else {
+                for x in 0..DISPLAY_WIDTH {
+                    if occupied[x] {
+                        continue;
+                    }
+                    self.finalize_pixel(x, y, &win_out, &win_out_backgrounds, backdrop_color);
+                }
+            }
         }
     }
 
@@ -434,7 +490,7 @@ impl Gpu {
             RenderLayer::background(*bg, self.bg_line[*bg][x], self.bgcnt[*bg].priority)
         });
 
-        let mut _bot_layer = it.next().map_or(backdrop_layer, |bg| {
+        let mut bot_layer = it.next().map_or(backdrop_layer, |bg| {
             RenderLayer::background(*bg, self.bg_line[*bg][x], self.bgcnt[*bg].priority)
         });
 
@@ -445,10 +501,10 @@ impl Gpu {
         if win.flags.obj_enabled() && self.dispcnt.enable_obj && !obj_entry.color.is_transparent() {
             let obj_layer = RenderLayer::objects(obj_entry.color, obj_entry.priority);
             if obj_layer.priority <= top_layer.priority {
-                _bot_layer = top_layer;
+                bot_layer = top_layer;
                 top_layer = obj_layer;
-            } else if obj_layer.priority <= _bot_layer.priority {
-                _bot_layer = obj_layer;
+            } else if obj_layer.priority <= bot_layer.priority {
+                bot_layer = obj_layer;
             }
         }
 
@@ -456,28 +512,66 @@ impl Gpu {
         let obj_alpha_blend = top_layer.is_object() && obj_entry.alpha;
 
         let top_flags = self.bldcnt.target1;
-        let _bot_flags = self.bldcnt.target2;
+        let bot_flags = self.bldcnt.target2;
 
         let sfx_enabled = (self.bldcnt.mode != BlendMode::None || obj_alpha_blend)
             && top_flags.contains_render_layer(&top_layer); // sfx must at least have a first target configured
 
-        if win.flags.sfx_enabled() && sfx_enabled {
-            todo!()
+        let color: u32 = if win.flags.sfx_enabled() && sfx_enabled {
+            if top_layer.is_object()
+                && obj_alpha_blend
+                && bot_flags.contains_render_layer(&bot_layer)
+            {
+                self.do_alpha(top_layer.pixel, bot_layer.pixel).to_rgb24()
+            } else {
+                let (top_layer, bot_layer) = (top_layer, bot_layer);
+
+                match self.bldcnt.mode {
+                    BlendMode::Alpha => {
+                        if bot_flags.contains_render_layer(&bot_layer) {
+                            self.do_alpha(top_layer.pixel, bot_layer.pixel).to_rgb24()
+                        } else {
+                            // alpha blending must have a 2nd target
+                            top_layer.pixel.to_rgb24()
+                        }
+                    }
+                    BlendMode::White => self.do_brighten(top_layer.pixel).to_rgb24(),
+                    BlendMode::Black => self.do_darken(top_layer.pixel).to_rgb24(),
+                    BlendMode::None => top_layer.pixel.to_rgb24(),
+                }
+            }
         } else {
             // no blending, just use the top pixel
-            let rgb = {
-                let color = top_layer.pixel.to_rgb24();
-                let r = ((color >> 16) & 0xFF) as u8;
-                let g = ((color >> 8) & 0xFF) as u8;
-                let b = ((color >> 0) & 0xFF) as u8;
-                [r, g, b, 0xFF]
-            };
+            top_layer.pixel.to_rgb24()
+        };
 
-            output[4 * x + 0] = rgb[0];
-            output[4 * x + 1] = rgb[1];
-            output[4 * x + 2] = rgb[2];
-            output[4 * x + 3] = rgb[3];
-        }
+        let rgb = {
+            let r = ((color >> 16) & 0xFF) as u8;
+            let g = ((color >> 8) & 0xFF) as u8;
+            let b = ((color >> 0) & 0xFF) as u8;
+            [r, g, b, 0xFF]
+        };
+
+        output[4 * x + 0] = rgb[0];
+        output[4 * x + 1] = rgb[1];
+        output[4 * x + 2] = rgb[2];
+        output[4 * x + 3] = rgb[3];
+    }
+
+    fn do_alpha(&self, upper: Rgb15, lower: Rgb15) -> Rgb15 {
+        let eva = self.bldalpha.eva;
+        let evb = self.bldalpha.evb;
+        upper.blend_with(lower, eva, evb)
+    }
+
+    fn do_brighten(&self, c: Rgb15) -> Rgb15 {
+        let evy = self.bldy;
+        c.blend_with(Rgb15::WHITE, 16 - evy, evy)
+    }
+
+    fn do_darken(&self, c: Rgb15) -> Rgb15 {
+        let evy = self.bldy;
+        c.blend_with(Rgb15::BLACK, 16 - evy, evy)
     }
 
     fn obj_buffer_get(&self, x: usize, y: usize) -> &ObjBufferEntry {
@@ -593,8 +687,21 @@ impl Gpu {
 }
 
 impl Bus for Gpu {
-    fn read_8(&mut self, _addr: Addr) -> u8 {
-        todo!()
+    fn read_8(&mut self, addr: Addr) -> u8 {
+        let page = (addr >> 24) as usize;
+        match page {
+            PAGE_PALRAM => self.palette_ram.read_8(addr & 0x3ff),
+            PAGE_VRAM => {
+                // complicated
+                let mut ofs = addr & ((VIDEO_RAM_SIZE as u32) - 1);
+                if ofs > 0x18000 {
+                    ofs -= 0x8000;
+                }
+                self.vram.read_8(ofs)
+            }
+            PAGE_OAM => self.oam.read_8(addr & 0x3ff),
+            _ => unreachable!(),
+        }
     }
 
     fn write_8(&mut self, _addr: Addr, _val: u8) {
@@ -631,6 +738,20 @@ pub struct DisplayControl {
     pub enable_window0: bool,
     pub enable_window1: bool,
     pub enable_obj_window: bool,
+}
+
+impl DisplayControl {
+    pub fn is_using_windows(&self) -> bool {
+        self.enable_window0 || self.enable_window1 || self.enable_obj_window
+    }
+
+    pub fn obj_mapping(&self) -> ObjMapping {
+        if self.obj_character_vram_mapping {
+            ObjMapping::OneDimension
+        } else {
+            ObjMapping::TwoDimension
+        }
+    }
 }
 
 impl From<u16> for DisplayControl {
@@ -674,12 +795,6 @@ impl GpuMemoryMappedIO for DisplayControl {
             | u16::from(self.enable_window0) << 13
             | u16::from(self.enable_window1) << 14
             | u16::from(self.enable_obj_window) << 15
-    }
-}
-
-impl DisplayControl {
-    pub fn is_using_windows(&self) -> bool {
-        self.enable_window0 || self.enable_window1 || self.enable_obj_window
     }
 }
 
@@ -745,7 +860,7 @@ impl GpuMemoryMappedIO for DisplayStatus {
 
 #[derive(Debug, Copy, Clone)]
 pub struct ObjBufferEntry {
-    pub(crate) _window: bool,
+    pub(crate) window: bool,
     pub(crate) alpha: bool,
     pub(crate) color: Rgb15,
     pub(crate) priority: u16,
@@ -754,7 +869,7 @@ pub struct ObjBufferEntry {
 impl Default for ObjBufferEntry {
     fn default() -> ObjBufferEntry {
         ObjBufferEntry {
-            _window: false,
+            window: false,
             alpha: false,
             color: Rgb15::TRANSPARENT,
             priority: 4,
@@ -795,6 +910,13 @@ impl Rgb15 {
 
     pub fn is_transparent(&self) -> bool {
         self.0 == 0x8000
+    }
+
+    pub fn blend_with(self, other: Rgb15, my_weight: u16, other_weight: u16) -> Rgb15 {
+        let r = cmp::min(31, (self.r() * my_weight + other.r() * other_weight) >> 4);
+        let g = cmp::min(31, (self.g() * my_weight + other.g() * other_weight) >> 4);
+        let b = cmp::min(31, (self.b() * my_weight + other.b() * other_weight) >> 4);
+        Rgb15::from_rgb(r, g, b)
     }
 }
 
@@ -1072,4 +1194,23 @@ bitfield::bitfield! {
     x_flip, _ : 10;
     y_flip, _ : 11;
     palette_bank, _ : 15, 12;
+}
+
+#[derive(Debug, Default, Copy, Clone)]
+pub struct AffineMatrix {
+    pub pa: i32,
+    pub pb: i32,
+    pub pc: i32,
+    pub pd: i32,
+}
+
+fn filter_window_backgrounds(
+    backgrounds: &[usize],
+    window_flags: WindowFlags,
+) -> ArrayVec<usize, 4> {
+    backgrounds
+        .iter()
+        .copied()
+        .filter(|bg| window_flags.bg_enabled(*bg))
+        .collect()
 }

@@ -11,7 +11,7 @@ impl VideoInterface for BenchmarkHardware {
 
 fn create_gba() -> Gba<BenchmarkHardware> {
     let bios = include_bytes!("../roms/gba_bios.bin");
-    let rom = include_bytes!("../roms/yoshi_dma.gba");
+    let rom = include_bytes!("../roms/tonc_gba_demos/bigmap.gba");
 
     let dummy = Rc::new(RefCell::new(BenchmarkHardware {}));
 

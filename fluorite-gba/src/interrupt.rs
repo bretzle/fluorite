@@ -72,7 +72,7 @@ pub struct IrqBitMask {
 pub struct InterruptController {
     pub master_enable: bool,
     pub enable: IrqBitMask,
-    flags: Rc<Cell<IrqBitMask>>,
+    pub flags: Rc<Cell<IrqBitMask>>,
 }
 
 impl InterruptController {

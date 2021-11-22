@@ -88,10 +88,10 @@ impl Window {
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum WindowType {
-    _Win0,
-    _Win1,
-    _WinObj,
-    _WinOut,
+    Win0,
+    Win1,
+    WinObj,
+    WinOut,
     WinNone,
 }
 
