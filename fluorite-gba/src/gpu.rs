@@ -326,9 +326,14 @@ impl Gpu {
             if self.dispcnt.enable_window0 && self.win0.contains_y(y) {
                 let win = WindowInfo::new(WindowType::Win0, self.win0.flags);
                 let backgrounds = filter_window_backgrounds(&sorted_backgrounds, win.flags);
-                for x in self.win0.left()..self.win0.right() {
+                for (x, occupied) in occupied
+                    .iter_mut()
+                    .enumerate()
+                    .take(self.win0.right())
+                    .skip(self.win0.left())
+                {
                     self.finalize_pixel(x, y, &win, &backgrounds, backdrop_color);
-                    occupied[x] = true;
+                    *occupied = true;
                     occupied_count += 1;
                 }
             }
@@ -338,12 +343,17 @@ impl Gpu {
             if self.dispcnt.enable_window1 && self.win1.contains_y(y) {
                 let win = WindowInfo::new(WindowType::Win1, self.win1.flags);
                 let backgrounds = filter_window_backgrounds(&sorted_backgrounds, win.flags);
-                for x in self.win1.left()..self.win1.right() {
-                    if occupied[x] {
+                for (x, occupied) in occupied
+                    .iter_mut()
+                    .enumerate()
+                    .take(self.win1.right())
+                    .skip(self.win1.left())
+                {
+                    if *occupied {
                         continue;
                     }
                     self.finalize_pixel(x, y, &win, &backgrounds, backdrop_color);
-                    occupied[x] = true;
+                    *occupied = true;
                     occupied_count += 1;
                 }
             }
@@ -356,8 +366,8 @@ impl Gpu {
                 let win_obj = WindowInfo::new(WindowType::WinObj, self.winobj_flags);
                 let win_obj_backgrounds =
                     filter_window_backgrounds(&sorted_backgrounds, win_obj.flags);
-                for x in 0..DISPLAY_WIDTH {
-                    if occupied[x] {
+                for (x, occupied) in occupied.iter().enumerate().take(DISPLAY_WIDTH) {
+                    if *occupied {
                         continue;
                     }
                     let obj_entry = self.obj_buffer_get(x, y);
@@ -370,8 +380,8 @@ impl Gpu {
                     }
                 }
             } else {
-                for x in 0..DISPLAY_WIDTH {
-                    if occupied[x] {
+                for (x, item) in occupied.iter().enumerate().take(DISPLAY_WIDTH) {
+                    if *item {
                         continue;
                     }
                     self.finalize_pixel(x, y, &win_out, &win_out_backgrounds, backdrop_color);

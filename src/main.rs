@@ -87,7 +87,7 @@ fn main() -> color_eyre::Result<()> {
         let mut emu = emu.borrow_mut();
         emu.fps = rl.get_fps();
 
-        if let Some(_) = counter.tick() {
+        if counter.tick().is_some() {
             let time = gba.render_time();
             let fps = 1.0 / time.as_secs_f64();
             title.clear();

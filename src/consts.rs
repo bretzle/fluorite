@@ -1,9 +1,9 @@
 pub const GUI_PADDING: i32 = 10;
 pub const GUI_ROW_HEIGHT: i32 = 30;
 pub const GUI_LABEL_HEIGHT: i32 = 0;
-pub const GUI_LABEL_PADDING: i32 = 5;
-pub const GBA_LCD_W: f32 = 240.0;
-pub const GBA_LCD_H: f32 = 160.0;
+// pub const GUI_LABEL_PADDING: i32 = 5;
+// pub const GBA_LCD_W: f32 = 240.0;
+// pub const GBA_LCD_H: f32 = 160.0;
 
 pub const _BANKED_REGS: [&str; 20] = [
     "SPSRfiq", "SPSRirq", "SPSRsvc", "SPSRabt", "SPSRund", "R8fiq", "R9fiq", "R10fiq", "R11fiq",
@@ -14,12 +14,12 @@ pub const _BANKED_REGS: [&str; 20] = [
 #[repr(i32)]
 #[derive(Debug, Clone, Copy)]
 pub enum PanelMode {
-    CPU = 0,
-    IO = 1,
-    AUDIO = 2,
+    Cpu = 0,
+    Io = 1,
+    Audio = 2,
 }
 
-pub const BUTTON_STATES: [PanelMode; 3] = [PanelMode::CPU, PanelMode::IO, PanelMode::AUDIO];
+pub const BUTTON_STATES: [PanelMode; 3] = [PanelMode::Cpu, PanelMode::Io, PanelMode::Audio];
 
 pub struct MmioRegBit {
     pub start: u8,

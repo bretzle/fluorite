@@ -54,6 +54,6 @@ impl<'a, D: RaylibDrawGui> DrawExt for D {
     fn draw_label(&mut self, layout_rect: Rectangle, label: &CStr) -> Rectangle {
         let (widget_rect, layout_rect) = layout_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
         self.gui_label(widget_rect, Some(label));
-        return layout_rect;
+        layout_rect
     }
 }

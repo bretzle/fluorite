@@ -1,6 +1,9 @@
 use bitfield::bitfield;
 
-use crate::{consts::{DISPLAY_HEIGHT, DISPLAY_WIDTH, VRAM_ADDR}, sysbus::Bus};
+use crate::{
+    consts::{DISPLAY_HEIGHT, DISPLAY_WIDTH, VRAM_ADDR},
+    sysbus::Bus,
+};
 
 use super::{AffineMatrix, Gpu, ObjBufferEntry, PixelFormat, Rgb15};
 
@@ -294,7 +297,7 @@ impl Gpu {
         }
     }
 
-	fn obj_buffer_get_mut(&mut self, x: usize, y: usize) -> &mut ObjBufferEntry {
+    fn obj_buffer_get_mut(&mut self, x: usize, y: usize) -> &mut ObjBufferEntry {
         &mut self.obj_buffer[index2d!(x, y, DISPLAY_WIDTH)]
     }
 

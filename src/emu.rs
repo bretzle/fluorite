@@ -30,7 +30,7 @@ impl EmulatorState {
             lcd,
             scroll: Vector2::default(),
             last_rect: Rectangle::default(),
-            panel_mode: PanelMode::CPU,
+            panel_mode: PanelMode::Cpu,
             fps: 0,
             run_state: 1,
         }
@@ -49,7 +49,7 @@ impl EmulatorState {
         let screen_width = rl.get_screen_width() as f32;
         let screen_height = rl.get_screen_height() as f32;
 
-        let mut d = rl.begin_drawing(&thread);
+        let mut d = rl.begin_drawing(thread);
 
         d.clear_background(Color::WHITE);
 
@@ -91,16 +91,16 @@ impl EmulatorState {
             );
 
             match self.panel_mode {
-                PanelMode::CPU => {
+                PanelMode::Cpu => {
                     // rect_inside = draw_debug_state(rect_inside, &emu, &gb_state);
                     // rect_inside = draw_cartridge_state(rect_inside, &gb_state.cart);
                     rect_inside = self.draw_arm7_state(&mut s, rect_inside, gba);
                     // rect_inside = draw_joypad_state(rect_inside, &emu.joy);
                 }
-                PanelMode::IO => {
+                PanelMode::Io => {
                     rect_inside = self.draw_io_state(&mut s, rect_inside, gba);
                 }
-                PanelMode::AUDIO => {
+                PanelMode::Audio => {
                     // rect_inside = draw_audio_state(rect_inside, &gb_state);
                 }
             }
@@ -135,19 +135,19 @@ impl EmulatorState {
             let sections = ["Registers", "Banked Registers"];
             let orig_y = inside_rect.y;
             let mut x_off = 0.0;
-            for i in 0..2 {
-                in_rect[i] = inside_rect;
-                in_rect[i].width = inside_rect.width / 2.0 - GUI_PADDING as f32 * 1.0 / 2.0;
-                in_rect[i].x += x_off;
-                x_off += in_rect[i].width + GUI_PADDING as f32;
+            for r in &mut in_rect {
+                *r = inside_rect;
+                r.width = inside_rect.width / 2.0 - GUI_PADDING as f32 * 1.0 / 2.0;
+                r.x += x_off;
+                x_off += r.width + GUI_PADDING as f32;
             }
             let reg_names = [
                 "R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11", "R12",
                 "R13", "R14", "R15(PC)", "CPSR", "N", "Z", "C", "V",
             ];
             let mut reg_vals = [0; 21];
-            for i in 0..16 {
-                reg_vals[i] = arm.get_reg(i);
+            for (i, val) in reg_vals.iter_mut().enumerate().take(16) {
+                *val = arm.get_reg(i);
             }
 
             reg_vals[16] = arm.get_cspr();
@@ -180,9 +180,9 @@ impl EmulatorState {
             in_rect[0] = Self::draw_reg_state(d, in_rect[0], "Registers", reg_names, reg_vals);
             // in_rect[1] = draw_reg_state(in_rect[1], "Banked Registers", banked_regs, banked_vals);
 
-            for i in 0..2 {
-                if inside_rect.y < in_rect[i].y {
-                    inside_rect.y = in_rect[i].y;
+            for r in &in_rect {
+                if inside_rect.y < r.y {
+                    inside_rect.y = r.y;
                 }
             }
             for i in 0..2 {
@@ -198,7 +198,7 @@ impl EmulatorState {
         let (state_rect, adv_rect) = rect.chop((inside_rect.y - rect.y) as i32, GUI_PADDING);
 
         d.gui_group_box(state_rect, Some(rstr!("ARM7 State")));
-        return adv_rect;
+        adv_rect
     }
 
     fn draw_instructions(
@@ -254,7 +254,7 @@ impl EmulatorState {
 
         let (state_rect, adv_rect) = rect.chop((inside_rect.y - rect.y) as i32, GUI_PADDING);
         d.gui_group_box(state_rect, Some(&rstr!("Instructions [{}]", state)));
-        return adv_rect;
+        adv_rect
     }
 
     fn draw_io_state(

@@ -145,9 +145,9 @@ impl<T: VideoInterface> Gba<T> {
         sum / (NUM_RENDER_TIMES as u32)
     }
 
-	pub fn arm_cpu(&self) -> &Arm7tdmi<SysBus> {
-		&self.cpu
-	}
+    pub fn arm_cpu(&self) -> &Arm7tdmi<SysBus> {
+        &self.cpu
+    }
 
     pub fn arm_cpu_mut(&mut self) -> &mut Arm7tdmi<SysBus> {
         &mut self.cpu
