@@ -1,3 +1,5 @@
+#![doc(html_logo_url = "https://raw.githubusercontent.com/bretzle/fluorite/main/fluorite.png")]
+
 use fluorite_gba::gba::Gba;
 use raylib::texture::RaylibTexture2D;
 use std::fmt::Write;

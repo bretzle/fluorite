@@ -1,3 +1,5 @@
+#![doc(html_logo_url = "https://raw.githubusercontent.com/bretzle/fluorite/main/fluorite.png")]
+
 pub mod alu;
 pub mod arm;
 pub mod cpu;
