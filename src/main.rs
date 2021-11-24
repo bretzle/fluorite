@@ -1,3 +1,4 @@
+use fluorite_arm::registers::CpuState;
 use fluorite_gba::gba::Gba;
 use fluorite_gba::sysbus::Bus;
 use fluorite_gba::VideoInterface;
@@ -31,7 +32,8 @@ struct EmulatorState {
     scroll: Vector2,
     last_rect: Rectangle,
     panel_mode: PanelMode,
-    fps: f64,
+    fps: u32,
+    run_state: i32,
 }
 
 impl EmulatorState {
@@ -41,8 +43,13 @@ impl EmulatorState {
             scroll: Vector2::default(),
             last_rect: Rectangle::default(),
             panel_mode: PanelMode::CPU,
-            fps: 60.0,
+            fps: 0,
+            run_state: 1,
         }
+    }
+
+    fn reset(&mut self) {
+        self.lcd.update_texture(&[0; 240 * 160 * 4]);
     }
 
     fn draw_frame(
@@ -79,6 +86,7 @@ impl EmulatorState {
         };
 
         let (view, _view_scale) = d.gui_scroll_panel(rect_inside, self.last_rect, self.scroll);
+        self.scroll = _view_scale;
 
         rect_inside.y += self.scroll.y;
         let starty = rect_inside.y;
@@ -86,22 +94,31 @@ impl EmulatorState {
         rect_inside.x += GUI_PADDING as f32;
         rect_inside.width = view.width - GUI_PADDING as f32 * 1.5;
 
-        match self.panel_mode {
-            PanelMode::CPU => {
-                // rect_inside = draw_debug_state(rect_inside, &emu, &gb_state);
-                // rect_inside = draw_cartridge_state(rect_inside, &gb_state.cart);
-                rect_inside = self.draw_arm7_state(&mut d, rect_inside, gba);
-                // rect_inside = draw_joypad_state(rect_inside, &emu.joy);
+        {
+            let mut s = d.begin_scissor_mode(
+                view.x as i32,
+                view.y as i32,
+                view.width as i32,
+                view.height as i32,
+            );
+
+            match self.panel_mode {
+                PanelMode::CPU => {
+                    // rect_inside = draw_debug_state(rect_inside, &emu, &gb_state);
+                    // rect_inside = draw_cartridge_state(rect_inside, &gb_state.cart);
+                    rect_inside = self.draw_arm7_state(&mut s, rect_inside, gba);
+                    // rect_inside = draw_joypad_state(rect_inside, &emu.joy);
+                }
+                PanelMode::IO => {
+                    rect_inside = self.draw_io_state(&mut s, rect_inside, gba);
+                }
+                PanelMode::AUDIO => {
+                    // rect_inside = draw_audio_state(rect_inside, &gb_state);
+                }
             }
-            PanelMode::IO => {
-                rect_inside = self.draw_io_state(&mut d, rect_inside, gba);
-            }
-            PanelMode::AUDIO => {
-                // rect_inside = draw_audio_state(rect_inside, &gb_state);
-            }
+            self.last_rect.width = view.width - GUI_PADDING as f32;
+            self.last_rect.height = rect_inside.y - starty;
         }
-        self.last_rect.width = view.width - GUI_PADDING as f32;
-        self.last_rect.height = rect_inside.y - starty;
 
         // draw lcd screen
         let tex = &self.lcd;
@@ -117,7 +134,7 @@ impl EmulatorState {
 
     fn draw_arm7_state(
         &self,
-        d: &mut RaylibDrawHandle,
+        d: &mut impl RaylibDraw,
         rect: Rectangle,
         gba: &mut Gba<EmulatorState>,
     ) -> Rectangle {
@@ -188,7 +205,7 @@ impl EmulatorState {
             inside_rect.height -= inside_rect.y - orig_y;
         }
 
-        //   inside_rect = gba_draw_instructions(inside_rect, gba);
+        inside_rect = self.draw_instructions(d, inside_rect, gba);
 
         let (state_rect, adv_rect) = rect.chop((inside_rect.y - rect.y) as i32, GUI_PADDING);
 
@@ -196,9 +213,65 @@ impl EmulatorState {
         return adv_rect;
     }
 
+    fn draw_instructions(
+        &self,
+        d: &mut impl RaylibDraw,
+        rect: Rectangle,
+        gba: &mut Gba<EmulatorState>,
+    ) -> Rectangle {
+        let mut inside_rect = rect.shave(GUI_PADDING);
+        // let mut widget_rect;
+        let arm = gba.arm_cpu_mut();
+        let pc = arm.get_reg(15);
+
+        // TODO: disassemble THUMB
+
+        let state = arm.get_cpu_state();
+        let mut disasm = String::with_capacity(64);
+
+        for i in -6..5i32 {
+            let (mut widget_rect, new_inside_rect) =
+                inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING + 5);
+
+            let pc_render = i * (if state == CpuState::THUMB { 2 } else { 4 }) + pc as i32 - 8;
+
+            if pc_render < 0 || pc_render < 0x0800_0000 {
+                widget_rect.x += 80.0;
+                d.gui_label(widget_rect, Some(rstr!("INVALID")));
+            } else {
+                if i == 0 {
+                    d.gui_label(widget_rect, Some(rstr!("PC->")));
+                }
+                widget_rect.x += 30.0;
+                d.gui_label(widget_rect, Some(&rstr!("{:08X}", pc_render)));
+                widget_rect.x += 80.0;
+
+                let opcode = arm.get_instructionge(pc_render as u32, &mut disasm);
+                d.gui_label(widget_rect, Some(&rstr!("{}", disasm)));
+                disasm.clear();
+
+                widget_rect.x += 150.0;
+                d.gui_label(
+                    widget_rect,
+                    Some(&match state {
+                        CpuState::ARM => rstr!("{:08X}", opcode),
+                        CpuState::THUMB => rstr!("{:04X}", opcode),
+                    }),
+                );
+                widget_rect.x += 50.0;
+            }
+
+            inside_rect = new_inside_rect
+        }
+
+        let (state_rect, adv_rect) = rect.chop((inside_rect.y - rect.y) as i32, GUI_PADDING);
+        d.gui_group_box(state_rect, Some(&rstr!("Instructions [{}]", state)));
+        return adv_rect;
+    }
+
     fn draw_io_state(
         &self,
-        d: &mut RaylibDrawHandle,
+        d: &mut impl RaylibDraw,
         rect: Rectangle,
         gba: &mut Gba<EmulatorState>,
     ) -> Rectangle {
@@ -240,17 +313,17 @@ impl EmulatorState {
         rect
     }
 
-    fn draw_emu_state(&mut self, d: &mut RaylibDrawHandle, rect: Rectangle) -> Rectangle {
+    fn draw_emu_state(&mut self, d: &mut impl RaylibDraw, rect: Rectangle) -> Rectangle {
         let (mut widget_rect, inside_rect) =
             rect.shave(GUI_PADDING).chop(GUI_ROW_HEIGHT, GUI_PADDING);
 
         widget_rect.width =
             widget_rect.width / 4.0 - d.gui_get_style(GuiControl::TOGGLE, 16) as f32;
         // todo link this with the emulator
-        let _run_state = d.gui_toggle_group(
+        self.run_state = d.gui_toggle_group(
             widget_rect,
             Some(rstr!("#74#Reset;#132#Pause;#131#Run;#134#Step")),
-            -1,
+            self.run_state,
         );
 
         let (mut widget_rect, inside_rect) = inside_rect.chop(GUI_ROW_HEIGHT, GUI_PADDING);
@@ -276,7 +349,7 @@ impl EmulatorState {
     }
 
     fn draw_reg_state<const N: usize>(
-        d: &mut RaylibDrawHandle,
+        d: &mut impl RaylibDraw,
         rect: Rectangle,
         _group_name: &str,
         names: [&str; N],
@@ -349,12 +422,36 @@ fn main() -> color_eyre::Result<()> {
     let mut title = "".to_string();
 
     while !rl.window_should_close() {
-        gba.frame();
+        {
+            let mut emur = emu.borrow_mut();
+            match emur.run_state {
+                0 => {
+                    emur.reset();
+                    emur.run_state = 1;
+                    drop(emur);
+                    gba = Gba::new(emu.clone(), BIOS, &rom);
+                    gba.skip_bios();
+                }
+                1 => {}
+                2 => {
+                    // run
+                    drop(emur);
+                    gba.frame()
+                }
+                3 => {
+                    // step
+                    emur.run_state = 1;
+                    drop(emur);
+                    gba.run(1);
+                }
+                _ => unsafe { std::hint::unreachable_unchecked() },
+            }
+        }
 
         let mut emu = emu.borrow_mut();
+        emu.fps = rl.get_fps();
 
-        if let Some(real) = counter.tick() {
-            emu.fps = real as f64;
+        if let Some(_) = counter.tick() {
             let time = gba.render_time();
             let fps = 1.0 / time.as_secs_f64();
             title.clear();

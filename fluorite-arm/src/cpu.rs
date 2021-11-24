@@ -1,11 +1,12 @@
 use crate::{
-    arm::ArmCond,
+    arm::{ArmCond, ArmInstruction},
     memory::{
         MemoryAccess::{self, *},
         MemoryInterface,
     },
     registers::{BankedRegisters, CpuMode, CpuState, StatusRegister},
-    Addr,
+    thumb::ThumbInstruction,
+    Addr, InstructionDecoder,
 };
 use fluorite_common::{BitIndex, Shared};
 use num_traits::FromPrimitive;
@@ -55,6 +56,25 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         self.pc - 2 * size
     }
 
+    pub fn get_instructionge(&mut self, addr: u32, buffer: &mut String) -> u32 {
+        use std::fmt::Write;
+
+        match self.get_cpu_state() {
+            CpuState::ARM => {
+                let opcode = self.load_32((addr) & !3, MemoryAccess::Debugging);
+                let decoded = ArmInstruction::decode(opcode, addr);
+                write!(buffer, "{}", decoded).unwrap();
+                opcode
+            }
+            CpuState::THUMB => {
+                let opcode = self.load_16((addr) & !1, MemoryAccess::Debugging);
+                let decoded = ThumbInstruction::decode(opcode, addr);
+                write!(buffer, "{}", decoded).unwrap();
+                opcode as u32
+            }
+        }
+    }
+
     pub fn get_reg(&self, reg: usize) -> u32 {
         match reg {
             0..=14 => self.gpr[reg],
@@ -82,9 +102,9 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         self.gpr
     }
 
-	pub fn get_cspr(&self) -> u32 {
-		self.cspr.into()
-	}
+    pub fn get_cspr(&self) -> u32 {
+        self.cspr.into()
+    }
 
     pub fn word_size(&self) -> usize {
         match self.cspr.state() {
@@ -228,7 +248,11 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
 
         self.pc = 0x0800_0000;
         self.gpr[13] = 0x0300_7F00;
-        self.cspr = StatusRegister::from(0x5F)
+        self.cspr = StatusRegister::from(0x5F);
+
+        // fill pipeline
+        self.step();
+        self.step();
     }
 
     pub(crate) fn get_required_multipiler_array_cycles(&self, rs: u32) -> usize {

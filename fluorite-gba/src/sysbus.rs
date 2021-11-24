@@ -56,10 +56,12 @@ impl SysBus {
                 MemoryAccess8 | MemoryAccess16 => match access {
                     NonSeq => self.cycle_luts.n_cycles16.get_unchecked(page),
                     Seq => self.cycle_luts.s_cycles16.get_unchecked(page),
+                    Debugging => &0,
                 },
                 MemoryAccess32 => match access {
                     NonSeq => self.cycle_luts.n_cycles32.get_unchecked(page),
                     Seq => self.cycle_luts.s_cycles32.get_unchecked(page),
+                    Debugging => &0,
                 },
             }
         };

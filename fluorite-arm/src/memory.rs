@@ -6,6 +6,7 @@ use crate::{cpu::Arm7tdmi, Addr};
 pub enum MemoryAccess {
     NonSeq = 0,
     Seq,
+    Debugging,
 }
 
 impl Default for MemoryAccess {
@@ -22,6 +23,7 @@ impl fmt::Display for MemoryAccess {
             match self {
                 MemoryAccess::NonSeq => "N",
                 MemoryAccess::Seq => "S",
+                MemoryAccess::Debugging => todo!(),
             }
         )
     }

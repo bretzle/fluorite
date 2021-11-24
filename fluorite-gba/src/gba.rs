@@ -60,7 +60,7 @@ impl<T: VideoInterface> Gba<T> {
     }
 
     /// return number of extra cycles that ran
-    fn run(&mut self, cycles_to_run: usize) -> usize {
+    pub fn run(&mut self, cycles_to_run: usize) -> usize {
         let run_start_time = self.scheduler.timestamp();
 
         // Register an event to mark the end of this run
@@ -148,6 +148,10 @@ impl<T: VideoInterface> Gba<T> {
 	pub fn arm_cpu(&self) -> &Arm7tdmi<SysBus> {
 		&self.cpu
 	}
+
+    pub fn arm_cpu_mut(&mut self) -> &mut Arm7tdmi<SysBus> {
+        &mut self.cpu
+    }
 }
 
 #[derive(Debug, PartialEq)]

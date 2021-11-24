@@ -1,5 +1,5 @@
 use crate::consts::{GUI_LABEL_HEIGHT, GUI_PADDING};
-use raylib::{math::Rectangle, prelude::RaylibDrawHandle, rgui::RaylibDrawGui};
+use raylib::{math::Rectangle, rgui::RaylibDrawGui};
 use std::ffi::CStr;
 
 pub trait RectExt {
@@ -50,7 +50,7 @@ pub trait DrawExt: RaylibDrawGui {
     fn draw_label(&mut self, bounds: Rectangle, label: &CStr) -> Rectangle;
 }
 
-impl<'a> DrawExt for RaylibDrawHandle<'a> {
+impl<'a, D: RaylibDrawGui> DrawExt for D {
     fn draw_label(&mut self, layout_rect: Rectangle, label: &CStr) -> Rectangle {
         let (widget_rect, layout_rect) = layout_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
         self.gui_label(widget_rect, Some(label));
