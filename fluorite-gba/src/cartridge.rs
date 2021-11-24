@@ -62,6 +62,10 @@ impl CartridgeHeader {
             );
         }
 
+        fn clean(s: &str) -> String {
+            s.chars().filter(|c| !c.is_ascii_control()).collect()
+        }
+
         let game_title =
             from_utf8(&bytes[0xa0..0xac]).map_err(|_| "invalid game title".to_string())?;
         let game_code =
@@ -70,9 +74,9 @@ impl CartridgeHeader {
             from_utf8(&bytes[0xb0..0xb2]).map_err(|_| "invalid marker code".to_string())?;
 
         Ok(Self {
-            game_title: game_title.to_string(),
-            game_code: game_code.to_string(),
-            maker_code: maker_code.to_string(),
+            game_title: clean(game_title),
+            game_code: clean(game_code),
+            maker_code: clean(maker_code),
             software_version: bytes[0xBC],
             checksum,
         })
