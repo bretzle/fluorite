@@ -41,6 +41,8 @@ fn main() -> color_eyre::Result<()> {
         .build();
 
     rl.set_exit_key(None);
+    let ico = rl.load_texture(&thread, "fluorite.png").unwrap();
+    rl.set_window_icon(ico.get_texture_data().unwrap());
 
     println!("--------------");
 
