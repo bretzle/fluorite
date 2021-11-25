@@ -61,13 +61,13 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
 
         match self.get_cpu_state() {
             CpuState::ARM => {
-                let opcode = self.load_32((addr) & !3, MemoryAccess::Debugging);
+                let opcode = self.load_32(addr, MemoryAccess::Debugging);
                 let decoded = ArmInstruction::decode(opcode, addr);
                 write!(buffer, "{}", decoded).unwrap();
                 opcode
             }
             CpuState::THUMB => {
-                let opcode = self.load_16((addr) & !1, MemoryAccess::Debugging);
+                let opcode = self.load_16(addr, MemoryAccess::Debugging);
                 let decoded = ThumbInstruction::decode(opcode, addr);
                 write!(buffer, "{}", decoded).unwrap();
                 opcode as u32

@@ -131,7 +131,7 @@ impl EmulatorState {
 
         // draw lcd screen
         let tex = &self.lcd;
-        tex.set_texture_filter(thread, TextureFilter::TEXTURE_FILTER_BILINEAR);
+        tex.set_texture_filter(thread, TextureFilter::TEXTURE_FILTER_POINT);
         d.draw_texture_quad(
             tex,
             Vector2::new(1.0, 1.0),
@@ -252,7 +252,7 @@ impl EmulatorState {
 
             let pc_render = i * (if state == CpuState::THUMB { 2 } else { 4 }) + pc as i32 - 8;
 
-            if pc_render < 0 || pc_render < 0x0800_0000 {
+            if pc_render < 0 {
                 widget_rect.x += 80.0;
                 d.gui_label(widget_rect, Some(rstr!("INVALID")));
             } else {

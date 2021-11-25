@@ -1,5 +1,6 @@
 #![doc(html_logo_url = "https://raw.githubusercontent.com/bretzle/fluorite/main/fluorite.png")]
 
+use color_eyre::Result;
 use fluorite_gba::gba::Gba;
 use raylib::texture::RaylibTexture2D;
 use std::fmt::Write;
@@ -18,23 +19,27 @@ mod utils;
 
 static BIOS: &[u8] = include_bytes!("../roms/gba_bios.bin");
 
+fn read_rom(path: Option<String>, buffer: &mut Vec<u8>) -> Result<String> {
+    let file_path = match path {
+        None => {
+            let mut file_path = PathBuf::new();
+            match std::env::args().nth(1) {
+                Some(s) => file_path.push(s),
+                None => file_path.push("roms/beeg.gba"),
+            };
+            file_path
+        }
+        Some(s) => s.into(),
+    };
+
+    let mut file = File::open(&file_path)?;
+    file.read_to_end(buffer)?;
+
+    Ok(file_path.file_stem().unwrap().to_string_lossy().to_string())
+}
+
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
-
-    let (rom, name) = {
-        let mut file_path = PathBuf::new();
-        match std::env::args().nth(1) {
-            Some(s) => file_path.push(s),
-            None => file_path.push("roms/beeg.gba"),
-        };
-        let mut file = File::open(&file_path)?;
-        let mut buf = vec![];
-        file.read_to_end(&mut buf)?;
-        (
-            buf,
-            file_path.file_stem().unwrap().to_string_lossy().to_string(),
-        )
-    };
 
     let (mut rl, thread) = raylib::init()
         .size(430 + (240 * 4), 160 * 4)
@@ -48,8 +53,10 @@ fn main() -> color_eyre::Result<()> {
 
     println!("--------------");
 
-    let tex = rl.load_render_texture(&thread, 240, 160).unwrap();
+    let mut rom = vec![];
+    let mut name = read_rom(None, &mut rom)?;
 
+    let tex = rl.load_render_texture(&thread, 240, 160).unwrap();
     let emu = Rc::new(RefCell::new(EmulatorState::new(tex)));
     let mut counter = FpsCounter::default();
     let mut gba = Gba::new(emu.clone(), BIOS, &rom);
@@ -82,6 +89,17 @@ fn main() -> color_eyre::Result<()> {
                     gba.run(1);
                 }
                 _ => unsafe { std::hint::unreachable_unchecked() },
+            }
+        }
+
+        if rl.is_file_dropped() {
+            if let Some(file_path) = rl.get_dropped_files().pop() {
+                rl.clear_dropped_files();
+                emu.borrow_mut().reset();
+                rom.clear();
+                name = read_rom(Some(file_path), &mut rom)?;
+                gba = Gba::new(emu.clone(), BIOS, &rom);
+                gba.skip_bios();
             }
         }
 

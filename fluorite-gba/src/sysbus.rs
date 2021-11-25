@@ -172,7 +172,7 @@ impl Bus for SysBus {
                 };
                 self.io.read_32(addr)
             }
-            PALRAM_ADDR | VRAM_ADDR | OAM_ADDR => todo!(),
+            PALRAM_ADDR | VRAM_ADDR | OAM_ADDR => self.io.read_32(addr),
             GAMEPAK_WS0_LO | GAMEPAK_WS0_HI | GAMEPAK_WS1_LO | GAMEPAK_WS1_HI | GAMEPAK_WS2_LO => {
                 self.cartridge.read_32(addr)
             }
