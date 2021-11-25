@@ -90,7 +90,7 @@ impl PartialEq for Event {
 #[derive(Debug, Clone)]
 pub struct Scheduler {
     timestamp: usize,
-    events: BinaryHeap<Event>,
+    pub events: BinaryHeap<Event>,
 }
 
 impl Scheduler {
@@ -150,6 +150,13 @@ impl Scheduler {
 
     pub fn update(&mut self, cycles: usize) {
         self.timestamp += cycles;
+    }
+
+    pub fn cancel(&mut self, ty: EventType) {
+        self.events
+            .iter()
+            .filter(|e| e.ty == ty)
+            .for_each(|e| e.cancel.set(true))
     }
 }
 

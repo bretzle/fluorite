@@ -14,7 +14,7 @@ pub struct SysBus {
     iwram: Box<[u8]>,
     cartridge: Cartridge,
 
-    io: Shared<IoDevices>,
+    pub(crate) io: Shared<IoDevices>,
     scheduler: Shared<Scheduler>,
 
     cycle_luts: CycleLookupTables,

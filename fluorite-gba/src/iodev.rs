@@ -5,7 +5,9 @@ use crate::{
     dma::DmaController,
     gpu::{Gpu, WindowFlags},
     interrupt::InterruptController,
+    keypad::KEYINPUT_ALL_RELEASED,
     sysbus::{Bus, SysBus},
+    timer::Timers,
     GpuMemoryMappedIO,
 };
 use fluorite_arm::Addr;
@@ -26,12 +28,14 @@ pub struct IoDevices {
     pub haltcnt: HaltState,
     pub waitcnt: WaitControl,
     pub post_boot_flag: bool,
+    pub timers: Timers,
+    pub keyinput: u16,
 
     sysbus_ptr: WeakPointer<SysBus>,
 }
 
 impl IoDevices {
-    pub fn new(gpu: Gpu, dmac: DmaController) -> Self {
+    pub fn new(gpu: Gpu, dmac: DmaController, timers: Timers) -> Self {
         Self {
             gpu,
             intc: InterruptController::new(),
@@ -39,6 +43,8 @@ impl IoDevices {
             haltcnt: HaltState::Running,
             waitcnt: WaitControl::new(),
             post_boot_flag: false,
+            timers,
+            keyinput: KEYINPUT_ALL_RELEASED,
             sysbus_ptr: Default::default(),
         }
     }
@@ -112,7 +118,7 @@ impl Bus for IoDevices {
             REG_IE => self.intc.enable.into(),
             REG_IF => self.intc.flags.get().into(),
 
-            REG_TM0CNT_L..=REG_TM3CNT_H => todo!(),
+            REG_TM0CNT_L..=REG_TM3CNT_H => self.timers.handle_read(io_addr),
 
             SOUND_BASE..=SOUND_END => todo!(),
             REG_DMA0CNT_H => self.dmac.channels[0].ctrl.0,
@@ -131,7 +137,7 @@ impl Bus for IoDevices {
 
             REG_POSTFLG => self.post_boot_flag as u16,
             REG_HALTCNT => 0,
-            REG_KEYINPUT => todo!(),
+            REG_KEYINPUT => self.keyinput as u16,
 
             _ => {
                 let s = io_reg_string(io_addr);
@@ -264,7 +270,7 @@ impl Bus for IoDevices {
             REG_IME => io.intc.master_enable = val != 0,
             REG_IE => io.intc.enable = val.into(),
             REG_IF => io.intc.clear(val),
-            REG_TM0CNT_L..=REG_TM3CNT_H => todo!("TODO TIMER"),
+            REG_TM0CNT_L..=REG_TM3CNT_H => io.timers.handle_write(io_addr, val),
             SOUND_BASE..=SOUND_END => todo!("TODO SOUND"),
             DMA_BASE..=REG_DMA3CNT_H => {
                 let ofs = io_addr - DMA_BASE;

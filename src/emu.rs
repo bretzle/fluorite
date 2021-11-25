@@ -1,5 +1,7 @@
 use fluorite_arm::registers::CpuState;
+use fluorite_common::BitIndex;
 use fluorite_gba::gba::Gba;
+use fluorite_gba::keypad::{Keys, KEYINPUT_ALL_RELEASED};
 use fluorite_gba::sysbus::Bus;
 use fluorite_gba::VideoInterface;
 use raylib::prelude::*;
@@ -15,6 +17,7 @@ macro_rules! bfe {
 
 pub struct EmulatorState {
     lcd: RenderTexture2D,
+    keys: u16,
 
     // emulator state
     scroll: Vector2,
@@ -28,6 +31,7 @@ impl EmulatorState {
     pub fn new(lcd: RenderTexture2D) -> Self {
         Self {
             lcd,
+            keys: KEYINPUT_ALL_RELEASED,
             scroll: Vector2::default(),
             last_rect: Rectangle::default(),
             panel_mode: PanelMode::Cpu,
@@ -38,6 +42,23 @@ impl EmulatorState {
 
     pub fn reset(&mut self) {
         self.lcd.update_texture(&[0; 240 * 160 * 4]);
+    }
+
+    pub fn poll_keys(&mut self, rl: &RaylibHandle) {
+        let mut keyinput = KEYINPUT_ALL_RELEASED;
+
+        keyinput.set_bit(Keys::Up as usize, !rl.is_key_down(KeyboardKey::KEY_UP));
+        keyinput.set_bit(Keys::Down as usize, !rl.is_key_down(KeyboardKey::KEY_DOWN));
+        keyinput.set_bit(Keys::Left as usize, !rl.is_key_down(KeyboardKey::KEY_LEFT));
+        keyinput.set_bit(Keys::Right as usize, !rl.is_key_down(KeyboardKey::KEY_RIGHT));
+        keyinput.set_bit(Keys::ButtonB as usize, !rl.is_key_down(KeyboardKey::KEY_Z));
+        keyinput.set_bit(Keys::ButtonA as usize, !rl.is_key_down(KeyboardKey::KEY_X));
+        keyinput.set_bit(Keys::Start as usize, !rl.is_key_down(KeyboardKey::KEY_ENTER));
+        keyinput.set_bit(Keys::Select as usize, !rl.is_key_down(KeyboardKey::KEY_SPACE));
+        keyinput.set_bit(Keys::ButtonL as usize, !rl.is_key_down(KeyboardKey::KEY_A));
+        keyinput.set_bit(Keys::ButtonR as usize, !rl.is_key_down(KeyboardKey::KEY_S));
+
+        self.keys = keyinput;
     }
 
     pub fn draw_frame(
@@ -117,6 +138,14 @@ impl EmulatorState {
             Vector2::new(0.0, 0.0),
             lcd_rect,
             Color::WHITE,
+        );
+
+        d.draw_text(
+            &format!("{:#?}", &gba.scheduler.events),
+            500,
+            25,
+            12,
+            Color::BLACK,
         );
     }
 
@@ -369,5 +398,9 @@ impl EmulatorState {
 impl VideoInterface for EmulatorState {
     fn render(&mut self, buffer: &[u8]) {
         self.lcd.update_texture(buffer);
+    }
+
+    fn poll(&mut self) -> u16 {
+        self.keys
     }
 }

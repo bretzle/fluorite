@@ -60,6 +60,7 @@ fn main() -> color_eyre::Result<()> {
     while !rl.window_should_close() {
         {
             let mut emur = emu.borrow_mut();
+            emur.poll_keys(&rl);
             match emur.run_state {
                 0 => {
                     emur.reset();

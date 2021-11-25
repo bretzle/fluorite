@@ -21,6 +21,7 @@ pub enum PanelMode {
 
 pub const BUTTON_STATES: [PanelMode; 3] = [PanelMode::Cpu, PanelMode::Io, PanelMode::Audio];
 
+#[derive(Copy, Clone)]
 pub struct MmioRegBit {
     pub start: u8,
     pub size: u8,
@@ -34,7 +35,7 @@ pub struct MmioReg {
 }
 
 #[rustfmt::skip]
-pub const IO_REGS: [MmioReg; 2] = [
+pub const IO_REGS: [MmioReg; 10] = [
 	MmioReg {
     	addr: 0x4000200,
     	name: "IE",
@@ -78,5 +79,116 @@ pub const IO_REGS: [MmioReg; 2] = [
 			MmioRegBit { start: 0, size: 0, name: "" },
 			MmioRegBit { start: 0, size: 0, name: "" },
 		]
-	}
+	},
+
+	// Timer Registers
+	MmioReg { 
+		addr: 0x04000100, 
+		name: "TM0CNT_L", 
+		bits: [MmioRegBit { start: 0, size: 0, name: "" }; 16]
+	},
+	MmioReg { 
+		addr: 0x04000102, 
+		name: "TM0CNT_H",
+		bits: [
+			MmioRegBit { start: 0, size: 2, name: "Prescaler Selection (0=F/1, 1=F/64, 2=F/256, 3=F/1024)" },
+			MmioRegBit { start: 2, size: 1, name: "Count-up (0=Normal, 1=Incr. on prev. Timer overflow)" },
+			MmioRegBit { start: 6, size: 1, name: "Timer IRQ Enable (0=Disable, 1=IRQ on Timer overflow)" },
+			MmioRegBit { start: 7, size: 1, name: "Timer Start/Stop (0=Stop, 1=Operate)" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+		]
+	},
+	MmioReg {
+		addr: 0x4000104,
+		name: "TM1CNT_L",
+		bits: [MmioRegBit { start: 0, size: 0, name: "" }; 16],
+	},   
+	MmioReg {
+		addr: 0x4000106,
+		name: "TM1CNT_H",
+		bits: [
+			MmioRegBit { start: 0, size: 2, name: "Prescaler Selection (0=F/1, 1=F/64, 2=F/256, 3=F/1024)" },
+			MmioRegBit { start: 2, size: 1, name: "Count-up (0=Normal, 1=Incr. on prev. Timer overflow)" },
+			MmioRegBit { start: 6, size: 1, name: "Timer IRQ Enable (0=Disable, 1=IRQ on Timer overflow)" },
+			MmioRegBit { start: 7, size: 1, name: "Timer Start/Stop (0=Stop, 1=Operate)" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+		]
+	},
+	MmioReg {
+		addr: 0x4000108,
+		name: "TM2CNT_L",
+		bits: [MmioRegBit { start: 0, size: 0, name: "" }; 16]
+	},   /* R/W   Timer 2 Counter/Reload */
+	MmioReg {
+		addr: 0x400010A,
+		name: "TM2CNT_H",
+		bits: [
+			MmioRegBit { start: 0, size: 2, name: "Prescaler Selection (0=F/1, 1=F/64, 2=F/256, 3=F/1024)" },
+			MmioRegBit { start: 2, size: 1, name: "Count-up (0=Normal, 1=Incr. on prev. Timer overflow)" },
+			MmioRegBit { start: 6, size: 1, name: "Timer IRQ Enable (0=Disable, 1=IRQ on Timer overflow)" },
+			MmioRegBit { start: 7, size: 1, name: "Timer Start/Stop (0=Stop, 1=Operate)" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+		]
+	},
+	MmioReg {
+		addr: 0x400010C,
+		name: "TM3CNT_L",
+		bits: [MmioRegBit { start: 0, size: 0, name: "" }; 16]
+	},
+	MmioReg {
+		addr: 0x400010E,
+		name: "TM3CNT_H",
+		bits: [
+			MmioRegBit { start: 0, size: 2, name: "Prescaler Selection (0=F/1, 1=F/64, 2=F/256, 3=F/1024)" },
+			MmioRegBit { start: 2, size: 1, name: "Count-up (0=Normal, 1=Incr. on prev. Timer overflow)" },
+			MmioRegBit { start: 6, size: 1, name: "Timer IRQ Enable (0=Disable, 1=IRQ on Timer overflow)" },
+			MmioRegBit { start: 7, size: 1, name: "Timer Start/Stop (0=Stop, 1=Operate)" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+			MmioRegBit { start: 0, size: 0, name: "" },
+		]
+	},
+  
 ];

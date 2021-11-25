@@ -12,6 +12,7 @@ use crate::interrupt::IrqBitMask;
 use crate::iodev::{HaltState, IoDevices};
 use crate::sched::{EventType, Scheduler};
 use crate::sysbus::SysBus;
+use crate::timer::Timers;
 use crate::VideoInterface;
 
 pub const NUM_RENDER_TIMES: usize = 25;
@@ -20,7 +21,7 @@ pub struct Gba<T: VideoInterface> {
     cpu: Arm7tdmi<SysBus>,
     pub sysbus: Shared<SysBus>,
     io: Shared<IoDevices>,
-    scheduler: Shared<Scheduler>,
+    pub scheduler: Shared<Scheduler>,
 
     device: Rc<RefCell<T>>,
 }
@@ -30,8 +31,9 @@ impl<T: VideoInterface> Gba<T> {
         let interrupt_flags = Rc::new(Cell::new(IrqBitMask::new()));
         let scheduler = Shared::new(Scheduler::new());
         let gpu = Gpu::new(scheduler.clone(), interrupt_flags.clone());
-        let dmac = DmaController::new(interrupt_flags, scheduler.clone());
-        let mut io = Shared::new(IoDevices::new(gpu, dmac));
+        let dmac = DmaController::new(interrupt_flags.clone(), scheduler.clone());
+        let timers = Timers::new(scheduler.clone(), interrupt_flags);
+        let mut io = Shared::new(IoDevices::new(gpu, dmac, timers));
         let mut sysbus = Shared::new(SysBus::new(bios, rom, &scheduler, &io));
         let cpu = Arm7tdmi::new(sysbus.clone());
 
@@ -52,11 +54,15 @@ impl<T: VideoInterface> Gba<T> {
     }
 
     pub fn frame(&mut self) {
-        // TODO: poll user input
+        self.key_poll();
         static mut EXTRA: usize = 0;
         unsafe {
             EXTRA = self.run(CYCLES_FULL_REFRESH - EXTRA);
         }
+    }
+
+    fn key_poll(&mut self) {
+        self.sysbus.io.keyinput = self.device.borrow_mut().poll();
     }
 
     /// return number of extra cycles that ran
@@ -119,7 +125,11 @@ impl<T: VideoInterface> Gba<T> {
                 *running = false;
             }
             EventType::DmaActivateChannel(channel_id) => self.io.dmac.activate_channel(channel_id),
-            EventType::TimerOverflow(_channel_id) => todo!(),
+            EventType::TimerOverflow(channel_id) => {
+                let timers = &mut io.timers;
+                let dmac = &mut io.dmac;
+                timers.handle_overflow_event(channel_id, cycles_late, dmac);
+            }
             EventType::Gpu(event) => {
                 io.gpu
                     .on_event(event, cycles_late, &mut *self.sysbus, &self.device)
