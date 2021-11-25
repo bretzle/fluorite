@@ -138,13 +138,14 @@ impl Bus for IoDevices {
             REG_POSTFLG => self.post_boot_flag as u16,
             REG_HALTCNT => 0,
             REG_KEYINPUT => self.keyinput as u16,
+            REG_KEYCNT => 0, // TODO
 
             _ => {
                 let s = io_reg_string(io_addr);
 
                 match s {
                     "UNKNOWN" => {
-                        println!("Unimplemented read from 0x{:08X} {}", io_addr, s);
+                        // println!("Unimplemented read from 0x{:08X} {}", io_addr, s);
                         0
                     }
                     _ => {
@@ -295,7 +296,7 @@ impl Bus for IoDevices {
 
                 match s {
                     "UNKNOWN" => {
-                        println!("Unimplemented write to 0x{:08X} {}", io_addr, s);
+                        // println!("Unimplemented write to 0x{:08X} {}", io_addr, s);
                     }
                     _ => {
                         panic!("Unimplemented write to 0x{:08X} {}", io_addr, s);

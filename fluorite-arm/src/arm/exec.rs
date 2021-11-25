@@ -43,7 +43,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
             SingleDataSwap => Self::arm_swp,
             MoveFromStatus => Self::arm_mrs,
             MoveToStatus => Self::arm_transfer_to_status,
-            MoveToFlags => unreachable!(), // what is this???
+            MoveToFlags => Self::arm_transfer_to_status, //  is this the same as MoveToStatus???
             Undefined => Self::arm_undefined,
         };
 
@@ -180,6 +180,11 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         }
         self.cspr = spsr;
     }
+
+    fn arm_transfer_to_flags(&mut self, inst: u32) -> CpuAction {
+        panic!("{:032b} | {}", inst, ArmInstruction::decode(inst, self.pc_arm()))
+    }
+
 
     /// Logical/Arithmetic ALU operations
     ///

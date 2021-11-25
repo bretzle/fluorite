@@ -140,13 +140,13 @@ impl EmulatorState {
             Color::WHITE,
         );
 
-        d.draw_text(
-            &format!("{:#?}", &gba.scheduler.events),
-            500,
-            25,
-            12,
-            Color::BLACK,
-        );
+        // d.draw_text(
+        //     &format!("{:#?}", &gba.scheduler.events),
+        //     500,
+        //     25,
+        //     12,
+        //     Color::BLACK,
+        // );
     }
 
     fn draw_arm7_state(
