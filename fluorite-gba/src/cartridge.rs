@@ -7,6 +7,7 @@ pub struct Cartridge {
     pub header: CartridgeHeader,
     bytes: Box<[u8]>,
     size: usize,
+    backup: BackupMedia,
 }
 
 impl Cartridge {
@@ -20,6 +21,7 @@ impl Cartridge {
             header,
             bytes: bytes.to_vec().into_boxed_slice(),
             size,
+            backup: BackupMedia::Sram(BackupFile::new(0x8000)),
         })
     }
 
@@ -87,7 +89,10 @@ impl Bus for Cartridge {
     fn read_8(&mut self, addr: Addr) -> u8 {
         let offset = (addr & 0x01FF_FFFF) as usize;
         match addr & 0xFF000000 {
-            SRAM_LO | SRAM_HI => todo!(),
+            SRAM_LO | SRAM_HI => match &self.backup {
+                BackupMedia::Sram(memory) => memory.read((addr & 0x7FFF) as usize),
+                _ => todo!(),
+            },
             _ => {
                 if offset >= self.size {
                     self.read_unused(addr)
@@ -98,12 +103,59 @@ impl Bus for Cartridge {
         }
     }
 
-    fn write_8(&mut self, addr: Addr, _val: u8) {
+    fn write_8(&mut self, addr: Addr, val: u8) {
         match addr & 0xFF000000 {
-            SRAM_LO | SRAM_HI => {
-                todo!()
-            }
+            SRAM_LO | SRAM_HI => match &mut self.backup {
+                BackupMedia::Sram(memory) => memory.write((addr & 0x7FFF) as usize, val),
+                _ => todo!(),
+            },
             _ => {}
         }
+    }
+}
+
+pub trait BackupMemoryInterface {
+    fn write(&mut self, offset: usize, value: u8);
+    fn read(&self, offset: usize) -> u8;
+    fn resize(&mut self, new_size: usize);
+}
+
+#[derive(Clone, Debug)]
+enum BackupMedia {
+    Sram(BackupFile),
+    Flash(Flash),
+    Undetected,
+}
+
+#[derive(Clone, Debug)]
+struct Flash;
+
+#[derive(Clone, Debug)]
+struct BackupFile {
+    size: usize,
+    buffer: Vec<u8>,
+}
+
+impl BackupFile {
+    fn new(size: usize) -> Self {
+        Self {
+            size,
+            buffer: vec![0xFF; size],
+        }
+    }
+}
+
+impl BackupMemoryInterface for BackupFile {
+    fn write(&mut self, offset: usize, value: u8) {
+        self.buffer[offset] = value;
+    }
+
+    fn read(&self, offset: usize) -> u8 {
+        self.buffer[offset]
+    }
+
+    fn resize(&mut self, new_size: usize) {
+        self.size = new_size;
+        self.buffer.resize(new_size, 0xff);
     }
 }
