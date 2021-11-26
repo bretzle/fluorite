@@ -181,8 +181,8 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
                     self.idle_cycle();
                 }
                 // TODO - meaningless values?
-                carry = false;
-                overflow = false;
+                // carry = false;
+                // overflow = false;
                 dst.wrapping_mul(src)
             }
             BIC => dst & (!src),

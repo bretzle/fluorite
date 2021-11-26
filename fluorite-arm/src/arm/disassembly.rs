@@ -14,7 +14,6 @@ impl fmt::Display for ArmCond {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use ArmCond::*;
         match self {
-            Invalid => panic!("Invalid condition code"),
             EQ => write!(f, "eq"),
             NE => write!(f, "ne"),
             HS => write!(f, "cs"),
@@ -29,7 +28,7 @@ impl fmt::Display for ArmCond {
             LT => write!(f, "lt"),
             GT => write!(f, "gt"),
             LE => write!(f, "le"),
-            AL => write!(f, ""), // the dissasembly should ignore this
+            AL | Invalid => write!(f, ""), // the dissasembly should ignore this
         }
     }
 }

@@ -674,8 +674,8 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         if UPDATE_FLAGS {
             self.cspr.set_n((result as i32) < 0);
             self.cspr.set_z(result == 0);
-            self.cspr.set_c(false);
-            self.cspr.set_v(false);
+            // self.cspr.set_c(false);
+            // self.cspr.set_v(false);
         }
 
         CpuAction::AdvancePC(Seq)
@@ -718,8 +718,8 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         if UPDATE_FLAGS {
             self.cspr.set_n(result.bit(63));
             self.cspr.set_z(result == 0);
-            self.cspr.set_c(false);
-            self.cspr.set_v(false);
+            // self.cspr.set_c(false);
+            // self.cspr.set_v(false);
         }
 
         CpuAction::AdvancePC(Seq)
