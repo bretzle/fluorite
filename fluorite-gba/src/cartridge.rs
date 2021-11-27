@@ -75,6 +75,8 @@ impl CartridgeHeader {
         let maker_code =
             from_utf8(&bytes[0xb0..0xb2]).map_err(|_| "invalid marker code".to_string())?;
 
+        println!("{:?}", detect_backup_type(&bytes));
+
         Ok(Self {
             game_title: clean(game_title),
             game_code: clean(game_code),
@@ -83,6 +85,42 @@ impl CartridgeHeader {
             checksum,
         })
     }
+}
+
+#[derive(Debug)]
+pub enum BackupType {
+    Eeprom = 0,
+    Sram = 1,
+    Flash = 2,
+    Flash512 = 3,
+    Flash1M = 4,
+    AutoDetect = 5,
+}
+
+fn detect_backup_type(bytes: &[u8]) -> Option<BackupType> {
+    use memmem::*;
+
+    const ID_STRINGS: &'static [&'static str] =
+        &["EEPROM", "SRAM", "FLASH_", "FLASH512_", "FLASH1M_"];
+
+    for i in 0..5 {
+        let search = TwoWaySearcher::new(ID_STRINGS[i].as_bytes());
+        match search.search_in(bytes) {
+            Some(_) => {
+                return Some(match i {
+                    0 => BackupType::Eeprom,
+                    1 => BackupType::Sram,
+                    2 => BackupType::Flash,
+                    3 => BackupType::Flash512,
+                    4 => BackupType::Flash1M,
+                    5 => BackupType::AutoDetect,
+                    _ => unreachable!(),
+                })
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 impl Bus for Cartridge {
@@ -110,6 +148,7 @@ impl Bus for Cartridge {
                 _ => todo!(),
             },
             _ => {}
+            // _ => panic!("{:08X} <== {:02X}", addr, val),
         }
     }
 }
@@ -123,8 +162,8 @@ pub trait BackupMemoryInterface {
 #[derive(Clone, Debug)]
 enum BackupMedia {
     Sram(BackupFile),
-    Flash(Flash),
-    Undetected,
+    _Flash(Flash),
+    _Undetected,
 }
 
 #[derive(Clone, Debug)]
