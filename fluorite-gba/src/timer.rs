@@ -93,13 +93,13 @@ impl Timers {
                 self.running_timers &= !(1 << id);
                 self.cancel_timer_event(id);
             }
-            if old_enabled != new_enabled {
-                println!(
-                    "TMR{} {}",
-                    id,
-                    if new_enabled { "enabled" } else { "disabled" }
-                );
-            }
+            // if old_enabled != new_enabled {
+            //     println!(
+            //         "TMR{} {}",
+            //         id,
+            //         if new_enabled { "enabled" } else { "disabled" }
+            //     );
+            // }
         }
         // println!("{:#?}", self.timers[id]);
     }
@@ -119,6 +119,7 @@ impl Timers {
         self.timers[id].is_sceduled = false;
     }
 
+    // TODO: when emu is paused this ticks the clock on a read
     fn read_timer_data(&mut self, id: usize) -> u16 {
         let timer = &mut self.timers[id];
         if timer.is_sceduled {

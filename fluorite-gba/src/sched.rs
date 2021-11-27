@@ -21,7 +21,11 @@ pub enum GpuEvent {
 
 #[derive(Debug, PartialOrd, PartialEq, Eq, Copy, Clone)]
 pub enum ApuEvent {
-    // TODO
+    Psg1Generate,
+    Psg2Generate,
+    Psg3Generate,
+    Psg4Generate,
+    Sample,
 }
 
 #[derive(Debug, Clone, Eq)]

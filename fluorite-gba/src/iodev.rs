@@ -1,15 +1,6 @@
 use std::cmp;
 
-use crate::{
-    consts::*,
-    dma::DmaController,
-    gpu::{Gpu, WindowFlags},
-    interrupt::InterruptController,
-    keypad::KEYINPUT_ALL_RELEASED,
-    sysbus::{Bus, SysBus},
-    timer::Timers,
-    GpuMemoryMappedIO,
-};
+use crate::{GpuMemoryMappedIO, consts::*, dma::DmaController, gpu::{Gpu, WindowFlags}, interrupt::InterruptController, keypad::KEYINPUT_ALL_RELEASED, sound::SoundController, sysbus::{Bus, SysBus}, timer::Timers};
 use fluorite_arm::Addr;
 use fluorite_common::WeakPointer;
 use modular_bitfield::{bitfield, prelude::*};
@@ -30,12 +21,14 @@ pub struct IoDevices {
     pub post_boot_flag: bool,
     pub timers: Timers,
     pub keyinput: u16,
+    pub sound: SoundController,
+    rcnt: u16,
 
     sysbus_ptr: WeakPointer<SysBus>,
 }
 
 impl IoDevices {
-    pub fn new(gpu: Gpu, dmac: DmaController, timers: Timers) -> Self {
+    pub fn new(gpu: Gpu, dmac: DmaController, timers: Timers, sound: SoundController) -> Self {
         Self {
             gpu,
             intc: InterruptController::new(),
@@ -45,6 +38,8 @@ impl IoDevices {
             post_boot_flag: false,
             timers,
             keyinput: KEYINPUT_ALL_RELEASED,
+            sound,
+            rcnt: 0,
             sysbus_ptr: Default::default(),
         }
     }
@@ -120,7 +115,7 @@ impl Bus for IoDevices {
 
             REG_TM0CNT_L..=REG_TM3CNT_H => self.timers.handle_read(io_addr),
 
-            SOUND_BASE..=SOUND_END => todo!(),
+            SOUND_BASE..=SOUND_END => self.sound.handle_read(io_addr),
             REG_DMA0CNT_H => self.dmac.channels[0].ctrl.0,
             REG_DMA1CNT_H => self.dmac.channels[1].ctrl.0,
             REG_DMA2CNT_H => self.dmac.channels[2].ctrl.0,
@@ -139,6 +134,7 @@ impl Bus for IoDevices {
             REG_HALTCNT => 0,
             REG_KEYINPUT => self.keyinput as u16,
             REG_KEYCNT => 0, // TODO
+            REG_JOYCNT => 0, // TODO
 
             _ => {
                 let s = io_reg_string(io_addr);
@@ -272,7 +268,7 @@ impl Bus for IoDevices {
             REG_IE => io.intc.enable = val.into(),
             REG_IF => io.intc.clear(val),
             REG_TM0CNT_L..=REG_TM3CNT_H => io.timers.handle_write(io_addr, val),
-            SOUND_BASE..=SOUND_END => todo!("TODO SOUND"),
+            SOUND_BASE..=SOUND_END => io.sound.handle_write(io_addr, val),
             DMA_BASE..=REG_DMA3CNT_H => {
                 let ofs = io_addr - DMA_BASE;
                 let channel_id = (ofs / 12) as usize;
@@ -291,6 +287,15 @@ impl Bus for IoDevices {
                     io.haltcnt = HaltState::Halt;
                 }
             }
+            REG_KEYCNT => println!("WRITE TO REG_KEYCNT (0x{:X})", val),
+            REG_KEYINPUT => io.keyinput = val,
+            REG_RCNT => io.rcnt = val,
+
+            REG_JOYCNT => println!("WRITE TO REG_JOYCNT (0x{:X})", val),
+            REG_JOY_RECV => println!("WRITE TO REG_JOY_RECV (0x{:X})", val),
+            REG_JOY_TRANS => println!("WRITE TO REG_JOY_TRANS (0x{:X})", val),
+            REG_JOYSTAT => println!("WRITE TO REG_JOYSTAT (0x{:X})", val),
+
             _ => {
                 let s = io_reg_string(io_addr);
 
@@ -307,7 +312,7 @@ impl Bus for IoDevices {
     }
 }
 
-const fn io_reg_string(addr: Addr) -> &'static str {
+pub const fn io_reg_string(addr: Addr) -> &'static str {
     match addr {
         REG_DISPCNT => "REG_DISPCNT",
         REG_DISPSTAT => "REG_DISPSTAT",

@@ -18,11 +18,15 @@ pub mod keypad;
 pub mod sched;
 pub mod sysbus;
 pub mod timer;
+pub mod sound;
 
 pub trait VideoInterface {
     fn render(&mut self, buffer: &[u8]);
     fn poll(&mut self) -> u16 {
         KEYINPUT_ALL_RELEASED
+    }
+    fn get_sample_rate(&self) -> i32 {
+        44100
     }
 }
 

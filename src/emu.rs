@@ -50,11 +50,20 @@ impl EmulatorState {
         keyinput.set_bit(Keys::Up as usize, !rl.is_key_down(KeyboardKey::KEY_UP));
         keyinput.set_bit(Keys::Down as usize, !rl.is_key_down(KeyboardKey::KEY_DOWN));
         keyinput.set_bit(Keys::Left as usize, !rl.is_key_down(KeyboardKey::KEY_LEFT));
-        keyinput.set_bit(Keys::Right as usize, !rl.is_key_down(KeyboardKey::KEY_RIGHT));
+        keyinput.set_bit(
+            Keys::Right as usize,
+            !rl.is_key_down(KeyboardKey::KEY_RIGHT),
+        );
         keyinput.set_bit(Keys::ButtonB as usize, !rl.is_key_down(KeyboardKey::KEY_Z));
         keyinput.set_bit(Keys::ButtonA as usize, !rl.is_key_down(KeyboardKey::KEY_X));
-        keyinput.set_bit(Keys::Start as usize, !rl.is_key_down(KeyboardKey::KEY_ENTER));
-        keyinput.set_bit(Keys::Select as usize, !rl.is_key_down(KeyboardKey::KEY_SPACE));
+        keyinput.set_bit(
+            Keys::Start as usize,
+            !rl.is_key_down(KeyboardKey::KEY_ENTER),
+        );
+        keyinput.set_bit(
+            Keys::Select as usize,
+            !rl.is_key_down(KeyboardKey::KEY_SPACE),
+        );
         keyinput.set_bit(Keys::ButtonL as usize, !rl.is_key_down(KeyboardKey::KEY_A));
         keyinput.set_bit(Keys::ButtonR as usize, !rl.is_key_down(KeyboardKey::KEY_S));
 
@@ -250,7 +259,8 @@ impl EmulatorState {
             let (mut widget_rect, new_inside_rect) =
                 inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING + 5);
 
-            let pc_render = i * (if state == CpuState::THUMB { 2 } else { 4 }) + pc as i32 - 8;
+            let pc_render = i * (if state == CpuState::THUMB { 2 } else { 4 }) + pc as i32
+                - if state == CpuState::THUMB { 4 } else { 8 };
 
             if pc_render < 0 {
                 widget_rect.x += 80.0;

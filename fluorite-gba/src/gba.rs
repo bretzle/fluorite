@@ -11,6 +11,7 @@ use crate::gpu::Gpu;
 use crate::interrupt::IrqBitMask;
 use crate::iodev::{HaltState, IoDevices};
 use crate::sched::{EventType, Scheduler};
+use crate::sound::SoundController;
 use crate::sysbus::SysBus;
 use crate::timer::Timers;
 use crate::VideoInterface;
@@ -33,7 +34,9 @@ impl<T: VideoInterface> Gba<T> {
         let gpu = Gpu::new(scheduler.clone(), interrupt_flags.clone());
         let dmac = DmaController::new(interrupt_flags.clone(), scheduler.clone());
         let timers = Timers::new(scheduler.clone(), interrupt_flags);
-        let mut io = Shared::new(IoDevices::new(gpu, dmac, timers));
+        let sound =
+            SoundController::new(scheduler.clone(), device.borrow().get_sample_rate() as f32);
+        let mut io = Shared::new(IoDevices::new(gpu, dmac, timers, sound));
         let mut sysbus = Shared::new(SysBus::new(bios, rom, &scheduler, &io));
         let cpu = Arm7tdmi::new(sysbus.clone());
 
@@ -134,7 +137,7 @@ impl<T: VideoInterface> Gba<T> {
                 io.gpu
                     .on_event(event, cycles_late, &mut *self.sysbus, &self.device)
             }
-            EventType::Apu(_event) => todo!(),
+            EventType::Apu(event) => io.sound.on_event(event, cycles_late, &self.device),
         }
     }
 
