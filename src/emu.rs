@@ -124,8 +124,8 @@ impl EmulatorState {
                 PanelMode::Cpu => {
                     // rect_inside = draw_debug_state(rect_inside, &emu, &gb_state);
                     // rect_inside = draw_cartridge_state(rect_inside, &gb_state.cart);
+                    rect_inside = self.draw_joypad_state(&mut s, rect_inside, gba);
                     rect_inside = self.draw_arm7_state(&mut s, rect_inside, gba);
-                    // rect_inside = draw_joypad_state(rect_inside, &emu.joy);
                 }
                 PanelMode::Io => {
                     rect_inside = self.draw_io_state(&mut s, rect_inside, gba);
@@ -400,6 +400,62 @@ impl EmulatorState {
         }
 
         let (_, adv_rect) = rect.chop((inside_rect.y - rect.y) as i32, GUI_PADDING);
+
+        adv_rect
+    }
+
+    fn draw_joypad_state(
+        &self,
+        d: &mut impl RaylibDraw,
+        rect: Rectangle,
+        gba: &mut Gba<EmulatorState>,
+    ) -> Rectangle {
+        let inside_rect = rect.shave(GUI_PADDING);
+        let mut wr = inside_rect;
+        wr.width = GUI_PADDING as f32;
+        wr.height = GUI_PADDING as f32;
+
+        let keys = gba.sysbus.read_16(0x04000130);
+
+        let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
+        wr.y = widget_rect.y;
+        d.gui_check_box(wr, Some(rstr!("Up")), !keys.bit(6));
+        let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
+        wr.y = widget_rect.y;
+        d.gui_check_box(wr, Some(rstr!("Down")), !keys.bit(7));
+        let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
+        wr.y = widget_rect.y;
+        d.gui_check_box(wr, Some(rstr!("Left")), !keys.bit(5));
+        let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
+        wr.y = widget_rect.y;
+        d.gui_check_box(wr, Some(rstr!("Right")), !keys.bit(4));
+        let (widget_rect, _) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
+        wr.y = widget_rect.y;
+        d.gui_check_box(wr, Some(rstr!("Shoulder-L")), !keys.bit(9));
+
+        let mut inside_rect = rect.shave(GUI_PADDING);
+        inside_rect.x += rect.width / 2.0;
+
+        let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
+        wr.x += rect.width / 2.0;
+        wr.y = widget_rect.y;
+        d.gui_check_box(wr, Some(rstr!("A")), !keys.bit(0));
+        let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
+        wr.y = widget_rect.y;
+        d.gui_check_box(wr, Some(rstr!("B")), !keys.bit(1));
+        let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
+        wr.y = widget_rect.y;
+        d.gui_check_box(wr, Some(rstr!("Start")), !keys.bit(3));
+        let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
+        wr.y = widget_rect.y;
+        d.gui_check_box(wr, Some(rstr!("Select")), !keys.bit(2));
+        let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
+        wr.y = widget_rect.y;
+        d.gui_check_box(wr, Some(rstr!("Shoulder-R")), !keys.bit(8));
+        let (_, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
+
+        let (state_rect, adv_rect) = rect.chop((inside_rect.y - rect.y) as i32, GUI_PADDING);
+        d.gui_group_box(state_rect, Some(rstr!("Keypad State")));
 
         adv_rect
     }
