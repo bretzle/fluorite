@@ -80,7 +80,7 @@ impl Timers {
         {
             let timer = &mut self.timers[id];
             let new_ctl = TimerCtl(val);
-            let old_enabled = timer.ctl.enabled();
+            // let old_enabled = timer.ctl.enabled();
             let new_enabled = new_ctl.enabled();
             let cascade = new_ctl.cascade();
             timer.prescalar_shift = SHIFT_LUT[new_ctl.prescalar() as usize];
@@ -170,7 +170,7 @@ pub struct Timer {
 
     irq: Interrupt,
     interrupt_flags: SharedInterruptFlags,
-    timer_id: usize,
+    _timer_id: usize,
     prescalar_shift: usize,
 }
 
@@ -186,7 +186,7 @@ impl Timer {
             is_sceduled: false,
             irq: Interrupt::from_usize(timer_id + 3).unwrap(),
             interrupt_flags: flags,
-            timer_id,
+            _timer_id: timer_id,
             prescalar_shift: 0,
         }
     }

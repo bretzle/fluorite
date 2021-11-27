@@ -16,9 +16,9 @@ pub mod interrupt;
 pub mod iodev;
 pub mod keypad;
 pub mod sched;
+pub mod sound;
 pub mod sysbus;
 pub mod timer;
-pub mod sound;
 
 pub trait VideoInterface {
     fn render(&mut self, buffer: &[u8]);
@@ -28,6 +28,7 @@ pub trait VideoInterface {
     fn get_sample_rate(&self) -> i32 {
         44100
     }
+    fn push_sample(&mut self, _samples: &[i16]) {}
 }
 
 pub trait GpuMemoryMappedIO {

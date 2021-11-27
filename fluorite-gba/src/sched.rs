@@ -122,6 +122,10 @@ impl Scheduler {
         self.push(EventType::Gpu(e), cycles);
     }
 
+    pub fn push_apu_event(&mut self, e: ApuEvent, cycles: usize) {
+        self.push(EventType::Apu(e), cycles);
+    }
+
     pub fn pop_pending_event(&mut self) -> Option<(EventType, usize)> {
         if let Some(event) = self.events.peek() {
             if self.timestamp >= event.time {

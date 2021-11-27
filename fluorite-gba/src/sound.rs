@@ -5,7 +5,6 @@ use fluorite_common::{BitIndex, Shared};
 
 use crate::{
     consts::*,
-    iodev::io_reg_string,
     sched::{ApuEvent, EventType, Scheduler},
     VideoInterface,
 };
@@ -27,7 +26,7 @@ pub type StereoSample<T> = (T, T);
 pub struct SoundController {
     scheduler: Shared<Scheduler>,
 
-    cycles: usize, // cycles count when we last provided a new sample.
+    _cycles: usize, // cycles count when we last provided a new sample.
 
     mse: bool,
 
@@ -72,7 +71,7 @@ impl SoundController {
         Self {
             scheduler,
             cycles_per_sample,
-            cycles: 0,
+            _cycles: 0,
             mse: false,
             left_volume: 0,
             left_sqr1: false,
@@ -231,16 +230,61 @@ impl SoundController {
     }
 
     pub fn on_event<T: VideoInterface>(
-        &self,
+        &mut self,
         event: ApuEvent,
         extra_cycles: usize,
         device: &Rc<RefCell<T>>,
     ) {
         match event {
-            // ApuEvent::Sample => self.on_sample(extra_cycles, device),
+            ApuEvent::Sample => self.on_sample(extra_cycles, device),
             _ => println!("got {:?} event", event),
         }
     }
+
+    fn on_sample<T: VideoInterface>(&mut self, extra_cycles: usize, audio_device: &Rc<RefCell<T>>) {
+        let mut sample = [0f32; 2];
+
+        for channel in 0..=1 {
+            let mut dma_sample = 0;
+            for dma in &mut self.dma_sound {
+                if dma.is_stereo_channel_enabled(channel) {
+                    let value = dma.value as i16;
+                    dma_sample += value * (2 << dma.volume_shift);
+                }
+            }
+
+            apply_bias(&mut dma_sample, self.sound_bias.bit_range(0..10) as i16);
+            sample[channel] = dma_sample as i32 as f32;
+        }
+
+        let stereo_sample = (sample[0], sample[1]);
+        self.resampler.feed(stereo_sample, &mut self.output_buffer);
+
+        let mut audio = audio_device.borrow_mut();
+        self.output_buffer.drain(..).for_each(|(left, right)| {
+            audio.push_sample(&[
+                (left.round() as i16) * (std::i16::MAX / 512),
+                (right.round() as i16) * (std::i16::MAX / 512),
+            ]);
+        });
+
+        self.scheduler
+            .push_apu_event(ApuEvent::Sample, self.cycles_per_sample - extra_cycles);
+    }
+}
+
+#[inline(always)]
+fn apply_bias(sample: &mut i16, level: i16) {
+    let mut s = *sample;
+    s += level;
+    // clamp
+    if s > 0x3ff {
+        s = 0x3ff;
+    } else if s < 0 {
+        s = 0;
+    }
+    s -= level;
+    *sample = s;
 }
 
 fn cbit(idx: u8, value: bool) -> u16 {

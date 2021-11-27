@@ -1,6 +1,16 @@
 use std::cmp;
 
-use crate::{GpuMemoryMappedIO, consts::*, dma::DmaController, gpu::{Gpu, WindowFlags}, interrupt::InterruptController, keypad::KEYINPUT_ALL_RELEASED, sound::SoundController, sysbus::{Bus, SysBus}, timer::Timers};
+use crate::{
+    consts::*,
+    dma::DmaController,
+    gpu::{Gpu, WindowFlags},
+    interrupt::InterruptController,
+    keypad::KEYINPUT_ALL_RELEASED,
+    sound::SoundController,
+    sysbus::{Bus, SysBus},
+    timer::Timers,
+    GpuMemoryMappedIO,
+};
 use fluorite_arm::Addr;
 use fluorite_common::WeakPointer;
 use modular_bitfield::{bitfield, prelude::*};
@@ -86,7 +96,7 @@ impl Bus for IoDevices {
     }
 
     fn read_16(&mut self, addr: Addr) -> u16 {
-        let io_addr = addr + IO_BASE;
+        let io_addr = addr | IO_BASE;
 
         match io_addr {
             REG_DISPCNT => self.gpu.dispcnt.read(),
@@ -133,15 +143,20 @@ impl Bus for IoDevices {
             REG_POSTFLG => self.post_boot_flag as u16,
             REG_HALTCNT => 0,
             REG_KEYINPUT => self.keyinput as u16,
-            REG_KEYCNT => 0, // TODO
+            REG_KEYCNT => todo!(), // TODO
             REG_JOYCNT => 0, // TODO
+
+            0x04000400..=0x04FFFFFF
+            | 0x05000400..=0x05FFFFFF
+            | 0x06018000..=0x06FFFFFF
+            | 0x07000400..=0x07FFFFFF => 0, // Not used
 
             _ => {
                 let s = io_reg_string(io_addr);
 
                 match s {
                     "UNKNOWN" => {
-                        // println!("Unimplemented read from 0x{:08X} {}", io_addr, s);
+                        println!("Unimplemented read from 0x{:08X} {}", io_addr, s);
                         0
                     }
                     _ => {
@@ -309,119 +324,6 @@ impl Bus for IoDevices {
                 }
             }
         }
-    }
-}
-
-pub const fn io_reg_string(addr: Addr) -> &'static str {
-    match addr {
-        REG_DISPCNT => "REG_DISPCNT",
-        REG_DISPSTAT => "REG_DISPSTAT",
-        REG_VCOUNT => "REG_VCOUNT",
-        REG_BG0CNT => "REG_BG0CNT",
-        REG_BG1CNT => "REG_BG1CNT",
-        REG_BG2CNT => "REG_BG2CNT",
-        REG_BG3CNT => "REG_BG3CNT",
-        REG_BG0HOFS => "REG_BG0HOFS",
-        REG_BG0VOFS => "REG_BG0VOFS",
-        REG_BG1HOFS => "REG_BG1HOFS",
-        REG_BG1VOFS => "REG_BG1VOFS",
-        REG_BG2HOFS => "REG_BG2HOFS",
-        REG_BG2VOFS => "REG_BG2VOFS",
-        REG_BG3HOFS => "REG_BG3HOFS",
-        REG_BG3VOFS => "REG_BG3VOFS",
-        REG_BG2PA => "REG_BG2PA",
-        REG_BG2PB => "REG_BG2PB",
-        REG_BG2PC => "REG_BG2PC",
-        REG_BG2PD => "REG_BG2PD",
-        REG_BG2X_L => "REG_BG2X_L",
-        REG_BG2X_H => "REG_BG2X_H",
-        REG_BG2Y_L => "REG_BG2Y_L",
-        REG_BG2Y_H => "REG_BG2Y_H",
-        REG_BG3PA => "REG_BG3PA",
-        REG_BG3PB => "REG_BG3PB",
-        REG_BG3PC => "REG_BG3PC",
-        REG_BG3PD => "REG_BG3PD",
-        REG_BG3X_L => "REG_BG3X_L",
-        REG_BG3X_H => "REG_BG3X_H",
-        REG_BG3Y_L => "REG_BG3Y_L",
-        REG_BG3Y_H => "REG_BG3Y_H",
-        REG_WIN0H => "REG_WIN0H",
-        REG_WIN1H => "REG_WIN1H",
-        REG_WIN0V => "REG_WIN0V",
-        REG_WIN1V => "REG_WIN1V",
-        REG_WININ => "REG_WININ",
-        REG_WINOUT => "REG_WINOUT",
-        REG_MOSAIC => "REG_MOSAIC",
-        REG_BLDCNT => "REG_BLDCNT",
-        REG_BLDALPHA => "REG_BLDALPHA",
-        REG_BLDY => "REG_BLDY",
-        REG_SOUND1CNT_L => "REG_SOUND1CNT_L",
-        REG_SOUND1CNT_H => "REG_SOUND1CNT_H",
-        REG_SOUND1CNT_X => "REG_SOUND1CNT_X",
-        REG_SOUND2CNT_L => "REG_SOUND2CNT_L",
-        REG_SOUND2CNT_H => "REG_SOUND2CNT_H",
-        REG_SOUND3CNT_L => "REG_SOUND3CNT_L",
-        REG_SOUND3CNT_H => "REG_SOUND3CNT_H",
-        REG_SOUND3CNT_X => "REG_SOUND3CNT_X",
-        REG_SOUND4CNT_L => "REG_SOUND4CNT_L",
-        REG_SOUND4CNT_H => "REG_SOUND4CNT_H",
-        REG_SOUNDCNT_L => "REG_SOUNDCNT_L",
-        REG_SOUNDCNT_H => "REG_SOUNDCNT_H",
-        REG_SOUNDCNT_X => "REG_SOUNDCNT_X",
-        REG_SOUNDBIAS => "REG_SOUNDBIAS",
-        REG_WAVE_RAM => "REG_WAVE_RAM",
-        REG_FIFO_A => "REG_FIFO_A",
-        REG_FIFO_B => "REG_FIFO_B",
-        REG_DMA0SAD => "REG_DMA0SAD",
-        REG_DMA0DAD => "REG_DMA0DAD",
-        REG_DMA0CNT_L => "REG_DMA0CNT_L",
-        REG_DMA0CNT_H => "REG_DMA0CNT_H",
-        REG_DMA1SAD => "REG_DMA1SAD",
-        REG_DMA1DAD => "REG_DMA1DAD",
-        REG_DMA1CNT_L => "REG_DMA1CNT_L",
-        REG_DMA1CNT_H => "REG_DMA1CNT_H",
-        REG_DMA2SAD => "REG_DMA2SAD",
-        REG_DMA2DAD => "REG_DMA2DAD",
-        REG_DMA2CNT_L => "REG_DMA2CNT_L",
-        REG_DMA2CNT_H => "REG_DMA2CNT_H",
-        REG_DMA3SAD => "REG_DMA3SAD",
-        REG_DMA3DAD => "REG_DMA3DAD",
-        REG_DMA3CNT_L => "REG_DMA3CNT_L",
-        REG_DMA3CNT_H => "REG_DMA3CNT_H",
-        REG_TM0CNT_L => "REG_TM0CNT_L",
-        REG_TM0CNT_H => "REG_TM0CNT_H",
-        REG_TM1CNT_L => "REG_TM1CNT_L",
-        REG_TM1CNT_H => "REG_TM1CNT_H",
-        REG_TM2CNT_L => "REG_TM2CNT_L",
-        REG_TM2CNT_H => "REG_TM2CNT_H",
-        REG_TM3CNT_L => "REG_TM3CNT_L",
-        REG_TM3CNT_H => "REG_TM3CNT_H",
-        // REG_SIODATA32 => "REG_SIODATA32",
-        // REG_SIOMULTI0 => "REG_SIOMULTI0",
-        // REG_SIOMULTI1 => "REG_SIOMULTI1",
-        // REG_SIOMULTI2 => "REG_SIOMULTI2",
-        // REG_SIOMULTI3 => "REG_SIOMULTI3",
-        // REG_SIOCNT => "REG_SIOCNT",
-        // REG_SIOMLT_SEND => "REG_SIOMLT_SEND",
-        // REG_SIODATA8 => "REG_SIODATA8",
-        REG_KEYINPUT => "REG_KEYINPUT",
-        REG_KEYCNT => "REG_KEYCNT",
-        REG_RCNT => "REG_RCNT",
-        REG_IR => "REG_IR",
-        REG_JOYCNT => "REG_JOYCNT",
-        REG_JOY_RECV => "REG_JOY_RECV",
-        REG_JOY_TRANS => "REG_JOY_TRANS",
-        REG_JOYSTAT => "REG_JOYSTAT",
-        REG_IE => "REG_IE",
-        REG_IF => "REG_IF",
-        REG_WAITCNT => "REG_WAITCNT",
-        REG_IME => "REG_IME",
-        REG_POSTFLG => "REG_POSTFLG",
-        REG_HALTCNT => "REG_HALTCNT",
-        REG_DEBUG_STRING => "REG_DEBUG_STRING",
-        REG_DEBUG_FLAGS => "REG_DEBUG_FLAGS",
-        REG_DEBUG_ENABLE => "REG_DEBUG_ENABLE",
-        _ => "UNKNOWN",
     }
 }
 
