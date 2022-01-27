@@ -53,7 +53,10 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
     }
 
     pub fn irq(&mut self) {
-        todo!()
+        if !self.cspr.irq_disable() {
+            let lr = self.get_next_pc() + 4;
+            self.exception(Exception::Irq, lr);
+        }
     }
 
     pub fn software_interrupt(&mut self, lr: u32, _cmt: u32) {
