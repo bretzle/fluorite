@@ -69,6 +69,7 @@ pub struct IrqBitMask {
     _reserved: modular_bitfield::prelude::B2,
 }
 
+#[derive(Debug, Clone, Default)]
 pub struct InterruptController {
     pub master_enable: bool,
     pub enable: IrqBitMask,
@@ -76,11 +77,11 @@ pub struct InterruptController {
 }
 
 impl InterruptController {
-    pub fn new() -> Self {
+    pub fn new(flags: Rc<Cell<IrqBitMask>>) -> Self {
         Self {
+            flags,
             master_enable: false,
-            enable: IrqBitMask::default(),
-            flags: Rc::new(Cell::new(IrqBitMask::default())),
+            ..Default::default()
         }
     }
 
@@ -92,12 +93,6 @@ impl InterruptController {
         let _if = self.flags.get();
         let new_if = u16::from(_if) & !value;
         self.flags.set(new_if.into());
-    }
-}
-
-impl Default for InterruptController {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

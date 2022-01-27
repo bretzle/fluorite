@@ -1,11 +1,12 @@
 use crate::dma::DmaNotifier;
 use crate::iodev::WaitControl;
 use crate::{bios::Bios, cartridge::Cartridge, consts::*, iodev::IoDevices, sched::Scheduler};
+use fluorite_arm::cpu::Arm7tdmi;
 use fluorite_arm::{
     memory::{MemoryAccess, MemoryAccessWidth, MemoryInterface},
     Addr,
 };
-use fluorite_common::Shared;
+use fluorite_common::{Shared, WeakPointer};
 
 #[derive(Clone)]
 pub struct SysBus {
@@ -16,6 +17,7 @@ pub struct SysBus {
 
     pub(crate) io: Shared<IoDevices>,
     scheduler: Shared<Scheduler>,
+    arm_core: WeakPointer<Arm7tdmi<SysBus>>,
 
     cycle_luts: CycleLookupTables,
 }
@@ -38,8 +40,16 @@ impl SysBus {
             cartridge: Cartridge::new(rom).unwrap(),
             io: io.clone(),
             scheduler: scheduler.clone(),
+            arm_core: WeakPointer::default(),
             cycle_luts: luts,
         }
+    }
+
+    pub fn init(&mut self, arm_core: WeakPointer<Arm7tdmi<Self>>) {
+        self.arm_core = arm_core.clone();
+        self.bios.connect_arm_core(arm_core.clone());
+        let ptr = WeakPointer::new(self as *mut SysBus);
+        self.io.set_sysbus_ptr(ptr.clone());
     }
 
     fn read_invalid(&mut self, addr: Addr) -> u32 {

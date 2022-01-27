@@ -1,11 +1,13 @@
-use fluorite_arm::Addr;
+use fluorite_arm::{Addr, cpu::Arm7tdmi};
+use fluorite_common::WeakPointer;
 
-use crate::sysbus::Bus;
+use crate::sysbus::{Bus, SysBus};
 
 #[derive(Clone)]
 pub struct Bios {
     rom: Box<[u8]>,
     last_opcode: u32,
+    arm_core: WeakPointer<Arm7tdmi<SysBus>>,
 }
 
 impl Bios {
@@ -13,12 +15,18 @@ impl Bios {
         Self {
             rom: bios.to_vec().into_boxed_slice(),
             last_opcode: 0xE129F000,
+            arm_core: WeakPointer::default(),
         }
+    }
+
+    // TODO: does this need to be public
+    pub fn connect_arm_core(&mut self, arm_ptr: WeakPointer<Arm7tdmi<SysBus>>) {
+        self.arm_core = arm_ptr;
     }
 
     // TODO: check if read is allowed
     fn read_allowed(&self) -> bool {
-        true
+        self.arm_core.pc < 0x4000
     }
 }
 

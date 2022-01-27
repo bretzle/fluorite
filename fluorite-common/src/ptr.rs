@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 #[repr(transparent)]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct WeakPointer<T: ?Sized> {
     ptr: *mut T,
 }

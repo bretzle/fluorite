@@ -8,7 +8,7 @@ use fluorite_common::{Shared, WeakPointer};
 use crate::consts::CYCLES_FULL_REFRESH;
 use crate::dma::DmaController;
 use crate::gpu::Gpu;
-use crate::interrupt::IrqBitMask;
+use crate::interrupt::{IrqBitMask, InterruptController};
 use crate::iodev::{HaltState, IoDevices};
 use crate::sched::{EventType, Scheduler};
 use crate::sound::SoundController;
@@ -31,24 +31,30 @@ impl<T: VideoInterface> Gba<T> {
     pub fn new(device: Rc<RefCell<T>>, bios: &[u8], rom: &[u8]) -> Self {
         let interrupt_flags = Rc::new(Cell::new(IrqBitMask::new()));
         let scheduler = Shared::new(Scheduler::new());
+        
+        let intc = InterruptController::new(interrupt_flags.clone());
         let gpu = Gpu::new(scheduler.clone(), interrupt_flags.clone());
         let dmac = DmaController::new(interrupt_flags.clone(), scheduler.clone());
         let timers = Timers::new(scheduler.clone(), interrupt_flags);
         let sound =
             SoundController::new(scheduler.clone(), device.borrow().get_sample_rate() as f32);
-        let mut io = Shared::new(IoDevices::new(gpu, dmac, timers, sound));
+        let mut io = Shared::new(IoDevices::new(intc, gpu, dmac, timers, sound));
         let mut sysbus = Shared::new(SysBus::new(bios, rom, &scheduler, &io));
         let cpu = Arm7tdmi::new(sysbus.clone());
 
-        io.set_sysbus_ptr(WeakPointer::new(&mut *sysbus as *mut SysBus));
+        // io.set_sysbus_ptr(WeakPointer::new(&mut *sysbus as *mut SysBus));
 
-        Self {
+        let mut gba = Self {
             cpu,
             sysbus,
             io,
             scheduler,
             device,
-        }
+        };
+
+        gba.sysbus.init(gba.cpu.weak_ptr());
+
+        gba
     }
 
     pub fn skip_bios(&mut self) {
@@ -147,7 +153,8 @@ impl<T: VideoInterface> Gba<T> {
 
     fn cpu_step(&mut self) {
         if self.io.intc.irq_pending() {
-            todo!()
+            self.cpu.irq();
+            self.io.haltcnt = HaltState::Running;
         }
         self.cpu.step();
     }

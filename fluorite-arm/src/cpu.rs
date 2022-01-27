@@ -8,14 +8,15 @@ use crate::{
     thumb::ThumbInstruction,
     Addr, InstructionDecoder,
 };
-use fluorite_common::{BitIndex, Shared};
+use fluorite_common::{BitIndex, Shared, WeakPointer};
 use num_traits::FromPrimitive;
 
+#[derive(Clone)]
 pub struct Arm7tdmi<Memory: MemoryInterface> {
     pub(crate) bus: Shared<Memory>,
 
     // registers
-    pub(crate) pc: Addr,
+    pub pc: Addr,
     pub(crate) gpr: [u32; 15],
     pub(crate) cspr: StatusRegister,
     pub(crate) spsr: StatusRegister,
@@ -41,6 +42,10 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
             next_fetch_access: MemoryAccess::NonSeq,
             _options: (),
         }
+    }
+
+    pub fn weak_ptr(&mut self) -> WeakPointer<Self> {
+        WeakPointer::new(self as *mut Self)
     }
 
     pub fn pc_arm(&self) -> Addr {

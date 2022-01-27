@@ -38,10 +38,10 @@ pub struct IoDevices {
 }
 
 impl IoDevices {
-    pub fn new(gpu: Gpu, dmac: DmaController, timers: Timers, sound: SoundController) -> Self {
+    pub fn new(intc: InterruptController, gpu: Gpu, dmac: DmaController, timers: Timers, sound: SoundController) -> Self {
         Self {
             gpu,
-            intc: InterruptController::new(),
+            intc,
             dmac,
             haltcnt: HaltState::Running,
             waitcnt: WaitControl::new(),
@@ -156,7 +156,7 @@ impl Bus for IoDevices {
 
                 match s {
                     "UNKNOWN" => {
-                        println!("Unimplemented read from 0x{:08X} {}", io_addr, s);
+                        println!("Unimplemented 16read from 0x{:08X} {}", io_addr, s);
                         0
                     }
                     _ => {
