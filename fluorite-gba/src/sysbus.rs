@@ -102,6 +102,11 @@ pub trait Bus {
         self.write_16(addr, (val & 0xffff) as u16);
         self.write_16(addr + 2, (val >> 16) as u16);
     }
+
+    #[inline(always)]
+    fn default_read_16(&mut self, addr: Addr) -> u16 {
+        self.read_8(addr) as u16 | (self.read_8(addr + 1) as u16) << 8
+    }
 }
 
 impl Bus for SysBus {
@@ -309,8 +314,8 @@ impl Bus for Box<[u8]> {
 }
 
 impl DmaNotifier for SysBus {
-    fn notify(&mut self, _timing: u16) {
-        // TODO
+    fn notify(&mut self, timing: u16) {
+        self.io.dmac.notify_from_gpu(timing);
     }
 }
 

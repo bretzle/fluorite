@@ -2,12 +2,15 @@ use crate::{consts::*, sysbus::Bus};
 use fluorite_arm::Addr;
 use std::str::from_utf8;
 
+type Gpio = ();
+
 #[derive(Clone, Debug)]
 pub struct Cartridge {
     pub header: CartridgeHeader,
     bytes: Box<[u8]>,
     size: usize,
     backup: BackupMedia,
+    gpio: Option<Gpio>,
 }
 
 impl Cartridge {
@@ -22,6 +25,7 @@ impl Cartridge {
             bytes: bytes.to_vec().into_boxed_slice(),
             size,
             backup: BackupMedia::Sram(BackupFile::new(0x8000)),
+            gpio: None,
         })
     }
 
@@ -123,6 +127,17 @@ fn detect_backup_type(bytes: &[u8]) -> Option<BackupType> {
     None
 }
 
+pub const GPIO_PORT_DATA: u32 = 0xC4;
+pub const GPIO_PORT_DIRECTION: u32 = 0xC6;
+pub const GPIO_PORT_CONTROL: u32 = 0xC8;
+
+fn is_gpio_access(addr: u32) -> bool {
+    match addr & 0x1ff_ffff {
+        GPIO_PORT_DATA | GPIO_PORT_DIRECTION | GPIO_PORT_CONTROL => true,
+        _ => false,
+    }
+}
+
 impl Bus for Cartridge {
     fn read_8(&mut self, addr: Addr) -> u8 {
         let offset = (addr & 0x01FF_FFFF) as usize;
@@ -141,14 +156,37 @@ impl Bus for Cartridge {
         }
     }
 
+    fn read_16(&mut self, addr: u32) -> u16 {
+        const EEPROM_BASE_ADDR: u32 = 0x0DFF_FF00;
+
+        if is_gpio_access(addr) {
+            if let Some(gpio) = &self.gpio {
+                todo!()
+                //     if !(gpio.is_readable()) {
+                //         println!("trying to read GPIO when reads are not allowed");
+                //     }
+                //     return gpio.read(addr & 0x1ff_ffff);
+            }
+        }
+
+        if addr & 0xff000000 == GAMEPAK_WS2_HI
+            && (self.bytes.len() <= 16 * 1024 * 1024 || addr >= EEPROM_BASE_ADDR)
+        {
+            if let BackupMedia::_Eeprom(spi) = &self.backup {
+                todo!();
+                // return spi.read_half(addr);
+            }
+        }
+        self.default_read_16(addr)
+    }
+
     fn write_8(&mut self, addr: Addr, val: u8) {
         match addr & 0xFF000000 {
             SRAM_LO | SRAM_HI => match &mut self.backup {
                 BackupMedia::Sram(memory) => memory.write((addr & 0x7FFF) as usize, val),
                 _ => todo!(),
             },
-            _ => {}
-            // _ => panic!("{:08X} <== {:02X}", addr, val),
+            _ => {} // _ => panic!("{:08X} <== {:02X}", addr, val),
         }
     }
 }
@@ -163,6 +201,7 @@ pub trait BackupMemoryInterface {
 enum BackupMedia {
     Sram(BackupFile),
     _Flash(Flash),
+    _Eeprom(()),
     _Undetected,
 }
 

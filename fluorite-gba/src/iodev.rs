@@ -156,6 +156,7 @@ impl Bus for IoDevices {
 
                 match s {
                     "UNKNOWN" => {
+                        #[cfg(debug_assertions)]
                         println!("Unimplemented 16read from 0x{:08X} {}", io_addr, s);
                         0
                     }

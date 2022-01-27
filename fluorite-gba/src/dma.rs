@@ -70,6 +70,14 @@ impl DmaController {
         }
     }
 
+    pub fn notify_from_gpu(&mut self, timing: u16) {
+        for i in 0..4 {
+            if self.channels[i].ctrl.is_enabled() && self.channels[i].ctrl.timing() == timing {
+                self.pending_set |= 1 << i;
+            }
+        } 
+    }
+
     pub fn activate_channel(&mut self, channel_id: usize) {
         self.pending_set |= 1 << channel_id;
     }

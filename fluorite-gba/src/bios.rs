@@ -31,8 +31,12 @@ impl Bios {
 }
 
 impl Bus for Bios {
-    fn read_8(&mut self, _addr: Addr) -> u8 {
-        todo!()
+    fn read_8(&mut self, addr: Addr) -> u8 {
+        if self.read_allowed() {
+            self.rom.read_8(addr)
+        } else {
+            (self.last_opcode >> ((addr & 3) << 3)) as u8
+        }
     }
 
     fn read_16(&mut self, addr: Addr) -> u16 {
