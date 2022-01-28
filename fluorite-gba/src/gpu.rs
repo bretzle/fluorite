@@ -3,7 +3,7 @@ use self::render::Point;
 use self::window::{Window, WindowInfo, WindowType};
 use crate::dma::{DmaNotifier, TIMING_HBLANK, TIMING_VBLANK};
 use crate::gba::NUM_RENDER_TIMES;
-use crate::gpu::render::{utils, SCREEN_VIEWPORT};
+use crate::gpu::render::{utils, ViewPort, SCREEN_VIEWPORT};
 use crate::interrupt::{Interrupt, SharedInterruptFlags};
 use crate::sched::{GpuEvent, Scheduler};
 use crate::sysbus::Bus;
@@ -257,17 +257,16 @@ impl Gpu {
                 self.finalize_scanline(0, 3);
             }
             1 => {
-                todo!();
-                // if self.dispcnt.enable_bg2() {
-                //     self.render_aff_bg(2);
-                // }
-                // if self.dispcnt.enable_bg1() {
-                //     self.render_reg_bg(1);
-                // }
-                // if self.dispcnt.enable_bg0() {
-                //     self.render_reg_bg(0);
-                // }
-                // self.finalize_scanline(0, 2);
+                if self.dispcnt.enable_bg[2] {
+                    self.render_aff_bg(2);
+                }
+                if self.dispcnt.enable_bg[1] {
+                    self.render_reg_bg(1);
+                }
+                if self.dispcnt.enable_bg[0] {
+                    self.render_reg_bg(0);
+                }
+                self.finalize_scanline(0, 2);
             }
             2 => {
                 todo!();
@@ -693,6 +692,55 @@ impl Gpu {
     fn read_pixel_index_bpp8(&mut self, addr: u32, x: u32, y: u32) -> usize {
         let ofs = addr;
         self.vram.read_8(ofs + index2d!(u32, x, y, 8)) as usize
+    }
+
+    fn render_aff_bg(&mut self, bg: usize) {
+        assert!(bg == 2 || bg == 3);
+
+        let texture_size = 128 << self.bgcnt[bg].size;
+        let viewport = ViewPort::new(texture_size, texture_size);
+
+        let ref_point = self.get_ref_point(bg);
+        let pa = self.bg_aff[bg - 2].pa as i16 as i32;
+        let pc = self.bg_aff[bg - 2].pc as i16 as i32;
+
+        let screen_block = self.bgcnt[bg].screen_block();
+        let char_block = self.bgcnt[bg].char_block();
+
+        let wraparound = self.bgcnt[bg].affine_wraparound;
+
+        for screen_x in 0..(DISPLAY_WIDTH as i32) {
+            let mut t = utils::transform_bg_point(ref_point, screen_x, pa, pc);
+
+            if !viewport.contains_point(t) {
+                if wraparound {
+                    t.0 = t.0.rem_euclid(texture_size);
+                    t.1 = t.1.rem_euclid(texture_size);
+                } else {
+                    self.bg_line[bg][screen_x as usize] = Rgb15::TRANSPARENT;
+                    continue;
+                }
+            }
+            let map_addr = screen_block + index2d!(u32, t.0 / 8, t.1 / 8, texture_size / 8);
+            let tile_index = self.vram.read_8(map_addr) as u32;
+            let tile_addr = char_block + tile_index * 0x40;
+
+            let pixel_index = self.read_pixel_index(
+                tile_addr,
+                (t.0 % 8) as u32,
+                (t.1 % 8) as u32,
+                PixelFormat::BPP8,
+            ) as u32;
+            let color = self.get_palette_color(pixel_index, 0, 0);
+            self.bg_line[bg][screen_x as usize] = color;
+        }
+    }
+
+	fn read_pixel_index(&mut self, addr: u32, x: u32, y: u32, format: PixelFormat) -> usize {
+        match format {
+            PixelFormat::BPP4 => self.read_pixel_index_bpp4(addr, x, y),
+            PixelFormat::BPP8 => self.read_pixel_index_bpp8(addr, x, y),
+        }
     }
 }
 

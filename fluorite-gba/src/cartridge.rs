@@ -24,12 +24,13 @@ impl Cartridge {
         let mut backup = BackupMedia::Undetected;
         if let Some(backup_type) = save_type {
             backup = match backup_type {
-                BackupType::Flash => todo!(),
-                BackupType::Flash512 => todo!(),
+                BackupType::Flash | BackupType::Flash512 => {
+                    BackupMedia::Flash(Flash::new(None, FlashSize::Flash64k))
+                }
                 BackupType::Flash1M => BackupMedia::Flash(Flash::new(None, FlashSize::Flash128k)),
                 BackupType::Sram => BackupMedia::Sram(BackupFile::new(0x8000, None)),
                 BackupType::Eeprom => todo!(),
-                BackupType::AutoDetect => todo!(),
+                BackupType::AutoDetect => BackupMedia::Undetected,
             }
         }
 
@@ -495,7 +496,7 @@ impl BackupMemoryInterface for BackupFile {
 
 pub type GpioState = [GpioDirection; 4];
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 enum GpioPortControl {
     WriteOnly,
     ReadWrite,
@@ -536,8 +537,14 @@ impl Gpio {
                     0
                 }
             }
-            GPIO_PORT_DIRECTION => todo!(),
-            GPIO_PORT_CONTROL => todo!(),
+            GPIO_PORT_DIRECTION => {
+                let mut direction = 0u16;
+                for i in 0..4 {
+                    direction.set_bit(i, self.direction[i] == GpioDirection::Out);
+                }
+                direction
+            }
+            GPIO_PORT_CONTROL => self.control as u16,
             _ => unreachable!("{:?}", addr),
         }
     }
