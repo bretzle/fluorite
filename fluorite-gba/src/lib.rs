@@ -19,6 +19,7 @@ pub mod sched;
 pub mod sound;
 pub mod sysbus;
 pub mod timer;
+pub mod rtc;
 
 pub trait VideoInterface {
     fn render(&mut self, buffer: &[u8]);

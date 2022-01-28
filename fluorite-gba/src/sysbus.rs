@@ -87,7 +87,7 @@ impl SysBus {
 pub trait Bus {
     fn read_8(&mut self, addr: Addr) -> u8;
     fn read_16(&mut self, addr: Addr) -> u16 {
-        self.read_8(addr) as u16 | (self.read_8(addr + 1) as u16) << 8
+        self.default_read_16(addr)
     }
     fn read_32(&mut self, addr: Addr) -> u32 {
         self.read_16(addr) as u32 | (self.read_16(addr + 2) as u32) << 16
@@ -95,8 +95,7 @@ pub trait Bus {
 
     fn write_8(&mut self, addr: Addr, val: u8);
     fn write_16(&mut self, addr: Addr, val: u16) {
-        self.write_8(addr, (val & 0xFF) as u8);
-        self.write_8(addr + 1, ((val >> 8) & 0xFF) as u8);
+        self.default_write_16(addr, val)
     }
     fn write_32(&mut self, addr: Addr, val: u32) {
         self.write_16(addr, (val & 0xffff) as u16);
@@ -106,6 +105,11 @@ pub trait Bus {
     #[inline(always)]
     fn default_read_16(&mut self, addr: Addr) -> u16 {
         self.read_8(addr) as u16 | (self.read_8(addr + 1) as u16) << 8
+    }
+
+    fn default_write_16(&mut self, addr: Addr, val: u16) {
+        self.write_8(addr, (val & 0xFF) as u8);
+        self.write_8(addr + 1, ((val >> 8) & 0xFF) as u8);
     }
 }
 
