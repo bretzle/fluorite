@@ -2,6 +2,7 @@ use crate::dma::DmaNotifier;
 use crate::iodev::WaitControl;
 use crate::{bios::Bios, cartridge::Cartridge, consts::*, iodev::IoDevices, sched::Scheduler};
 use fluorite_arm::cpu::Arm7tdmi;
+use fluorite_arm::registers::CpuState;
 use fluorite_arm::{
     memory::{MemoryAccess, MemoryAccessWidth, MemoryInterface},
     Addr,
@@ -53,7 +54,41 @@ impl SysBus {
     }
 
     fn read_invalid(&mut self, addr: Addr) -> u32 {
-        panic!("invalid read @{:08X}", addr)
+        println!("invalid read @0x{:08X}", addr);
+
+        let value = match self.arm_core.cspr.state() {
+            CpuState::ARM => self.arm_core.get_prefetched_opcode(),
+            CpuState::THUMB => {
+                // For THUMB code the result consists of two 16bit fragments and depends on the address area
+                // and alignment where the opcode was stored.
+
+                let decoded = self.arm_core.get_decoded_opcode() & 0xffff; // [$+2]
+                let prefetched = self.arm_core.get_prefetched_opcode() & 0xffff; // [$+4]
+                let r15 = self.arm_core.pc;
+                let mut value = prefetched;
+                match (r15 >> 24) as usize {
+                    PAGE_BIOS | PAGE_OAM => {
+                        // TODO this is probably wrong, according to GBATEK, we should be using $+6 here but it isn't prefetched yet.
+                        value = value << 16;
+                        value |= decoded;
+                    }
+                    PAGE_IWRAM => {
+                        // OldLO=[$+2], OldHI=[$+2]
+                        if r15 & 3 == 0 {
+                            // LSW = [$+4], MSW = OldHI   ;for opcodes at 4-byte aligned locations
+                            value |= decoded << 16;
+                        } else {
+                            // LSW = OldLO, MSW = [$+4]   ;for opcodes at non-4-byte aligned locations
+                            value = value << 16;
+                            value |= decoded;
+                        }
+                    }
+                    _ => value |= value << 16,
+                }
+                value
+            }
+        };
+        value >> ((addr & 3) << 3)
     }
 
     pub fn add_cycles(&mut self, addr: Addr, access: MemoryAccess, width: MemoryAccessWidth) {

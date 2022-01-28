@@ -34,12 +34,17 @@ impl Cartridge {
             }
         }
 
+        let gpio = match header.game_code.as_str() {
+            "BPEE" => Some(Gpio::new(Some(Rtc::new()))),
+            _ => None,
+        };
+
         Ok(Self {
             header,
             bytes: bytes.to_vec().into_boxed_slice(),
             size,
             backup,
-            gpio: Some(Gpio::new(Some(Rtc::new()))), // TODO: dont force using rtc
+            gpio,
         })
     }
 

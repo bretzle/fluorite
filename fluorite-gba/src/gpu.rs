@@ -736,7 +736,7 @@ impl Gpu {
         }
     }
 
-	fn read_pixel_index(&mut self, addr: u32, x: u32, y: u32, format: PixelFormat) -> usize {
+    fn read_pixel_index(&mut self, addr: u32, x: u32, y: u32, format: PixelFormat) -> usize {
         match format {
             PixelFormat::BPP4 => self.read_pixel_index_bpp4(addr, x, y),
             PixelFormat::BPP8 => self.read_pixel_index_bpp8(addr, x, y),
@@ -762,8 +762,26 @@ impl Bus for Gpu {
         }
     }
 
-    fn write_8(&mut self, _addr: Addr, _val: u8) {
-        todo!()
+    fn write_8(&mut self, addr: Addr, val: u8) {
+        fn expand_value(value: u8) -> u16 {
+            (value as u16) * 0x101
+        }
+
+        let page = (addr >> 24) as usize;
+        match page {
+            PAGE_PALRAM => self.palette_ram.write_16(addr & 0x3fe, expand_value(val)),
+            PAGE_VRAM => {
+                let mut ofs = addr & ((VIDEO_RAM_SIZE as u32) - 1);
+                if ofs > 0x18000 {
+                    ofs -= 0x8000;
+                }
+                if ofs < self.vram_obj_tiles_start {
+                    self.vram.write_16(ofs & !1, expand_value(val));
+                }
+            }
+            PAGE_OAM => { /* OAM can't be written with 8bit store */ }
+            _ => unreachable!(),
+        };
     }
 
     fn write_16(&mut self, addr: Addr, val: u16) {

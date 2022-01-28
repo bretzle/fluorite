@@ -18,7 +18,7 @@ pub struct Arm7tdmi<Memory: MemoryInterface> {
     // registers
     pub pc: Addr,
     pub(crate) gpr: [u32; 15],
-    pub(crate) cspr: StatusRegister,
+    pub cspr: StatusRegister,
     pub(crate) spsr: StatusRegister,
     pub(crate) banks: BankedRegisters,
 
@@ -59,6 +59,14 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
     pub fn get_next_pc(&self) -> Addr {
         let size = self.word_size() as u32;
         self.pc - 2 * size
+    }
+
+    pub fn get_decoded_opcode(&self) -> u32 {
+        self.pipeline[0]
+    }
+
+    pub fn get_prefetched_opcode(&self) -> u32 {
+        self.pipeline[1]
     }
 
     pub fn get_instructionge(&mut self, addr: u32, buffer: &mut String) -> u32 {
