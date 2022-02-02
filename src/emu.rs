@@ -310,22 +310,24 @@ impl EmulatorState {
             let data = gba.sysbus.read_16(addr);
             // let mut has_fields = false;
             for bit in reg.bits {
-                let start = bit.start;
-                let size = bit.size;
-                if size > 0 {
-                    let field_data = bfe!(data, start, size);
-                    // has_fields = true;
-                    let mut r2 = r;
-                    if size > 1 {
-                        r = d.draw_label(r, &rstr!("[{}:{}]:", start, start + size - 1));
-                    } else {
-                        r = d.draw_label(r, &rstr!("{}:", start));
-                    }
+                if let Some(bit) = bit {
+                    let start = bit.start;
+                    let size = bit.size;
+                    if size > 0 {
+                        let field_data = bfe!(data, start, size);
+                        // has_fields = true;
+                        let mut r2 = r;
+                        if size > 1 {
+                            r = d.draw_label(r, &rstr!("[{}:{}]:", start, start + size - 1));
+                        } else {
+                            r = d.draw_label(r, &rstr!("{}:", start));
+                        }
 
-                    r2.x += 30.0;
-                    d.draw_label(r2, &rstr!("{}", field_data));
-                    r2.x += 25.0;
-                    d.draw_label(r2, &rstr!("{}", bit.name));
+                        r2.x += 30.0;
+                        d.draw_label(r2, &rstr!("{}", field_data));
+                        r2.x += 25.0;
+                        d.draw_label(r2, &rstr!("{}", bit.name));
+                    }
                 }
             }
 
@@ -463,6 +465,7 @@ impl EmulatorState {
 
 impl VideoInterface for EmulatorState {
     fn render(&mut self, buffer: &[u8]) {
+		println!("UPDATE");
         self.lcd.update_texture(buffer);
     }
 

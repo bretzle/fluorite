@@ -161,7 +161,8 @@ impl Bus for IoDevices {
                         0
                     }
                     _ => {
-                        panic!("Unimplemented read from 0x{:08X} {}", io_addr, s);
+                        println!("Unimplemented read from 0x{:08X} {}", io_addr, s);
+						0
                     }
                 }
             }

@@ -55,6 +55,8 @@ pub struct Gpu {
 
     pub render_times: CircularBuffer<Duration, NUM_RENDER_TIMES>,
     current_frame_time: Duration,
+
+    dirty: bool,
 }
 
 impl Gpu {
@@ -98,6 +100,8 @@ impl Gpu {
             mosaic: RegMosaic::default(),
             bldalpha: BlendAlpha::default(),
             bldy: 0,
+
+            dirty: true,
         }
     }
 
@@ -191,7 +195,10 @@ impl Gpu {
 
             notifier.notify(TIMING_VBLANK);
 
-            device.borrow_mut().render(&self.frame_buffer);
+            if self.dirty {
+                device.borrow_mut().render(&self.frame_buffer);
+                self.dirty = false;
+            }
 
             self.obj_buffer_reset();
 
@@ -234,6 +241,7 @@ impl Gpu {
 
     pub fn render_scanline(&mut self) {
         if self.dispcnt.force_blank {
+            self.dirty = true;
             for x in self.frame_buffer[self.vcount * 4 * DISPLAY_WIDTH..]
                 .iter_mut()
                 .take(DISPLAY_WIDTH)
@@ -560,6 +568,10 @@ impl Gpu {
             let b = ((color >> 0) & 0xFF) as u8;
             [r, g, b, 0xFF]
         };
+
+        if output[(4 * x)..=(4 * x + 3)] != rgb {
+            self.dirty = true;
+        }
 
         output[4 * x + 0] = rgb[0];
         output[4 * x + 1] = rgb[1];
