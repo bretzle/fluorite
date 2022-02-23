@@ -16,32 +16,32 @@ macro_rules! bfe {
 }
 
 pub struct EmulatorState {
-    lcd: RenderTexture2D,
+    // lcd: RenderTexture2D,
     keys: u16,
 
-    audio: RaylibAudio,
-    audio_stream: AudioStream,
+    // audio: RaylibAudio,
+    // audio_stream: AudioStream,
 
     // emulator state
     scroll: Vector2,
     last_rect: Rectangle,
     panel_mode: PanelMode,
     pub fps: u32,
-    pub run_state: i32,
+    pub run_state: usize,
 }
 
 impl EmulatorState {
-    pub fn new(thread: &RaylibThread, lcd: RenderTexture2D) -> Self {
-        let mut audio = RaylibAudio::init_audio_device();
-        let mut audio_stream = AudioStream::init_audio_stream(thread, 44100, 16, 2);
+    pub fn new() -> Self {
+        // let mut audio = RaylibAudio::init_audio_device();
+        // let mut audio_stream = AudioStream::init_audio_stream(thread, 44100, 16, 2);
 
-        audio.play_audio_stream(&mut audio_stream);
+        // audio.play_audio_stream(&mut audio_stream);
 
         Self {
-            lcd,
+            // lcd,
             keys: KEYINPUT_ALL_RELEASED,
-            audio,
-            audio_stream,
+            // audio,
+            // audio_stream,
             scroll: Vector2::default(),
             last_rect: Rectangle::default(),
             panel_mode: PanelMode::Cpu,
@@ -51,45 +51,32 @@ impl EmulatorState {
     }
 
     pub fn reset(&mut self) {
-        self.lcd.update_texture(&[0; 240 * 160 * 4]);
+        // self.lcd.update_texture(&[0; 240 * 160 * 4]);
     }
 
-    pub fn poll_keys(&mut self, rl: &RaylibHandle) {
+    pub fn poll_keys(&mut self, rl: &Raylib) {
         let mut keyinput = KEYINPUT_ALL_RELEASED;
 
-        keyinput.set_bit(Keys::Up as usize, !rl.is_key_down(KeyboardKey::KEY_UP));
-        keyinput.set_bit(Keys::Down as usize, !rl.is_key_down(KeyboardKey::KEY_DOWN));
-        keyinput.set_bit(Keys::Left as usize, !rl.is_key_down(KeyboardKey::KEY_LEFT));
-        keyinput.set_bit(
-            Keys::Right as usize,
-            !rl.is_key_down(KeyboardKey::KEY_RIGHT),
-        );
-        keyinput.set_bit(Keys::ButtonB as usize, !rl.is_key_down(KeyboardKey::KEY_Z));
-        keyinput.set_bit(Keys::ButtonA as usize, !rl.is_key_down(KeyboardKey::KEY_X));
-        keyinput.set_bit(
-            Keys::Start as usize,
-            !rl.is_key_down(KeyboardKey::KEY_ENTER),
-        );
-        keyinput.set_bit(
-            Keys::Select as usize,
-            !rl.is_key_down(KeyboardKey::KEY_SPACE),
-        );
-        keyinput.set_bit(Keys::ButtonL as usize, !rl.is_key_down(KeyboardKey::KEY_A));
-        keyinput.set_bit(Keys::ButtonR as usize, !rl.is_key_down(KeyboardKey::KEY_S));
+        keyinput.set_bit(Keys::Up as usize, !rl.IsKeyDown(Key::Up));
+        keyinput.set_bit(Keys::Down as usize, !rl.IsKeyDown(Key::Down));
+        keyinput.set_bit(Keys::Left as usize, !rl.IsKeyDown(Key::Left));
+        keyinput.set_bit(Keys::Right as usize, !rl.IsKeyDown(Key::Right));
+        keyinput.set_bit(Keys::ButtonB as usize, !rl.IsKeyDown(Key::Z));
+        keyinput.set_bit(Keys::ButtonA as usize, !rl.IsKeyDown(Key::X));
+        keyinput.set_bit(Keys::Start as usize, !rl.IsKeyDown(Key::Enter));
+        keyinput.set_bit(Keys::Select as usize, !rl.IsKeyDown(Key::Space));
+        keyinput.set_bit(Keys::ButtonL as usize, !rl.IsKeyDown(Key::A));
+        keyinput.set_bit(Keys::ButtonR as usize, !rl.IsKeyDown(Key::S));
 
         self.keys = keyinput;
     }
 
-    pub fn draw_frame(
-        &mut self,
-        gba: &mut Gba<EmulatorState>,
-        rl: &mut RaylibHandle,
-        thread: &RaylibThread,
-    ) {
-        let screen_width = rl.get_screen_width() as f32;
-        let screen_height = rl.get_screen_height() as f32;
+    pub fn draw_frame(&mut self, gba: &mut Gba<EmulatorState>, rl: &mut Raylib) {
+        let screen_width = rl.GetScreenWidth() as f32;
+        let screen_height = rl.GetScreenHeight() as f32;
 
-        let mut d = rl.begin_drawing(thread);
+        rl.begin_drawing();
+        let d = rl;
 
         d.clear_background(Color::WHITE);
 
@@ -103,17 +90,17 @@ impl EmulatorState {
         let rect_inside = rect.shave(GUI_PADDING);
 
         // draw emu state
-        let mut rect_inside = self.draw_emu_state(&mut d, rect_inside);
+        let mut rect_inside = self.draw_emu_state(d, rect_inside);
 
         self.last_rect.x = 0.0;
         self.last_rect.y = 0.0;
         self.last_rect.width = if self.last_rect.height < rect_inside.height {
             rect_inside.width - 5.0
         } else {
-            rect_inside.width - d.gui_get_style(GuiControl::LISTVIEW, 18) as f32 - 5.0
+            rect_inside.width - d.get_style().listview.scrollbar_side as i32 as f32 - 5.0
         };
 
-        let (view, _view_scale) = d.gui_scroll_panel(rect_inside, self.last_rect, self.scroll);
+        let (view, _view_scale) = d.GuiScrollPanel(rect_inside, self.last_rect, self.scroll);
         self.scroll = _view_scale;
 
         rect_inside.y += self.scroll.y;
@@ -123,7 +110,7 @@ impl EmulatorState {
         rect_inside.width = view.width - GUI_PADDING as f32 * 1.5;
 
         {
-            let mut s = d.begin_scissor_mode(
+            d.BeginScissorMode(
                 view.x as i32,
                 view.y as i32,
                 view.width as i32,
@@ -134,30 +121,34 @@ impl EmulatorState {
                 PanelMode::Cpu => {
                     // rect_inside = draw_debug_state(rect_inside, &emu, &gb_state);
                     // rect_inside = draw_cartridge_state(rect_inside, &gb_state.cart);
-                    rect_inside = self.draw_joypad_state(&mut s, rect_inside, gba);
-                    rect_inside = self.draw_arm7_state(&mut s, rect_inside, gba);
+                    rect_inside = self.draw_joypad_state(d, rect_inside, gba);
+                    rect_inside = self.draw_arm7_state(d, rect_inside, gba);
                 }
                 PanelMode::Io => {
-                    rect_inside = self.draw_io_state(&mut s, rect_inside, gba);
+                    rect_inside = self.draw_io_state(d, rect_inside, gba);
                 }
                 PanelMode::Audio => {
-                    rect_inside = self.draw_audio_state(&mut s, rect_inside, gba);
+                    rect_inside = self.draw_audio_state(d, rect_inside, gba);
                 }
             }
             self.last_rect.width = view.width - GUI_PADDING as f32;
             self.last_rect.height = rect_inside.y - starty;
+
+            d.EndScissorMode();
         }
 
+        d.end_drawing();
+
         // draw lcd screen
-        let tex = &self.lcd;
-        tex.set_texture_filter(thread, TextureFilter::TEXTURE_FILTER_POINT);
-        d.draw_texture_quad(
-            tex,
-            Vector2::new(1.0, 1.0),
-            Vector2::new(0.0, 0.0),
-            lcd_rect,
-            Color::WHITE,
-        );
+        // let tex = &self.lcd;
+        // tex.set_texture_filter(TextureFilter::TEXTURE_FILTER_POINT);
+        // d.draw_texture_quad(
+        //     tex,
+        //     Vector2::new(1.0, 1.0),
+        //     Vector2::new(0.0, 0.0),
+        //     lcd_rect,
+        //     Color::WHITE,
+        // );
 
         // d.draw_text(
         //     &format!("{:#?}", &gba.scheduler.events),
@@ -170,7 +161,7 @@ impl EmulatorState {
 
     fn draw_arm7_state(
         &self,
-        d: &mut impl RaylibDraw,
+        d: &mut Raylib,
         rect: Rectangle,
         gba: &mut Gba<EmulatorState>,
     ) -> Rectangle {
@@ -236,7 +227,7 @@ impl EmulatorState {
             for i in 0..2 {
                 in_rect[i].height = inside_rect.y - orig_y - GUI_PADDING as f32;
                 in_rect[i].y = orig_y;
-                d.gui_group_box(in_rect[i], Some(&rstr!("{}", sections[i])));
+                d.GuiGroupBox(in_rect[i], sections[i]);
             }
             inside_rect.height -= inside_rect.y - orig_y;
         }
@@ -245,13 +236,13 @@ impl EmulatorState {
 
         let (state_rect, adv_rect) = rect.chop((inside_rect.y - rect.y) as i32, GUI_PADDING);
 
-        d.gui_group_box(state_rect, Some(rstr!("ARM7 State")));
+        d.GuiGroupBox(state_rect, "ARM7 State");
         adv_rect
     }
 
     fn draw_instructions(
         &self,
-        d: &mut impl RaylibDraw,
+        d: &mut Raylib,
         rect: Rectangle,
         gba: &mut Gba<EmulatorState>,
     ) -> Rectangle {
@@ -274,26 +265,26 @@ impl EmulatorState {
 
             if pc_render < 0 {
                 widget_rect.x += 80.0;
-                d.gui_label(widget_rect, Some(rstr!("INVALID")));
+                d.GuiLabel(widget_rect, "INVALID");
             } else {
                 if i == 0 {
-                    d.gui_label(widget_rect, Some(rstr!("PC->")));
+                    d.GuiLabel(widget_rect, "PC->");
                 }
                 widget_rect.x += 30.0;
-                d.gui_label(widget_rect, Some(&rstr!("{:08X}", pc_render)));
+                d.GuiLabel(widget_rect, &format!("{:08X}", pc_render));
                 widget_rect.x += 80.0;
 
                 let opcode = arm.get_instructionge(pc_render as u32, &mut disasm);
-                d.gui_label(widget_rect, Some(&rstr!("{}", disasm)));
+                d.GuiLabel(widget_rect, disasm.as_str());
                 disasm.clear();
 
                 widget_rect.x += 150.0;
-                d.gui_label(
+                d.GuiLabel(
                     widget_rect,
-                    Some(&match state {
-                        CpuState::ARM => rstr!("{:08X}", opcode),
-                        CpuState::THUMB => rstr!("{:04X}", opcode),
-                    }),
+                    &match state {
+                        CpuState::ARM => format!("{:08X}", opcode),
+                        CpuState::THUMB => format!("{:04X}", opcode),
+                    },
                 );
                 widget_rect.x += 50.0;
             }
@@ -302,13 +293,13 @@ impl EmulatorState {
         }
 
         let (state_rect, adv_rect) = rect.chop((inside_rect.y - rect.y) as i32, GUI_PADDING);
-        d.gui_group_box(state_rect, Some(&rstr!("Instructions [{}]", state)));
+        d.GuiGroupBox(state_rect, &format!("Instructions [{}]", state));
         adv_rect
     }
 
     fn draw_io_state(
         &self,
-        d: &mut impl RaylibDraw,
+        d: &mut Raylib,
         rect: Rectangle,
         gba: &mut Gba<EmulatorState>,
     ) -> Rectangle {
@@ -328,23 +319,23 @@ impl EmulatorState {
                         // has_fields = true;
                         let mut r2 = r;
                         if size > 1 {
-                            r = d.draw_label(r, &rstr!("[{}:{}]:", start, start + size - 1));
+                            r = d.draw_label(r, &format!("[{}:{}]:", start, start + size - 1));
                         } else {
-                            r = d.draw_label(r, &rstr!("{}:", start));
+                            r = d.draw_label(r, &format!("{}:", start));
                         }
 
                         r2.x += 30.0;
-                        d.draw_label(r2, &rstr!("{}", field_data));
+                        d.draw_label(r2, &format!("{}", field_data));
                         r2.x += 25.0;
-                        d.draw_label(r2, &rstr!("{}", bit.name));
+                        d.draw_label(r2, bit.name);
                     }
                 }
             }
 
             let (state_rect, adv_rect) = rect.chop(r.y as i32 - rect.y as i32, GUI_PADDING);
-            d.gui_group_box(
+            d.GuiGroupBox(
                 state_rect,
-                Some(&rstr!("{}({:X}): {:04X}", reg.name, addr, data)),
+                &format!("{}({:X}): {:04X}", reg.name, addr, data),
             );
             rect = adv_rect;
         }
@@ -352,43 +343,39 @@ impl EmulatorState {
         rect
     }
 
-    fn draw_emu_state(&mut self, d: &mut impl RaylibDraw, rect: Rectangle) -> Rectangle {
+    fn draw_emu_state(&mut self, d: &mut Raylib, rect: Rectangle) -> Rectangle {
         let (mut widget_rect, inside_rect) =
             rect.shave(GUI_PADDING).chop(GUI_ROW_HEIGHT, GUI_PADDING);
 
-        widget_rect.width =
-            widget_rect.width / 4.0 - d.gui_get_style(GuiControl::TOGGLE, 16) as f32;
+        widget_rect.width = widget_rect.width / 4.0 - d.get_style().toggle.text_spacing as f32;
         // todo link this with the emulator
-        self.run_state = d.gui_toggle_group(
+        self.run_state = d.GuiToggleGroup(
             widget_rect,
-            Some(rstr!("#74#Reset;#132#Pause;#131#Run;#134#Step")),
+            &["#74#Reset", "132#Pause", "#131#Run", "#134#Step"],
             self.run_state,
         );
 
         let (mut widget_rect, inside_rect) = inside_rect.chop(GUI_ROW_HEIGHT, GUI_PADDING);
 
-        d.gui_label(widget_rect, Some(rstr!("Panel Mode")));
+        d.GuiLabel(widget_rect, "Panel Mode");
         widget_rect.width =
-            widget_rect.width / 3.0 - d.gui_get_style(GuiControl::TOGGLE, 16) as f32 * 2.0 / 3.0;
+            widget_rect.width / 3.0 - d.get_style().toggle.text_spacing as f32 * 2.0 / 3.0;
 
-        self.panel_mode = BUTTON_STATES[d.gui_toggle_group(
+        self.panel_mode = BUTTON_STATES[d.GuiToggleGroup(
             widget_rect,
-            Some(rstr!("CPU;IO Regs;Audio")),
-            self.panel_mode as i32,
+            &["CPU", "IO Regs", "Audio"],
+            self.panel_mode as usize,
         ) as usize];
 
         let (state_rect, adv_rect) = rect.chop((inside_rect.y - rect.y) as i32, GUI_PADDING);
         // TODO: get avg frame time from emulator state
-        d.gui_group_box(
-            state_rect,
-            Some(&rstr!("Emulator State [FPS: {}]", self.fps)),
-        );
+        d.GuiGroupBox(state_rect, &format!("Emulator State [FPS: {}]", self.fps));
 
         adv_rect
     }
 
     fn draw_reg_state<const N: usize>(
-        d: &mut impl RaylibDraw,
+        d: &mut Raylib,
         rect: Rectangle,
         _group_name: &str,
         names: [&str; N],
@@ -400,13 +387,13 @@ impl EmulatorState {
             let (mut widget_rect, new_inside_rect) =
                 inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING + 5);
 
-            d.gui_label(widget_rect, Some(&rstr!("{}", names[i])));
+            d.GuiLabel(widget_rect, names[i]);
             let w = (new_inside_rect.width - GUI_PADDING as f32 * 2.0) / 3.0;
             widget_rect.x += w;
-            d.gui_label(widget_rect, Some(&rstr!("0x{:X}", values[i])));
+            d.GuiLabel(widget_rect, &format!("0x{:X}", values[i]));
 
             widget_rect.x += w + GUI_PADDING as f32 * 2.0;
-            d.gui_label(widget_rect, Some(&rstr!("{}", values[i])));
+            d.GuiLabel(widget_rect, &format!("{}", values[i]));
 
             inside_rect = new_inside_rect;
         }
@@ -418,7 +405,7 @@ impl EmulatorState {
 
     fn draw_joypad_state(
         &self,
-        d: &mut impl RaylibDraw,
+        d: &mut Raylib,
         rect: Rectangle,
         gba: &mut Gba<EmulatorState>,
     ) -> Rectangle {
@@ -431,19 +418,19 @@ impl EmulatorState {
 
         let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
         wr.y = widget_rect.y;
-        d.gui_check_box(wr, Some(rstr!("Up")), !keys.bit(6));
+        d.GuiCheckBox(wr, "Up", !keys.bit(6));
         let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
         wr.y = widget_rect.y;
-        d.gui_check_box(wr, Some(rstr!("Down")), !keys.bit(7));
+        d.GuiCheckBox(wr, "Down", !keys.bit(7));
         let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
         wr.y = widget_rect.y;
-        d.gui_check_box(wr, Some(rstr!("Left")), !keys.bit(5));
+        d.GuiCheckBox(wr, "Left", !keys.bit(5));
         let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
         wr.y = widget_rect.y;
-        d.gui_check_box(wr, Some(rstr!("Right")), !keys.bit(4));
+        d.GuiCheckBox(wr, "Right", !keys.bit(4));
         let (widget_rect, _) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
         wr.y = widget_rect.y;
-        d.gui_check_box(wr, Some(rstr!("Shoulder-L")), !keys.bit(9));
+        d.GuiCheckBox(wr, "Shoulder-L", !keys.bit(9));
 
         let mut inside_rect = rect.shave(GUI_PADDING);
         inside_rect.x += rect.width / 2.0;
@@ -451,45 +438,47 @@ impl EmulatorState {
         let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
         wr.x += rect.width / 2.0;
         wr.y = widget_rect.y;
-        d.gui_check_box(wr, Some(rstr!("A")), !keys.bit(0));
+        d.GuiCheckBox(wr, "A", !keys.bit(0));
         let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
         wr.y = widget_rect.y;
-        d.gui_check_box(wr, Some(rstr!("B")), !keys.bit(1));
+        d.GuiCheckBox(wr, "B", !keys.bit(1));
         let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
         wr.y = widget_rect.y;
-        d.gui_check_box(wr, Some(rstr!("Start")), !keys.bit(3));
+        d.GuiCheckBox(wr, "Start", !keys.bit(3));
         let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
         wr.y = widget_rect.y;
-        d.gui_check_box(wr, Some(rstr!("Select")), !keys.bit(2));
+        d.GuiCheckBox(wr, "Select", !keys.bit(2));
         let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
         wr.y = widget_rect.y;
-        d.gui_check_box(wr, Some(rstr!("Shoulder-R")), !keys.bit(8));
+        d.GuiCheckBox(wr, "Shoulder-R", !keys.bit(8));
         let (_, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
 
         let (state_rect, adv_rect) = rect.chop((inside_rect.y - rect.y) as i32, GUI_PADDING);
-        d.gui_group_box(state_rect, Some(rstr!("Keypad State")));
+        d.GuiGroupBox(state_rect, "Keypad State");
 
         adv_rect
     }
 
     fn draw_audio_state(
         &self,
-        d: &mut impl RaylibDraw,
+        d: &mut Raylib,
         rect: Rectangle,
         gba: &mut Gba<EmulatorState>,
     ) -> Rectangle {
         let inside_rect = rect.shave(GUI_PADDING);
-        
-		let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
 
-		let fifo_size = gba.sysbus.io.sound.dma_sound[0].fifo.count as f32;
+        let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
+
+        let fifo_size = gba.sysbus.io.sound.dma_sound[0].fifo.count as f32;
 
         //   float fifo_size = sb_ring_buffer_size(&emu_state.audio_ring_buff);
         //   GuiLabel(widget_rect, TextFormat("FIFO Size: %4f (%4f)", fifo_size,fifo_size/SB_AUDIO_RING_BUFFER_SIZE));
-		d.gui_label(widget_rect, Some(&rstr!("FIFO Size: {fifo_size} ({})", fifo_size / 32.0)));
+        d.GuiLabel(
+            widget_rect,
+            &format!("FIFO Size: {fifo_size} ({})", fifo_size / 32.0),
+        );
 
-		inside_rect
-
+        inside_rect
 
         //   sb_vertical_adv(inside_rect, GUI_ROW_HEIGHT, GUI_PADDING, &widget_rect, &inside_rect);
         //   GuiProgressBar(widget_rect, "", "", fifo_size/SB_AUDIO_RING_BUFFER_SIZE, 0, 1);
@@ -545,7 +534,7 @@ impl EmulatorState {
 impl VideoInterface for EmulatorState {
     fn render(&mut self, buffer: &[u8]) {
         println!("UPDATE");
-        self.lcd.update_texture(buffer);
+        // self.lcd.update_texture(buffer);
     }
 
     fn poll(&mut self) -> u16 {
@@ -556,38 +545,38 @@ impl VideoInterface for EmulatorState {
         const MAX_SAMPLES: usize = 512;
         const MAX_SAMPLES_PER_UPDATE: usize = 4096;
 
-        if self.audio.is_audio_stream_processed(&self.audio_stream) {
-            let mut data = [0; MAX_SAMPLES / std::mem::size_of::<i16>()];
-            let mut writeBuf = [0i16; MAX_SAMPLES_PER_UPDATE / std::mem::size_of::<i16>()];
+        // if self.audio.is_audio_stream_processed(&self.audio_stream) {
+        //     let mut data = [0; MAX_SAMPLES / std::mem::size_of::<i16>()];
+        //     let mut writeBuf = [0i16; MAX_SAMPLES_PER_UPDATE / std::mem::size_of::<i16>()];
 
-            let mut waveLength = 1;
-            let mut readCursor = 0;
-            let mut writeCursor = 0;
+        //     let mut waveLength = 1;
+        //     let mut readCursor = 0;
+        //     let mut writeCursor = 0;
 
-            while writeCursor < MAX_SAMPLES_PER_UPDATE / std::mem::size_of::<i16>() {
-                // Start by trying to write the whole chunk at once
-                let mut writeLength =
-                    MAX_SAMPLES_PER_UPDATE / std::mem::size_of::<i16>() - writeCursor;
+        //     while writeCursor < MAX_SAMPLES_PER_UPDATE / std::mem::size_of::<i16>() {
+        //         // Start by trying to write the whole chunk at once
+        //         let mut writeLength =
+        //             MAX_SAMPLES_PER_UPDATE / std::mem::size_of::<i16>() - writeCursor;
 
-                // Limit to the maximum readable size
-                let readLength = waveLength - readCursor;
+        //         // Limit to the maximum readable size
+        //         let readLength = waveLength - readCursor;
 
-                if writeLength > readLength {
-                    writeLength = readLength;
-                }
+        //         if writeLength > readLength {
+        //             writeLength = readLength;
+        //         }
 
-                // Write the slice
-                &mut writeBuf[writeCursor..writeCursor + writeLength]
-                    .copy_from_slice(&data[readCursor..readCursor + writeLength]);
-                // memcpy(writeBuf + writeCursor, data + readCursor, writeLength * sizeof(short));
+        //         // Write the slice
+        //         &mut writeBuf[writeCursor..writeCursor + writeLength]
+        //             .copy_from_slice(&data[readCursor..readCursor + writeLength]);
+        //         // memcpy(writeBuf + writeCursor, data + readCursor, writeLength * sizeof(short));
 
-                // Update cursors and loop audio
-                readCursor = (readCursor + writeLength) % waveLength;
+        //         // Update cursors and loop audio
+        //         readCursor = (readCursor + writeLength) % waveLength;
 
-                writeCursor += writeLength;
-            }
+        //         writeCursor += writeLength;
+        //     }
 
-            self.audio_stream.update_audio_stream(samples)
-        }
+        //     self.audio_stream.update_audio_stream(samples)
+        // }
     }
 }
