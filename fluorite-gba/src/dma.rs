@@ -78,6 +78,18 @@ impl DmaController {
         } 
     }
 
+	pub fn notify_sound_fifo(&mut self, fifo_addr: u32) {
+        for i in 1..=2 {
+            if self.channels[i].ctrl.is_enabled()
+                && self.channels[i].running
+                && self.channels[i].ctrl.timing() == 3
+                && self.channels[i].dst == fifo_addr
+            {
+                self.pending_set |= 1 << i;
+            }
+        }
+    }
+
     pub fn activate_channel(&mut self, channel_id: usize) {
         self.pending_set |= 1 << channel_id;
     }

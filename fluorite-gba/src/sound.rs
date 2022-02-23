@@ -1,17 +1,52 @@
-use std::{cell::RefCell, f32::consts::PI, rc::Rc};
+use std::cell::RefCell;
+use std::rc::Rc;
 
-use fluorite_arm::Addr;
 use fluorite_common::{BitIndex, Shared};
 
-use crate::{
-    consts::*,
-    sched::{ApuEvent, EventType, Scheduler},
-    VideoInterface,
-};
+use crate::consts::*;
+use crate::VideoInterface;
+
+use super::dma::DmaController;
+use super::sched::*;
+
+pub type StereoSample<T> = (T, T);
 
 const DMG_RATIOS: [f32; 4] = [0.25, 0.5, 1.0, 0.0];
 const DMA_TIMERS: [usize; 2] = [0, 1];
 const DUTY_RATIOS: [f32; 4] = [0.125, 0.25, 0.5, 0.75];
+
+#[derive(Clone, Debug)]
+pub struct DmaSoundChannel {
+    value: i8,
+    volume_shift: i16,
+    enable_right: bool,
+    enable_left: bool,
+    timer_select: usize,
+    pub fifo: SoundFifo,
+}
+
+impl DmaSoundChannel {
+    fn is_stereo_channel_enabled(&self, channel: usize) -> bool {
+        match channel {
+            0 => self.enable_left,
+            1 => self.enable_right,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl Default for DmaSoundChannel {
+    fn default() -> DmaSoundChannel {
+        DmaSoundChannel {
+            volume_shift: 0,
+            value: 0,
+            enable_right: false,
+            enable_left: false,
+            timer_select: 0,
+            fifo: SoundFifo::new(),
+        }
+    }
+}
 
 const REG_FIFO_A_L: u32 = REG_FIFO_A;
 const REG_FIFO_A_H: u32 = REG_FIFO_A + 2;
@@ -19,14 +54,11 @@ const REG_FIFO_A_H: u32 = REG_FIFO_A + 2;
 const REG_FIFO_B_L: u32 = REG_FIFO_B;
 const REG_FIFO_B_H: u32 = REG_FIFO_B + 2;
 
-const SOUND_FIFO_CAPACITY: usize = 32;
-
-pub type StereoSample<T> = (T, T);
-
+#[derive(Clone, Debug)]
 pub struct SoundController {
     scheduler: Shared<Scheduler>,
 
-    _cycles: usize, // cycles count when we last provided a new sample.
+    cycles: usize, // cycles count when we last provided a new sample.
 
     mse: bool,
 
@@ -57,21 +89,22 @@ pub struct SoundController {
 
     sample_rate: f32,
     cycles_per_sample: usize,
-    dma_sound: [DmaSoundChannel; 2],
+
+    pub dma_sound: [DmaSoundChannel; 2],
+
     resampler: CosineResampler,
     output_buffer: Vec<StereoSample<f32>>,
 }
 
 impl SoundController {
-    pub fn new(mut scheduler: Shared<Scheduler>, audio_device_sample_rate: f32) -> Self {
+    pub fn new(mut scheduler: Shared<Scheduler>, audio_device_sample_rate: f32) -> SoundController {
         let resampler = CosineResampler::new(32768_f32, audio_device_sample_rate);
         let cycles_per_sample = 512;
         scheduler.push(EventType::Apu(ApuEvent::Sample), cycles_per_sample);
-
-        Self {
+        SoundController {
             scheduler,
             cycles_per_sample,
-            _cycles: 0,
+            cycles: 0,
             mse: false,
             left_volume: 0,
             left_sqr1: false,
@@ -95,13 +128,14 @@ impl SoundController {
             sound_bias: 0x200,
             sample_rate: 32_768f32,
             dma_sound: [Default::default(), Default::default()],
-            resampler,
+
+            resampler: resampler,
             output_buffer: Vec::with_capacity(1024),
         }
     }
 
-    pub fn handle_read(&self, addr: Addr) -> u16 {
-        let value = match addr {
+    pub fn handle_read(&self, io_addr: u32) -> u16 {
+        let value = match io_addr {
             REG_SOUNDCNT_X => cbit(7, self.mse),
             REG_SOUNDCNT_L => {
                 self.left_volume as u16
@@ -116,21 +150,44 @@ impl SoundController {
                     | cbit(15, self.right_noise)
             }
 
-            REG_SOUNDCNT_H => todo!(),
+            REG_SOUNDCNT_H => {
+                DMG_RATIOS
+                    .iter()
+                    .position(|&f| f == self.dmg_volume_ratio)
+                    .expect("bad dmg_volume_ratio!") as u16
+                    | cbit(2, self.dma_sound[0].volume_shift == 1)
+                    | cbit(3, self.dma_sound[1].volume_shift == 1)
+                    | cbit(8, self.dma_sound[0].enable_right)
+                    | cbit(9, self.dma_sound[0].enable_left)
+                    | cbit(10, self.dma_sound[0].timer_select != 0)
+                    | cbit(12, self.dma_sound[1].enable_right)
+                    | cbit(13, self.dma_sound[1].enable_left)
+                    | cbit(14, self.dma_sound[1].timer_select != 0)
+            }
 
             REG_SOUNDBIAS => self.sound_bias,
 
             _ => {
-                println!("Unimplemented read from {:x} {}", addr, io_reg_string(addr));
+                // println!(
+                //     "Unimplemented read from {:x} {}",
+                //     io_addr,
+                //     io_reg_string(io_addr)
+                // );
                 0
             }
         };
+        // println!(
+        //     "Read {} ({:08x}) = {:04x}",
+        //     io_reg_string(io_addr),
+        //     io_addr,
+        //     value
+        // );
         value
     }
 
-    pub fn handle_write(&mut self, addr: Addr, val: u16) {
-        if addr == REG_SOUNDCNT_X {
-            if val & bit(7) != 0 {
+    pub fn handle_write(&mut self, io_addr: u32, value: u16) {
+        if io_addr == REG_SOUNDCNT_X {
+            if value & bit(7) != 0 {
                 if !self.mse {
                     println!("MSE enabled!");
                     self.mse = true;
@@ -147,68 +204,72 @@ impl SoundController {
         }
 
         // TODO - figure out which writes should be disabled when MSE is off
+        // if !self.mse {
+        //     warn!("MSE disabled, refusing to write");
+        //     return;
+        // }
 
-        match addr {
+        match io_addr {
             REG_SOUNDCNT_L => {
-                self.left_volume = val.bit_range(0..2) as usize;
-                self.right_volume = val.bit_range(4..6) as usize;
-                self.left_sqr1 = val.bit(8);
-                self.left_sqr2 = val.bit(9);
-                self.left_wave = val.bit(10);
-                self.left_noise = val.bit(11);
-                self.right_sqr1 = val.bit(12);
-                self.right_sqr2 = val.bit(13);
-                self.right_wave = val.bit(14);
-                self.right_noise = val.bit(15);
+                self.left_volume = value.bit_range(0..2) as usize;
+                self.right_volume = value.bit_range(4..6) as usize;
+                self.left_sqr1 = value.bit(8);
+                self.left_sqr2 = value.bit(9);
+                self.left_wave = value.bit(10);
+                self.left_noise = value.bit(11);
+                self.right_sqr1 = value.bit(12);
+                self.right_sqr2 = value.bit(13);
+                self.right_wave = value.bit(14);
+                self.right_noise = value.bit(15);
             }
 
             REG_SOUNDCNT_H => {
-                self.dmg_volume_ratio = DMG_RATIOS[val.bit_range(0..1) as usize];
-                self.dma_sound[0].volume_shift = val.bit(2) as i16;
-                self.dma_sound[1].volume_shift = val.bit(3) as i16;
-                self.dma_sound[0].enable_right = val.bit(8);
-                self.dma_sound[0].enable_left = val.bit(9);
-                self.dma_sound[0].timer_select = DMA_TIMERS[val.bit(10) as usize];
-                self.dma_sound[1].enable_right = val.bit(12);
-                self.dma_sound[1].enable_left = val.bit(13);
-                self.dma_sound[1].timer_select = DMA_TIMERS[val.bit(14) as usize];
+                self.dmg_volume_ratio = DMG_RATIOS[value.bit_range(0..1) as usize];
+                self.dma_sound[0].volume_shift = value.bit(2) as i16;
+                self.dma_sound[1].volume_shift = value.bit(3) as i16;
+                self.dma_sound[0].enable_right = value.bit(8);
+                self.dma_sound[0].enable_left = value.bit(9);
+                self.dma_sound[0].timer_select = DMA_TIMERS[value.bit(10) as usize];
+                self.dma_sound[1].enable_right = value.bit(12);
+                self.dma_sound[1].enable_left = value.bit(13);
+                self.dma_sound[1].timer_select = DMA_TIMERS[value.bit(14) as usize];
 
-                if val.bit(11) {
+                if value.bit(11) {
                     self.dma_sound[0].fifo.reset();
                 }
-                if val.bit(15) {
+                if value.bit(15) {
                     self.dma_sound[1].fifo.reset();
                 }
             }
 
             REG_SOUND1CNT_H => {
-                self.sqr1_length = (64 - val.bit_range(0..5) as usize) as f32 / 256.0;
-                self.sqr1_duty = DUTY_RATIOS[val.bit_range(6..7) as usize];
-                self.sqr1_step_time = val.bit_range(8..10) as usize;
-                self.sqr1_step_increase = val.bit(11);
-                self.sqr1_initial_vol = val.bit_range(12..15) as usize;
+                self.sqr1_length = (64 - value.bit_range(0..5) as usize) as f32 / 256.0;
+                self.sqr1_duty = DUTY_RATIOS[value.bit_range(6..7) as usize];
+                self.sqr1_step_time = value.bit_range(8..10) as usize;
+                self.sqr1_step_increase = value.bit(11);
+                self.sqr1_initial_vol = value.bit_range(12..15) as usize;
             }
 
             REG_SOUND1CNT_X => {
-                self.sqr1_rate = val.bit_range(0..10) as usize;
-                self.sqr1_timed = val.bit(14);
-                if val.bit(15) {
+                self.sqr1_rate = value.bit_range(0..10) as usize;
+                self.sqr1_timed = value.bit(14);
+                if value.bit(15) {
                     self.sqr1_cur_vol = self.sqr1_initial_vol;
                 }
             }
 
             REG_FIFO_A_L | REG_FIFO_A_H => {
-                self.dma_sound[0].fifo.write((val & 0xff) as i8);
-                self.dma_sound[0].fifo.write(((val >> 8) & 0xff) as i8);
+                self.dma_sound[0].fifo.write((value & 0xff) as i8);
+                self.dma_sound[0].fifo.write(((value >> 8) & 0xff) as i8);
             }
 
             REG_FIFO_B_L | REG_FIFO_B_H => {
-                self.dma_sound[1].fifo.write((val & 0xff) as i8);
-                self.dma_sound[1].fifo.write(((val >> 8) & 0xff) as i8);
+                self.dma_sound[1].fifo.write((value & 0xff) as i8);
+                self.dma_sound[1].fifo.write(((value >> 8) & 0xff) as i8);
             }
 
             REG_SOUNDBIAS => {
-                self.sound_bias = val & 0xc3fe;
+                self.sound_bias = value & 0xc3fe;
                 let resolution = self.sound_bias.bit_range(14..16) as usize;
                 self.sample_rate = (32768 << resolution) as f32;
                 if self.sample_rate != self.resampler.in_freq {
@@ -229,18 +290,35 @@ impl SoundController {
         }
     }
 
-    pub fn on_event<T: VideoInterface>(
+    pub fn write_fifo(&mut self, id: usize, val: i8) {
+        assert!(id == 0 || id == 1);
+        self.dma_sound[id].fifo.write(val);
+    }
+
+    pub fn handle_timer_overflow(
         &mut self,
-        event: ApuEvent,
-        extra_cycles: usize,
-        device: &Rc<RefCell<T>>,
+        dmac: &mut DmaController,
+        timer_id: usize,
+        _num_overflows: usize,
     ) {
-        match event {
-            ApuEvent::Sample => self.on_sample(extra_cycles, device),
-            _ => println!("got {:?} event", event),
+        if !self.mse {
+            return;
+        }
+
+        const FIFO_INDEX_TO_REG: [u32; 2] = [REG_FIFO_A, REG_FIFO_B];
+        for fifo in 0..2 {
+            let dma = &mut self.dma_sound[fifo];
+
+            if timer_id == dma.timer_select {
+                dma.value = dma.fifo.read();
+                if dma.fifo.count() <= 16 {
+                    dmac.notify_sound_fifo(FIFO_INDEX_TO_REG[fifo]);
+                }
+            }
         }
     }
 
+    #[inline]
     fn on_sample<T: VideoInterface>(&mut self, extra_cycles: usize, audio_device: &Rc<RefCell<T>>) {
         let mut sample = [0f32; 2];
 
@@ -271,6 +349,18 @@ impl SoundController {
         self.scheduler
             .push_apu_event(ApuEvent::Sample, self.cycles_per_sample - extra_cycles);
     }
+
+    pub fn on_event<T: VideoInterface>(
+        &mut self,
+        event: ApuEvent,
+        extra_cycles: usize,
+        audio_device: &Rc<RefCell<T>>,
+    ) {
+        match event {
+            ApuEvent::Sample => self.on_sample(extra_cycles, audio_device),
+            _ => println!("got {:?} event", event),
+        }
+    }
 }
 
 #[inline(always)]
@@ -287,6 +377,7 @@ fn apply_bias(sample: &mut i16, level: i16) {
     *sample = s;
 }
 
+// TODO move
 fn cbit(idx: u8, value: bool) -> u16 {
     if value {
         1 << idx
@@ -299,48 +390,15 @@ fn cbit(idx: u8, value: bool) -> u16 {
 fn bit(idx: u8) -> u16 {
     1 << idx
 }
-
-#[derive(Clone, Debug)]
-struct DmaSoundChannel {
-    value: i8,
-    volume_shift: i16,
-    enable_right: bool,
-    enable_left: bool,
-    timer_select: usize,
-    fifo: SoundFifo,
-}
-
-impl DmaSoundChannel {
-    fn is_stereo_channel_enabled(&self, channel: usize) -> bool {
-        match channel {
-            0 => self.enable_left,
-            1 => self.enable_right,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl Default for DmaSoundChannel {
-    fn default() -> DmaSoundChannel {
-        DmaSoundChannel {
-            volume_shift: 0,
-            value: 0,
-            enable_right: false,
-            enable_left: false,
-            timer_select: 0,
-            fifo: SoundFifo::new(),
-        }
-    }
-}
-
 // TODO write tests or replace with a crate
+const SOUND_FIFO_CAPACITY: usize = 32;
 
 #[derive(Clone, Debug)]
 pub struct SoundFifo {
-    wr_pos: usize,
-    rd_pos: usize,
-    count: usize,
-    data: [i8; SOUND_FIFO_CAPACITY],
+    pub wr_pos: usize,
+    pub rd_pos: usize,
+    pub count: usize,
+    pub data: [i8; SOUND_FIFO_CAPACITY],
 }
 
 impl SoundFifo {
@@ -382,6 +440,8 @@ impl SoundFifo {
         self.count = 0;
     }
 }
+
+const PI: f32 = std::f32::consts::PI;
 
 pub trait Resampler {
     fn feed(&mut self, s: StereoSample<f32>, output: &mut Vec<StereoSample<f32>>);

@@ -19,6 +19,9 @@ pub struct EmulatorState {
     lcd: RenderTexture2D,
     keys: u16,
 
+    audio: RaylibAudio,
+    audio_stream: AudioStream,
+
     // emulator state
     scroll: Vector2,
     last_rect: Rectangle,
@@ -28,10 +31,17 @@ pub struct EmulatorState {
 }
 
 impl EmulatorState {
-    pub fn new(lcd: RenderTexture2D) -> Self {
+    pub fn new(thread: &RaylibThread, lcd: RenderTexture2D) -> Self {
+        let mut audio = RaylibAudio::init_audio_device();
+        let mut audio_stream = AudioStream::init_audio_stream(thread, 44100, 16, 2);
+
+        audio.play_audio_stream(&mut audio_stream);
+
         Self {
             lcd,
             keys: KEYINPUT_ALL_RELEASED,
+            audio,
+            audio_stream,
             scroll: Vector2::default(),
             last_rect: Rectangle::default(),
             panel_mode: PanelMode::Cpu,
@@ -131,7 +141,7 @@ impl EmulatorState {
                     rect_inside = self.draw_io_state(&mut s, rect_inside, gba);
                 }
                 PanelMode::Audio => {
-                    // rect_inside = draw_audio_state(rect_inside, &gb_state);
+                    rect_inside = self.draw_audio_state(&mut s, rect_inside, gba);
                 }
             }
             self.last_rect.width = view.width - GUI_PADDING as f32;
@@ -461,15 +471,123 @@ impl EmulatorState {
 
         adv_rect
     }
+
+    fn draw_audio_state(
+        &self,
+        d: &mut impl RaylibDraw,
+        rect: Rectangle,
+        gba: &mut Gba<EmulatorState>,
+    ) -> Rectangle {
+        let inside_rect = rect.shave(GUI_PADDING);
+        
+		let (widget_rect, inside_rect) = inside_rect.chop(GUI_LABEL_HEIGHT, GUI_PADDING);
+
+		let fifo_size = gba.sysbus.io.sound.dma_sound[0].fifo.count as f32;
+
+        //   float fifo_size = sb_ring_buffer_size(&emu_state.audio_ring_buff);
+        //   GuiLabel(widget_rect, TextFormat("FIFO Size: %4f (%4f)", fifo_size,fifo_size/SB_AUDIO_RING_BUFFER_SIZE));
+		d.gui_label(widget_rect, Some(&rstr!("FIFO Size: {fifo_size} ({})", fifo_size / 32.0)));
+
+		inside_rect
+
+
+        //   sb_vertical_adv(inside_rect, GUI_ROW_HEIGHT, GUI_PADDING, &widget_rect, &inside_rect);
+        //   GuiProgressBar(widget_rect, "", "", fifo_size/SB_AUDIO_RING_BUFFER_SIZE, 0, 1);
+        //   for(int i=0;i<4;++i){
+        //     inside_rect = sb_draw_label(inside_rect,TextFormat("Channel %d",i+1));
+        //     sb_vertical_adv(inside_rect, GUI_ROW_HEIGHT, GUI_PADDING, &widget_rect, &inside_rect);
+        //     GuiProgressBar(widget_rect, "", "", emu_state.audio_channel_output[i], 0, 1);
+        //   }
+        //   if(emu_state.system==SYSTEM_GBA){
+        //     inside_rect = sb_draw_label(inside_rect,TextFormat("FIFO Channel A"));
+        //     sb_vertical_adv(inside_rect, GUI_ROW_HEIGHT, GUI_PADDING, &widget_rect, &inside_rect);
+        //     GuiProgressBar(widget_rect, "", "", emu_state.audio_channel_output[4], 0, 1);
+
+        //     inside_rect = sb_draw_label(inside_rect,TextFormat("FIFO Channel B"));
+        //     sb_vertical_adv(inside_rect, GUI_ROW_HEIGHT, GUI_PADDING, &widget_rect, &inside_rect);
+        //     GuiProgressBar(widget_rect, "", "", emu_state.audio_channel_output[5], 0, 1);
+        //   }
+
+        //   inside_rect = sb_draw_label(inside_rect, "Mix Volume (R)");
+        //   sb_vertical_adv(inside_rect, GUI_ROW_HEIGHT, GUI_PADDING, &widget_rect, &inside_rect);
+        //   GuiProgressBar(widget_rect, "", "", emu_state.mix_r_volume, 0, 1);
+
+        //   inside_rect = sb_draw_label(inside_rect, "Mix Volume (L)");
+        //   sb_vertical_adv(inside_rect, GUI_ROW_HEIGHT, GUI_PADDING, &widget_rect, &inside_rect);
+        //   GuiProgressBar(widget_rect, "", "", emu_state.mix_l_volume, 0, 1);
+
+        //   inside_rect = sb_draw_label(inside_rect, "Output Waveform");
+
+        //   sb_vertical_adv(inside_rect, 128, GUI_PADDING, &widget_rect, &inside_rect);
+
+        //   Color outline_color = GetColor(GuiGetStyle(DEFAULT,BORDER_COLOR_NORMAL));
+        //   Color line_color = GetColor(GuiGetStyle(DEFAULT,BORDER_COLOR_FOCUSED));
+        //   DrawRectangleLines(widget_rect.x,widget_rect.y,widget_rect.width,widget_rect.height,outline_color);
+        //   int old_v = 0;
+        //   static Vector2 points[512];
+        //   for(int i=0;i<widget_rect.width;++i){
+        //     int entry = (emu_state.audio_ring_buff.read_ptr+i)%SB_AUDIO_RING_BUFFER_SIZE;
+        //     int value = emu_state.audio_ring_buff.data[entry]/256/2;
+        //     points[i]= (Vector2){widget_rect.x+i,widget_rect.y+64+value};
+        //     old_v=value;
+        //   }
+        //   DrawLineStrip(points,widget_rect.width,line_color);
+
+        //   Rectangle state_rect, adv_rect;
+        //   sb_vertical_adv(rect, inside_rect.y - rect.y, GUI_PADDING, &state_rect,
+        //                   &adv_rect);
+
+        //   GuiGroupBox(state_rect, "Audio State");
+        //   return adv_rect;
+    }
 }
 
 impl VideoInterface for EmulatorState {
     fn render(&mut self, buffer: &[u8]) {
-		println!("UPDATE");
+        println!("UPDATE");
         self.lcd.update_texture(buffer);
     }
 
     fn poll(&mut self) -> u16 {
         self.keys
+    }
+
+    fn push_sample(&mut self, samples: &[i16]) {
+        const MAX_SAMPLES: usize = 512;
+        const MAX_SAMPLES_PER_UPDATE: usize = 4096;
+
+        if self.audio.is_audio_stream_processed(&self.audio_stream) {
+            let mut data = [0; MAX_SAMPLES / std::mem::size_of::<i16>()];
+            let mut writeBuf = [0i16; MAX_SAMPLES_PER_UPDATE / std::mem::size_of::<i16>()];
+
+            let mut waveLength = 1;
+            let mut readCursor = 0;
+            let mut writeCursor = 0;
+
+            while writeCursor < MAX_SAMPLES_PER_UPDATE / std::mem::size_of::<i16>() {
+                // Start by trying to write the whole chunk at once
+                let mut writeLength =
+                    MAX_SAMPLES_PER_UPDATE / std::mem::size_of::<i16>() - writeCursor;
+
+                // Limit to the maximum readable size
+                let readLength = waveLength - readCursor;
+
+                if writeLength > readLength {
+                    writeLength = readLength;
+                }
+
+                // Write the slice
+                &mut writeBuf[writeCursor..writeCursor + writeLength]
+                    .copy_from_slice(&data[readCursor..readCursor + writeLength]);
+                // memcpy(writeBuf + writeCursor, data + readCursor, writeLength * sizeof(short));
+
+                // Update cursors and loop audio
+                readCursor = (readCursor + writeLength) % waveLength;
+
+                writeCursor += writeLength;
+            }
+
+            self.audio_stream.update_audio_stream(samples)
+        }
     }
 }

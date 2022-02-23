@@ -592,8 +592,6 @@ dependencies = [
 [[package]]
 name = "raylib"
 version = "3.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb567269b7ea9ae3c4a5aab4dc95e0b4d8df2a49a25e1670a3bb17bc17504606"
 dependencies = [
  "cfg-if",
  "lazy_static",
@@ -604,8 +602,6 @@ dependencies = [
 [[package]]
 name = "raylib-sys"
 version = "3.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20c97b5e251b73c52183914d4756104cab401050f244c19abe83fa05a4e86840"
 dependencies = [
  "cc",
  "cmake",

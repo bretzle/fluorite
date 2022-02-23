@@ -16,7 +16,7 @@ pub struct SysBus {
     iwram: Box<[u8]>,
     cartridge: Cartridge,
 
-    pub(crate) io: Shared<IoDevices>,
+    pub io: Shared<IoDevices>,
     scheduler: Shared<Scheduler>,
     arm_core: WeakPointer<Arm7tdmi<SysBus>>,
 

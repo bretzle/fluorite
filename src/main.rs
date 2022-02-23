@@ -2,6 +2,8 @@
 
 use color_eyre::Result;
 use fluorite_gba::gba::Gba;
+use fluorite_gba::VideoInterface;
+use raylib::audio::{AudioStream, RaylibAudio};
 use raylib::texture::RaylibTexture2D;
 use std::fmt::Write;
 use std::fs::File;
@@ -57,7 +59,7 @@ fn main() -> color_eyre::Result<()> {
     let mut name = read_rom(None, &mut rom)?;
 
     let tex = rl.load_render_texture(&thread, 240, 160).unwrap();
-    let emu = Rc::new(RefCell::new(EmulatorState::new(tex)));
+    let emu = Rc::new(RefCell::new(EmulatorState::new(&thread, tex)));
     let mut counter = FpsCounter::default();
     let mut gba = Gba::new(emu.clone(), BIOS, &rom);
 
