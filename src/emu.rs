@@ -97,7 +97,7 @@ impl EmulatorState {
         self.last_rect.width = if self.last_rect.height < rect_inside.height {
             rect_inside.width - 5.0
         } else {
-            rect_inside.width - d.get_style().listview.scrollbar_side as i32 as f32 - 5.0
+            rect_inside.width - d.get_style().listview.scrollbar_width as f32 - 5.0
         };
 
         let (view, _view_scale) = d.GuiScrollPanel(rect_inside, self.last_rect, self.scroll);
