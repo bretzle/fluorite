@@ -11,7 +11,9 @@ fluorite-arm = { path = "fluorite-arm" }
 fluorite-gba = { path = "fluorite-gba" }
 
 color-eyre = "0.5.11"
-raylib = "3.7.0"
+# raylib = "3.7.0"
+raylib = { path = "../../Desktop/raylib" }
+simple_logger="2.1.0"
 
 [dev-dependencies]
 criterion = "0.3"
@@ -35,5 +37,5 @@ overflow-checks = false
 lto = true
 codegen-units = 1
 
-[patch.crates-io]
-raylib = { path = "raylib-rs/raylib" }
+# [patch.crates-io]
+# raylib = { path = "raylib-rs/raylib" }
