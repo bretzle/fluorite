@@ -16,7 +16,7 @@ macro_rules! bfe {
 }
 
 pub struct EmulatorState {
-    // lcd: RenderTexture2D,
+    lcd: RenderTexture,
     keys: u16,
 
     // audio: RaylibAudio,
@@ -31,14 +31,14 @@ pub struct EmulatorState {
 }
 
 impl EmulatorState {
-    pub fn new() -> Self {
+    pub fn new(lcd: RenderTexture) -> Self {
         // let mut audio = RaylibAudio::init_audio_device();
         // let mut audio_stream = AudioStream::init_audio_stream(thread, 44100, 16, 2);
 
         // audio.play_audio_stream(&mut audio_stream);
 
         Self {
-            // lcd,
+            lcd,
             keys: KEYINPUT_ALL_RELEASED,
             // audio,
             // audio_stream,
@@ -140,15 +140,15 @@ impl EmulatorState {
         d.end_drawing();
 
         // draw lcd screen
-        // let tex = &self.lcd;
-        // tex.set_texture_filter(TextureFilter::TEXTURE_FILTER_POINT);
-        // d.draw_texture_quad(
-        //     tex,
-        //     Vector2::new(1.0, 1.0),
-        //     Vector2::new(0.0, 0.0),
-        //     lcd_rect,
-        //     Color::WHITE,
-        // );
+        let tex = &self.lcd;
+        tex.SetTextureFilter(TextureFilter::Point);
+        d.DrawTextureQuad(
+            tex,
+            Vector2::new(1.0, 1.0),
+            Vector2::new(0.0, 0.0),
+            lcd_rect,
+            Color::WHITE,
+        );
 
         // d.draw_text(
         //     &format!("{:#?}", &gba.scheduler.events),
@@ -534,7 +534,7 @@ impl EmulatorState {
 impl VideoInterface for EmulatorState {
     fn render(&mut self, buffer: &[u8]) {
         println!("UPDATE");
-        // self.lcd.update_texture(buffer);
+        self.lcd.UpdatePixels(buffer);
     }
 
     fn poll(&mut self) -> u16 {

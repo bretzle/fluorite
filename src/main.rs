@@ -3,6 +3,7 @@
 use color_eyre::Result;
 use fluorite_gba::gba::Gba;
 use fluorite_gba::VideoInterface;
+use raylib::Raylib;
 // use raylib::audio::{AudioStream, RaylibAudio};
 // use raylib::texture::RaylibTexture2D;
 use std::fmt::Write;
@@ -41,17 +42,11 @@ fn read_rom(path: Option<String>, buffer: &mut Vec<u8>) -> Result<String> {
 }
 
 fn main() -> color_eyre::Result<()> {
+	simple_logger::init().unwrap();
     color_eyre::install()?;
 
-    // let (mut rl, thread) = raylib::init()
-    //     .size(430 + (240 * 4), 160 * 4)
-    //     .title("Fluorite")
-    //     .vsync()
-    //     .build();
+    let mut rl = Raylib::init(430 + (240 * 4), 160 * 4, "Fluorite");
 
-    let mut rl = raylib::Raylib::init(430 + (240 * 4), 160 * 4, "Fluorite");
-
-    // rl.set_exit_key(None);
     // let ico = rl.load_texture(&thread, "fluorite.png").unwrap();
     // rl.set_window_icon(ico.get_texture_data().unwrap());
 
@@ -60,8 +55,8 @@ fn main() -> color_eyre::Result<()> {
     let mut rom = vec![];
     let mut name = read_rom(None, &mut rom)?;
 
-    // let tex = rl.load_render_texture(240, 160).unwrap();
-    let emu = Rc::new(RefCell::new(EmulatorState::new()));
+    let tex = rl.LoadRenderTexture(240, 160);
+    let emu = Rc::new(RefCell::new(EmulatorState::new(tex)));
     let mut counter = FpsCounter::default();
     let mut gba = Gba::new(emu.clone(), BIOS, &rom);
 
@@ -96,33 +91,33 @@ fn main() -> color_eyre::Result<()> {
             }
         }
 
-        // if rl.is_file_dropped() {
-        //     if let Some(file_path) = rl.get_dropped_files().pop() {
-        //         rl.clear_dropped_files();
-        //         emu.borrow_mut().reset();
-        //         rom.clear();
-        //         name = read_rom(Some(file_path), &mut rom)?;
-        //         gba = Gba::new(emu.clone(), BIOS, &rom);
-        //         gba.skip_bios();
-        //     }
-        // }
+        if rl.IsFileDropped() {
+            if let Some(file_path) = rl.GetDroppedFiles().pop() {
+                rl.ClearDroppedFiles();
+                emu.borrow_mut().reset();
+                rom.clear();
+                name = read_rom(Some(file_path), &mut rom)?;
+                gba = Gba::new(emu.clone(), BIOS, &rom);
+                gba.skip_bios();
+            }
+        }
 
         let mut emu = emu.borrow_mut();
         emu.fps = rl.GetFPS() as u32;
 
-        // if counter.tick().is_some() {
-        //     let time = gba.render_time();
-        //     let fps = 1.0 / time.as_secs_f64();
-        //     title.clear();
-        //     write!(
-        //         &mut title,
-        //         "{} | Render: {} ({:?})",
-        //         name,
-        //         fps.round(),
-        //         time
-        //     )?;
-        //     rl.set_window_title(&title);
-        // }
+        if counter.tick().is_some() {
+            let time = gba.render_time();
+            let fps = 1.0 / time.as_secs_f64();
+            title.clear();
+            write!(
+                &mut title,
+                "{} | Render: {} ({:?})",
+                name,
+                fps.round(),
+                time
+            )?;
+            rl.SetWindowTitle(&title);
+        }
 
         emu.draw_frame(&mut gba, &mut rl);
     }
