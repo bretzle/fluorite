@@ -276,22 +276,20 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
     }
 
     // TODO: make this use const generics
-    pub fn register_shift_const(
+    pub fn register_shift_const<const BS_OP: u8, const SHIFT_BY_REG: bool>(
         &mut self,
         offset: u32,
         reg: usize,
         carry: &mut bool,
-        bs_op: u8,
-        shift_by_reg: bool,
     ) -> u32 {
-        let op = match bs_op {
+        let op = match BS_OP {
             0 => BarrelShiftOpCode::LSL,
             1 => BarrelShiftOpCode::LSR,
             2 => BarrelShiftOpCode::ASR,
             3 => BarrelShiftOpCode::ROR,
             _ => unreachable!(),
         };
-        if shift_by_reg {
+        if SHIFT_BY_REG {
             let rs = offset.bit_range(8..12) as usize;
             self.shift_by_register(op, reg, rs, carry)
         } else {

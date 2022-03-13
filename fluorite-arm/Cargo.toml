@@ -13,3 +13,6 @@ num-traits = "0.2"
 byteorder = "1.4"
 
 fluorite-common = { path = "../fluorite-common" }
+
+[build-dependencies]
+fluorite-common = { path = "../fluorite-common" }

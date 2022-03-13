@@ -23,6 +23,14 @@ pub trait BitIndex: Sized {
     fn set_bit_range(&mut self, pos: Range<usize>, val: Self) -> &mut Self;
 }
 
+pub trait BitIndexEx<T: From<bool>>: BitIndex {
+    fn ibit(&self, pos: usize) -> T {
+        self.bit(pos).into()
+    }
+}
+
+impl<T: From<bool> + BitIndex> BitIndexEx<T> for T {}
+
 macro_rules! bit_index_impl {
 	( $($ty:ty),* ) => {$(
 		impl BitIndex for $ty {

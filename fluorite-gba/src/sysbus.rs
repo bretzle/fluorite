@@ -54,7 +54,7 @@ impl SysBus {
     }
 
     fn read_invalid(&mut self, addr: Addr) -> u32 {
-        println!("invalid read @0x{:08X}", addr);
+        // println!("invalid read @0x{:08X}", addr);
 
         let value = match self.arm_core.cspr.state() {
             CpuState::ARM => self.arm_core.get_prefetched_opcode(),
