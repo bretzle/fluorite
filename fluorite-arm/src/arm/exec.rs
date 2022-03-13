@@ -175,6 +175,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
 
     fn transfer_spsr_mode(&mut self) {
         let spsr = self.spsr;
+		// dbg!(self.cspr, self.spsr);
         if self.cspr.mode() != spsr.mode() {
             self.change_mode(self.cspr.mode(), spsr.mode());
         }

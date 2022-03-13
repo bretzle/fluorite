@@ -151,7 +151,7 @@ impl ArmInstruction {
 
         let opcode = self.raw.opcode();
 
-        let rd = self.raw.bit_range(16..20) as usize;
+        let rd = self.raw.bit_range(12..16) as usize;
         let rn = self.raw.bit_range(16..20) as usize;
 
         match opcode {

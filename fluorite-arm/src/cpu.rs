@@ -36,7 +36,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
             pc: 0,
             gpr: [0; 15],
             cspr: StatusRegister::new().with_mode(CpuMode::System),
-            spsr: StatusRegister::new(),
+            spsr: StatusRegister::new().with_mode(CpuMode::System),
             banks: BankedRegisters::default(),
             pipeline: [0; 2],
             next_fetch_access: MemoryAccess::NonSeq,
