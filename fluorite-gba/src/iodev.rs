@@ -38,7 +38,13 @@ pub struct IoDevices {
 }
 
 impl IoDevices {
-    pub fn new(intc: InterruptController, gpu: Gpu, dmac: DmaController, timers: Timers, sound: SoundController) -> Self {
+    pub fn new(
+        intc: InterruptController,
+        gpu: Gpu,
+        dmac: DmaController,
+        timers: Timers,
+        sound: SoundController,
+    ) -> Self {
         Self {
             gpu,
             intc,
@@ -143,7 +149,7 @@ impl Bus for IoDevices {
             REG_POSTFLG => self.post_boot_flag as u16,
             REG_HALTCNT => 0,
             REG_KEYINPUT => self.keyinput as u16,
-            REG_KEYCNT => todo!(), // TODO
+            REG_KEYCNT => 0, // TODO
             REG_JOYCNT => 0, // TODO
 
             0x04000400..=0x04FFFFFF
@@ -162,7 +168,7 @@ impl Bus for IoDevices {
                     }
                     _ => {
                         println!("Unimplemented read from 0x{:08X} {}", io_addr, s);
-						0
+                        0
                     }
                 }
             }

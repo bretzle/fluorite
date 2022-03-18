@@ -42,7 +42,7 @@ fn read_rom(path: Option<String>, buffer: &mut Vec<u8>) -> Result<String> {
 }
 
 fn main() -> color_eyre::Result<()> {
-	simple_logger::init().unwrap();
+    simple_logger::init().unwrap();
     color_eyre::install()?;
 
     let mut rl = Raylib::init(430 + (240 * 4), 160 * 4, "Fluorite");
@@ -111,10 +111,11 @@ fn main() -> color_eyre::Result<()> {
             title.clear();
             write!(
                 &mut title,
-                "{} | Render: {} ({:?})",
+                "{} | Render: {} ({:?}) [{}]",
                 name,
                 fps.round(),
-                time
+                time,
+                rl.GetFPS()
             )?;
             rl.SetWindowTitle(&title);
         }

@@ -193,7 +193,7 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
             let shifted_reg = ShiftedRegister {
                 reg: reg as usize,
                 bs_op: inst.get_bs_op(),
-                shift_by: shift_by,
+                shift_by,
                 added: None,
             };
             self.register_shift(&shifted_reg, &mut carry)
@@ -658,8 +658,8 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         if UPDATE_FLAGS {
             self.cspr.set_n((result as i32) < 0);
             self.cspr.set_z(result == 0);
-            self.cspr.set_c(false);
-            self.cspr.set_v(false);
+            // self.cspr.set_c(false);
+            // self.cspr.set_v(false);
         }
 
         CpuAction::AdvancePC(Seq)
@@ -701,8 +701,8 @@ impl<Memory: MemoryInterface> Arm7tdmi<Memory> {
         if UPDATE_FLAGS {
             self.cspr.set_n(result.bit(63));
             self.cspr.set_z(result == 0);
-            self.cspr.set_c(false);
-            self.cspr.set_v(false);
+            // self.cspr.set_c(false);
+            // self.cspr.set_v(false);
         }
 
         CpuAction::AdvancePC(Seq)

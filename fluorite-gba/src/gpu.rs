@@ -277,14 +277,13 @@ impl Gpu {
                 self.finalize_scanline(0, 2);
             }
             2 => {
-                todo!();
-                // if self.dispcnt.enable_bg3() {
-                //     self.render_aff_bg(3);
-                // }
-                // if self.dispcnt.enable_bg2() {
-                //     self.render_aff_bg(2);
-                // }
-                // self.finalize_scanline(2, 3);
+                if self.dispcnt.enable_bg[3] {
+                    self.render_aff_bg(3);
+                }
+                if self.dispcnt.enable_bg[2] {
+                    self.render_aff_bg(2);
+                }
+                self.finalize_scanline(2, 3);
             }
             3 => {
                 self.render_mode3(2);
