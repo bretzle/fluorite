@@ -1,126 +1,195 @@
 #![doc(html_logo_url = "https://raw.githubusercontent.com/bretzle/fluorite/main/fluorite.png")]
 
-use color_eyre::Result;
-use fluorite_gba::gba::Gba;
-use fluorite_gba::VideoInterface;
-use raylib::Raylib;
-// use raylib::audio::{AudioStream, RaylibAudio};
-// use raylib::texture::RaylibTexture2D;
-use std::fmt::Write;
-use std::fs::File;
-use std::io::Read;
+use crate::arm::registers::Reg;
+use crate::debug::TextureWindow;
+use crate::display::Display;
+use gba::Gba;
+use glfw::{Key, Modifiers};
+use imgui::*;
+use std::collections::VecDeque;
 use std::path::PathBuf;
-use std::{cell::RefCell, rc::Rc};
+use std::thread;
+use utils::WeakPointer;
 
-use crate::emu::EmulatorState;
-use crate::fps::FpsCounter;
-
-mod consts;
-mod emu;
-mod fps;
+mod arm;
+mod debug;
+mod display;
+mod gba;
+mod io;
 mod utils;
 
 static BIOS: &[u8] = include_bytes!("../roms/gba_bios.bin");
-
-fn read_rom(path: Option<String>, buffer: &mut Vec<u8>) -> Result<String> {
-    let file_path = match path {
-        None => {
-            let mut file_path = PathBuf::new();
-            match std::env::args().nth(1) {
-                Some(s) => file_path.push(s),
-                None => file_path.push("roms/beeg.gba"),
-            };
-            file_path
-        }
-        Some(s) => s.into(),
-    };
-
-    let mut file = File::open(&file_path)?;
-    file.read_to_end(buffer)?;
-
-    Ok(file_path.file_stem().unwrap().to_string_lossy().to_string())
-}
+static ROM: &[u8] = include_bytes!("../roms/beeg.gba");
 
 fn main() -> color_eyre::Result<()> {
     simple_logger::init().unwrap();
     color_eyre::install()?;
 
-    let mut rl = Raylib::init(430 + (240 * 4), 160 * 4, "Fluorite");
+    // let (render_tx, render_rx) = flume::unbounded();
+    let (keypad_tx, keypad_rx) = flume::unbounded();
 
-    // let ico = rl.load_texture(&thread, "fluorite.png").unwrap();
-    // rl.set_window_icon(ico.get_texture_data().unwrap());
+    let (mut gba, pixels_mutex, debug_windows_spec_mutex) = Gba::new(BIOS.to_vec(), ROM.to_vec());
+    let registers = WeakPointer::from(&mut gba.cpu.regs);
 
-    println!("--------------");
+    let _gba_thread = thread::spawn(move || loop {
+        gba.emulate_frame()
+    });
 
-    let mut rom = vec![];
-    let mut name = read_rom(None, &mut rom)?;
+    let mut pixels_lock = None;
 
-    let tex = rl.LoadRenderTexture(240, 160);
-    let emu = Rc::new(RefCell::new(EmulatorState::new(tex)));
-    let mut counter = FpsCounter::default();
-    let mut gba = Gba::new(emu.clone(), BIOS, &rom);
+    let mut imgui = Context::create();
+    let mut display = Display::new(&mut imgui);
+    let mut paused = false;
 
-    gba.skip_bios();
-    let mut title = String::with_capacity(32);
+    let mut map_window = TextureWindow::new("BG Map");
+    let mut tiles_window = TextureWindow::new("Tiles");
+    let mut palettes_window = TextureWindow::new("Palettes");
 
-    while !rl.window_should_close() {
-        {
-            let mut emur = emu.borrow_mut();
-            emur.poll_keys(&rl);
-            match emur.run_state {
-                0 => {
-                    emur.reset();
-                    emur.run_state = 1;
-                    drop(emur);
-                    gba = Gba::new(emu.clone(), BIOS, &rom);
-                    gba.skip_bios();
-                }
-                1 => {}
-                2 => {
-                    // run
-                    drop(emur);
-                    gba.frame()
-                }
-                3 => {
-                    // step
-                    emur.run_state = 1;
-                    drop(emur);
-                    gba.run(1);
-                }
-                _ => unsafe { std::hint::unreachable_unchecked() },
-            }
+    let map_labels = ["0", "1", "2", "3"];
+    let tiles_block_labels = ["0", "1", "2", "3", "OBJ"];
+
+    let mut debug_windows = VecDeque::new();
+
+    while !display.should_close() {
+        if !paused {
+            // debug_windows = render_rx.recv().unwrap();
+            pixels_lock.replace(pixels_mutex.lock().unwrap());
         }
 
-        if rl.IsFileDropped() {
-            if let Some(file_path) = rl.GetDroppedFiles().pop() {
-                rl.ClearDroppedFiles();
-                emu.borrow_mut().reset();
-                rom.clear();
-                name = read_rom(Some(file_path), &mut rom)?;
-                gba = Gba::new(emu.clone(), BIOS, &rom);
-                gba.skip_bios();
-            }
+        let pixels = pixels_lock.take().unwrap();
+        let mut debug_spec = debug_windows_spec_mutex.lock().unwrap();
+        let mut debug_copy = debug_windows.clone();
+
+        display.render(
+            &pixels,
+            &keypad_tx,
+            &mut imgui,
+            |ui, keys_pressed, modifers| {
+                if paused {
+                    Window::new("Paused")
+                        .no_decoration()
+                        .always_auto_resize(true)
+                        .build(ui, || {
+                            ui.text("Paused");
+                        });
+                }
+
+                if debug_spec.reg_enable {
+                    use Reg::*;
+                    #[rustfmt::skip]
+                    Window::new("Registers").build(ui, || {
+						ui.text(format!("R0   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R0)));
+						ui.text(format!("R1   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R1)));
+						ui.text(format!("R2   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R2)));
+						ui.text(format!("R3   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R3)));
+						ui.text(format!("R4   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R4)));
+						ui.text(format!("R5   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R5)));
+						ui.text(format!("R6   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R6)));
+						ui.text(format!("R7   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R7)));
+						ui.text(format!("R8   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R8)));
+						ui.text(format!("R9   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R9)));
+						ui.text(format!("R10  0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R10)));
+						ui.text(format!("R11  0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R11)));
+						ui.text(format!("R12  0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R12)));
+						ui.text(format!("R13  0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R13)));
+						ui.text(format!("R14  0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R14)));
+						ui.text(format!("R15  0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R15)));
+					});
+                }
+
+                if debug_spec.map_enable {
+                    let (pixels, width, height) = debug_copy.pop_front().unwrap();
+                    let bg_i = &mut debug_spec.map_spec.bg_i;
+                    map_window.render(ui, &keys_pressed, pixels, width, height, || {
+                        debug::control_combo_with_arrows(
+                            ui,
+                            &keys_pressed,
+                            bg_i,
+                            map_labels.len() - 1,
+                        );
+                        // ComboBox::new("BG").build_simple(
+                        //     ui,
+                        //     bg_i,
+                        //     &[0usize, 1, 2, 3],
+                        //     &(|i| std::borrow::Cow::from(map_labels[*i])),
+                        // );
+                    });
+                }
+
+                if debug_spec.tiles_enable {
+                    let (pixels, width, height) = debug_copy.pop_front().unwrap();
+                    let spec = &mut debug_spec.tiles_spec;
+                    let (palette, block, bpp8) =
+                        (&mut spec.palette, &mut spec.block, &mut spec.bpp8);
+                    tiles_window.render(ui, &keys_pressed, pixels, width, height, || {
+                        debug::control_combo_with_arrows(
+                            ui,
+                            &keys_pressed,
+                            block,
+                            tiles_block_labels.len() - 1,
+                        );
+                        // ComboBox::new("Block").build_simple(
+                        //     ui,
+                        //     block,
+                        //     &[0, 1, 2, 3, 4],
+                        //     &(|i| std::borrow::Cow::from(tiles_block_labels[*i])),
+                        // );
+                        // ui.checkbox("256 colors", bpp8);
+                        // if !*bpp8 {
+                        //     ui.input_int("Palette", palette).step(1).build();
+                        //     *palette = if *palette > 15 {
+                        //         15
+                        //     } else if *palette < 0 {
+                        //         0
+                        //     } else {
+                        //         *palette
+                        //     };
+                        // }
+                    });
+                }
+
+                if debug_spec.palettes_enable {
+                    let (pixels, width, height) = debug_copy.pop_front().unwrap();
+                    palettes_window.render(ui, &keys_pressed, pixels, width, height, || {});
+                }
+
+                /*let mut mem_region_i = mem_region as usize;
+                Window::new(im_str!("Memory Viewer"))
+                .build(ui, || {
+                    debug::control_combo_with_arrows(ui, &keys_pressed, &mut mem_region_i, 8);
+                    ComboBox::new(im_str!("Memory Region")).build_simple(ui, &mut mem_region_i,
+                        &[0, 1, 2, 3, 4, 5, 6, 7, 8],
+                        &(|i| std::borrow::Cow::from(ImString::new(
+                            VisibleMemoryRegion::from_index(*i).get_name()
+                    ))));
+                    mem_editor.build_without_window(&ui);
+                });
+                mem_region = VisibleMemoryRegion::from_index(mem_region_i);*/
+
+                if modifers.contains(&Modifiers::Control) {
+                    if paused {
+                        return;
+                    }
+                    if keys_pressed.contains(&Key::M) {
+                        debug_spec.map_enable = !debug_spec.map_enable
+                    }
+                    if keys_pressed.contains(&Key::T) {
+                        debug_spec.tiles_enable = !debug_spec.tiles_enable
+                    }
+                    if keys_pressed.contains(&Key::P) {
+                        debug_spec.palettes_enable = !debug_spec.palettes_enable
+                    }
+                } else if keys_pressed.contains(&Key::P) {
+                    paused = !paused
+                }
+            },
+        );
+
+        drop(debug_spec);
+
+        if paused {
+            pixels_lock = Some(pixels);
         }
-
-        let mut emu = emu.borrow_mut();
-        emu.fps = rl.GetFPS() as u32;
-
-        if counter.tick().is_some() {
-            let time = gba.render_time();
-            let fps = 1.0 / time.as_secs_f64();
-            title.clear();
-            write!(
-                &mut title,
-                "{} | Render: {} ({:?}) [{}]",
-                name,
-                fps.round(),
-                time,
-                rl.GetFPS()
-            )?;
-            rl.SetWindowTitle(&title);
-        }
-
-        emu.draw_frame(&mut gba, &mut rl);
     }
 
     Ok(())

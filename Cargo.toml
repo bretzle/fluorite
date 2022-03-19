@@ -6,29 +6,16 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-fluorite-common = { path = "fluorite-common" }
-fluorite-arm = { path = "fluorite-arm" }
-fluorite-gba = { path = "fluorite-gba" }
-
-color-eyre = "0.5.11"
-# raylib = "3.7.0"
-raylib = { path = "../../Desktop/raylib" }
+color-eyre = "0.6.1"
 simple_logger="2.1.0"
-
-[dev-dependencies]
-criterion = "0.3"
-
-[workspace]
-members = [
-	"fluorite-common",
-	"fluorite-arm",
-	"fluorite-gba"
-]
-
-[[bench]]
-name = "performance"
-harness = false
-
+imgui = "0.8.2"
+imgui-opengl-renderer = "0.11.1"
+gl = "0.14.0"
+glfw = "0.44.0"
+flume = "0.10.12"
+bitflags = "1.3.2"
+num = "0.4.0"
+priority-queue = "1.2.1"
 
 [profile.dev]
 overflow-checks = false
@@ -36,6 +23,3 @@ overflow-checks = false
 [profile.release]
 lto = true
 codegen-units = 1
-
-# [patch.crates-io]
-# raylib = { path = "raylib-rs/raylib" }
