@@ -1,9 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
-#[repr(transparent)]
+// #[repr(transparent)]
 #[derive(Clone, Debug)]
 pub struct WeakPointer<T: ?Sized> {
-    ptr: *mut T,
+    pub ptr: *mut T,
 }
 
 impl<T> WeakPointer<T> {
@@ -39,3 +39,5 @@ impl<T> From<&mut T> for WeakPointer<T> {
         WeakPointer::new(r as *mut T)
     }
 }
+
+unsafe impl<T> Send for WeakPointer<T> {}

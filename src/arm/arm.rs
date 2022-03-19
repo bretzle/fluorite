@@ -1,3 +1,4 @@
+use crate::arm::registers::Mode;
 use crate::arm::registers::Reg;
 use crate::arm::Arm7tdmi;
 use crate::arm::InstructionHandler;
@@ -28,8 +29,7 @@ impl Arm7tdmi {
                 self, bus, instr,
             );
         } else {
-            todo!()
-            // self.instruction_prefetch::<u32>(bus, MemoryAccess::S);
+            self.instruction_prefetch::<u32>(bus, MemoryAccess::S);
         }
     }
 
@@ -56,17 +56,136 @@ impl Arm7tdmi {
     }
 
     // ARM.5: Data Processing
-    fn data_proc<const I: bool, const S: bool>(&mut self, bus: &mut Sysbus, instr: u32) {
-        todo!()
+    fn data_proc<const IMM: bool, const SET: bool>(&mut self, bus: &mut Sysbus, instr: u32) {
+        let mut temp_inc_pc = false;
+        let opcode = (instr >> 21) & 0xF;
+        let dest_reg = (instr >> 12) & 0xF;
+        let (change_status, special_change_status) = if dest_reg == 15 && SET {
+            (false, true)
+        } else {
+            (SET, false)
+        };
+        let op2 = if IMM {
+            let shift = (instr >> 8) & 0xF;
+            let operand = instr & 0xFF;
+            if (opcode < 0x5 || opcode > 0x7) && shift != 0 {
+                self.shift(bus, 3, operand, shift * 2, true, change_status)
+            } else {
+                operand.rotate_right(shift * 2)
+            }
+        } else {
+            let shift_by_reg = (instr >> 4) & 0x1 != 0;
+            let shift = if shift_by_reg {
+                assert_eq!((instr >> 7) & 0x1, 0);
+                let shift = self.regs.get_reg_i((instr >> 8) & 0xF) & 0xFF;
+                self.regs.pc = self.regs.pc.wrapping_add(4); // Temp inc
+                temp_inc_pc = true;
+                shift
+            } else {
+                (instr >> 7) & 0x1F
+            };
+            let shift_type = (instr >> 5) & 0x3;
+            let op2 = self.regs.get_reg_i(instr & 0xF);
+            // TODO: I Cycle occurs too early
+            self.shift(
+                bus,
+                shift_type,
+                op2,
+                shift,
+                !shift_by_reg,
+                change_status && (opcode < 0x5 || opcode > 0x7),
+            )
+        };
+        let op1 = self.regs.get_reg_i((instr >> 16) & 0xF);
+        let result = match opcode {
+            0x0 | 0x8 => op1 & op2,                         // AND and TST
+            0x1 | 0x9 => op1 ^ op2,                         // EOR and TEQ
+            0x2 | 0xA => self.sub(op1, op2, change_status), // SUB and CMP
+            0x3 => self.sub(op2, op1, change_status),       // RSB
+            0x4 | 0xB => self.add(op1, op2, change_status), // ADD and CMN
+            0x5 => self.adc(op1, op2, change_status),       // ADC
+            0x6 => self.sbc(op1, op2, change_status),       // SBC
+            0x7 => self.sbc(op2, op1, change_status),       // RSC
+            0xC => op1 | op2,                               // ORR
+            0xD => op2,                                     // MOV
+            0xE => op1 & !op2,                              // BIC
+            0xF => !op2,                                    // MVN
+            _ => unreachable!(),
+        };
+        if change_status {
+            self.regs.set_z(result == 0);
+            self.regs.set_n(result & 0x8000_0000 != 0);
+        } else if special_change_status {
+            self.regs.set_reg(Reg::CPSR, self.regs.get_reg(Reg::SPSR))
+        } else {
+            assert_eq!(opcode & 0xC != 0x8, true)
+        }
+        let mut clocked = false;
+        if opcode & 0xC != 0x8 {
+            if dest_reg == 15 {
+                clocked = true;
+                self.instruction_prefetch::<u32>(bus, MemoryAccess::N);
+                self.regs.pc = result;
+                if self.regs.get_t() {
+                    todo!()
+                } else {
+                    self.fill_arm_instr_buffer(bus)
+                }
+            } else {
+                self.regs.set_reg_i(dest_reg, result)
+            }
+        }
+        if !clocked {
+            if temp_inc_pc {
+                self.regs.pc = self.regs.pc.wrapping_sub(4)
+            } // Dec after temp inc
+            self.instruction_prefetch::<u32>(bus, MemoryAccess::S);
+        }
     }
 
     // ARM.6: PSR Transfer (MRS, MSR)
-    fn psr_transfer<const I: bool, const P: bool, const L: bool>(
+    fn psr_transfer<const IMM: bool, const P: bool, const L: bool>(
         &mut self,
         bus: &mut Sysbus,
         instr: u32,
     ) {
-        todo!()
+        assert_eq!(instr >> 26 & 0b11, 0b00);
+        assert_eq!(instr >> 23 & 0b11, 0b10);
+        let status_reg = if P { Reg::SPSR } else { Reg::CPSR };
+        let msr = L;
+        assert_eq!(instr >> 20 & 0b1, 0b0);
+        self.instruction_prefetch::<u32>(bus, MemoryAccess::S);
+
+        if msr {
+            let mut mask = 0u32;
+            if instr >> 19 & 0x1 != 0 {
+                mask |= 0xFF000000
+            } // Flags
+            if instr >> 18 & 0x1 != 0 {
+                mask |= 0x00FF0000
+            } // Status
+            if instr >> 17 & 0x1 != 0 {
+                mask |= 0x0000FF00
+            } // Extension
+            if self.regs.get_mode() != Mode::USR && instr >> 16 & 0x1 != 0 {
+                mask |= 0x000000FF
+            } // Control
+            assert_eq!(instr >> 12 & 0xF, 0xF);
+            let operand = if IMM {
+                let shift = instr >> 8 & 0xF;
+                (instr & 0xFF).rotate_right(shift * 2)
+            } else {
+                assert_eq!(instr >> 4 & 0xFF, 0);
+                self.regs.get_reg_i(instr & 0xF)
+            };
+            let value = self.regs.get_reg(status_reg) & !mask | operand & mask;
+            self.regs.set_reg(status_reg, value);
+        } else {
+            assert_eq!(IMM, false);
+            self.regs
+                .set_reg_i(instr >> 12 & 0xF, self.regs.get_reg(status_reg));
+            assert_eq!(instr & 0xFFF, 0);
+        }
     }
 
     // ARM.7: Multiply and Multiply-Accumulate (MUL, MLA)
@@ -101,19 +220,85 @@ impl Arm7tdmi {
 
     // ARM.10: Halfword and Signed Data Transfer (STRH,LDRH,LDRSB,LDRSH)
     fn halfword_and_signed_data_transfer<
-        const P: bool,
-        const U: bool,
-        const I: bool,
-        const W: bool,
-        const L: bool,
-        const S: bool,
-        const H: bool,
+        const PRE_OFFSET: bool,
+        const ADD_OFFSET: bool,
+        const IMMEDIATE_OFFSET: bool,
+        const WRITEBACK: bool,
+        const LOAD: bool,
+        const SIGNED: bool,
+        const HALFWORD: bool,
     >(
         &mut self,
         bus: &mut Sysbus,
         instr: u32,
     ) {
-        todo!()
+        let mut write_back = WRITEBACK || !PRE_OFFSET;
+        let base_reg = instr >> 16 & 0xF;
+        let base = self.regs.get_reg_i(base_reg);
+        let src_dest_reg = instr >> 12 & 0xF;
+        let offset_hi = instr >> 8 & 0xF;
+        assert_eq!(instr >> 7 & 0x1, 1);
+        let opcode = (SIGNED as u8) << 1 | (HALFWORD as u8);
+        assert_eq!(instr >> 4 & 0x1, 1);
+        let offset_low = instr & 0xF;
+        self.instruction_prefetch::<u32>(bus, MemoryAccess::N);
+
+        let offset = if IMMEDIATE_OFFSET {
+            offset_hi << 4 | offset_low
+        } else {
+            assert_eq!(offset_hi, 0);
+            self.regs.get_reg_i(offset_low)
+        };
+
+        let mut exec = |addr| {
+            if LOAD {
+                if src_dest_reg == base_reg {
+                    write_back = false
+                }
+                let access_type = if src_dest_reg == 15 {
+                    MemoryAccess::N
+                } else {
+                    MemoryAccess::S
+                };
+                // TODO: Make all access 16 bit
+                let value = match opcode {
+                    1 => (self.read::<u16>(bus, access_type, addr & !0x1) as u32)
+                        .rotate_right((addr & 0x1) * 8),
+                    2 => self.read::<u8>(bus, access_type, addr) as i8 as u32,
+                    3 if addr & 0x1 == 1 => self.read::<u8>(bus, access_type, addr) as i8 as u32,
+                    3 => self.read::<u16>(bus, access_type, addr) as i16 as u32,
+                    _ => unreachable!(),
+                };
+                self.internal(bus);
+                self.regs.set_reg_i(src_dest_reg, value);
+                if src_dest_reg == 15 {
+                    self.fill_arm_instr_buffer(bus)
+                }
+            } else {
+                assert_eq!(opcode, 1);
+                let addr = addr & !0x1;
+                let value = self.regs.get_reg_i(src_dest_reg);
+                self.write::<u16>(bus, MemoryAccess::N, addr, value as u16);
+            }
+        };
+        let offset_applied = if ADD_OFFSET {
+            base.wrapping_add(offset)
+        } else {
+            base.wrapping_sub(offset)
+        };
+        if PRE_OFFSET {
+            exec(offset_applied);
+            if write_back {
+                self.regs.set_reg_i(base_reg, offset_applied)
+            }
+        } else {
+            exec(base);
+            assert_eq!(instr >> 24 & 0x1 != 0, false);
+            // Write back is not done if src_reg == base_reg
+            if write_back {
+                self.regs.set_reg_i(base_reg, offset_applied)
+            }
+        }
     }
 
     // ARM.11: Block Data Transfer (LDM,STM)

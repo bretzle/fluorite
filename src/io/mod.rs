@@ -1,9 +1,10 @@
 use self::{
     gpu::Gpu,
-    memory::{MemoryRegion, MemoryValue}, scheduler::Scheduler,
+    memory::{MemoryRegion, MemoryValue},
+    scheduler::Scheduler,
 };
 use crate::gba::{DebugSpec, Pixels};
-use num::{cast::FromPrimitive, NumCast, PrimInt, Unsigned};
+use num::cast::FromPrimitive;
 use std::{cell::Cell, collections::VecDeque, mem::size_of};
 
 pub mod gpu;
@@ -102,6 +103,21 @@ impl Sysbus {
     where
         T: MemoryValue,
     {
+        use num::cast;
+
+        fn read_from_bytes<T, F, D>(device: &D, read_fn: &F, addr: u32) -> T
+        where
+            T: MemoryValue,
+            F: Fn(&D, u32) -> u8,
+        {
+            let mut value: T = num::zero();
+            for i in 0..size_of::<T>() as u32 {
+                value =
+                    cast::<u8, T>(read_fn(device, addr + i)).unwrap() << (8 * i as usize) | value;
+            }
+            value
+        }
+
         match MemoryRegion::get_region(addr) {
             MemoryRegion::BIOS => self.read_bios(addr),
             MemoryRegion::EWRAM => todo!(),
@@ -110,7 +126,13 @@ impl Sysbus {
             MemoryRegion::Palette => todo!(),
             MemoryRegion::VRAM => todo!(),
             MemoryRegion::OAM => todo!(),
-            MemoryRegion::ROM0L => todo!(),
+            MemoryRegion::ROM0L => {
+                // if (0x080000C4..=0x80000C9).contains(&addr) {
+                // 	todo!()
+                // } else {
+                self.read_rom(addr)
+                // }
+            }
             MemoryRegion::ROM0H => todo!(),
             MemoryRegion::ROM1L => todo!(),
             MemoryRegion::ROM1H => todo!(),
@@ -125,7 +147,38 @@ impl Sysbus {
     where
         T: MemoryValue,
     {
-        todo!()
+        fn write_from_bytes<T, F, D>(device: &mut D, write_fn: &F, addr: u32, value: T)
+        where
+            T: MemoryValue,
+            F: Fn(&mut D, u32, u8),
+        {
+            let mask = FromPrimitive::from_u8(0xFF).unwrap();
+            for i in 0..size_of::<T>() {
+                write_fn(
+                    device,
+                    addr + i as u32,
+                    num::cast::<T, u8>(value >> 8 * i & mask).unwrap(),
+                );
+            }
+        }
+
+        match MemoryRegion::get_region(addr) {
+            MemoryRegion::BIOS => todo!(),
+            MemoryRegion::EWRAM => todo!(),
+            MemoryRegion::IWRAM => todo!(),
+            MemoryRegion::IO => write_from_bytes(self, &Self::write_register, addr, value),
+            MemoryRegion::Palette => todo!(),
+            MemoryRegion::VRAM => self.write_vram(Gpu::parse_vram_addr(addr), value),
+            MemoryRegion::OAM => todo!(),
+            MemoryRegion::ROM0L => todo!(),
+            MemoryRegion::ROM0H => todo!(),
+            MemoryRegion::ROM1L => todo!(),
+            MemoryRegion::ROM1H => todo!(),
+            MemoryRegion::ROM2L => todo!(),
+            MemoryRegion::ROM2H => todo!(),
+            MemoryRegion::SRAM => todo!(),
+            MemoryRegion::Unused => todo!(),
+        }
     }
 
     pub fn inc_clock<C: Into<Cycle>>(&mut self, cycle: C, addr: u32, access_width: u32) {
@@ -202,6 +255,17 @@ impl Sysbus {
         unsafe { *(&mem[addr as usize] as *const u8 as *const T) }
     }
 
+    fn write_mem<T>(mem: &mut [u8], addr: u32, value: T)
+    where
+        T: MemoryValue,
+    {
+        unsafe {
+            *(&mut mem[addr as usize] as *mut u8 as *mut T) = value;
+        }
+    }
+}
+
+impl Sysbus {
     fn read_bios<T>(&self, addr: u32) -> T
     where
         T: MemoryValue,
@@ -217,6 +281,42 @@ impl Sysbus {
                 _ => unreachable!(),
             };
             FromPrimitive::from_u32((self.bios_latch.get() >> ((addr & 3) * 8)) & mask).unwrap()
+        }
+    }
+
+    fn read_rom<T>(&self, addr: u32) -> T
+    where
+        T: MemoryValue,
+    {
+        let addr = addr - 0x08000000;
+        if (addr as usize) < self.rom.len() {
+            Self::read_mem(&self.rom, addr)
+        } else {
+            println!("Returning Invalid ROM Read at 0x{:08X}", addr + 0x08000000);
+            num::zero()
+        }
+    }
+}
+
+impl Sysbus {
+    fn write_register(&mut self, addr: u32, val: u8) {
+        match addr {
+            0x04000000..=0x0400005F => self.gpu.write_register(&mut self.scheduler, addr, val),
+            _ => panic!("Writng Unimplemented IO Register at {addr:08X} = {val:02X}",),
+        }
+    }
+
+    fn write_vram<T>(&mut self, addr: u32, value: T)
+    where
+        T: MemoryValue,
+    {
+        if size_of::<T>() == 1 {
+            let addr = (addr & !0x1) as usize;
+            let value = num::cast::<T, u8>(value).unwrap();
+            self.gpu.vram[addr] = value;
+            self.gpu.vram[addr + 1] = value;
+        } else {
+            Self::write_mem(&mut self.gpu.vram, addr, value);
         }
     }
 }

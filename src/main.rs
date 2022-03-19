@@ -3,6 +3,7 @@
 use crate::arm::registers::Reg;
 use crate::debug::TextureWindow;
 use crate::display::Display;
+use arm::registers::Registers;
 use gba::Gba;
 use glfw::{Key, Modifiers};
 use imgui::*;
@@ -19,7 +20,7 @@ mod io;
 mod utils;
 
 static BIOS: &[u8] = include_bytes!("../roms/gba_bios.bin");
-static ROM: &[u8] = include_bytes!("../roms/beeg.gba");
+static ROM: &[u8] = include_bytes!("../roms/first-1.gba");
 
 fn main() -> color_eyre::Result<()> {
     simple_logger::init().unwrap();
@@ -29,11 +30,18 @@ fn main() -> color_eyre::Result<()> {
     let (keypad_tx, keypad_rx) = flume::unbounded();
 
     let (mut gba, pixels_mutex, debug_windows_spec_mutex) = Gba::new(BIOS.to_vec(), ROM.to_vec());
-    let registers = WeakPointer::from(&mut gba.cpu.regs);
+    let mut registers: WeakPointer<Registers> = WeakPointer::default();
+    {
+        let regs = unsafe { &mut *(&mut registers as *mut _) };
 
-    let _gba_thread = thread::spawn(move || loop {
-        gba.emulate_frame()
-    });
+        thread::spawn(move || {
+            *regs = WeakPointer::from(&mut gba.cpu.regs);
+
+            loop {
+                gba.emulate_frame()
+            }
+        });
+    }
 
     let mut pixels_lock = None;
 

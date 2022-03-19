@@ -55,6 +55,11 @@ impl Registers {
         ret
     }
 
+    pub fn skip_bios(&mut self) {
+        self.pc = 0x08000000;
+        self.cpsr.bits = 0x1F;
+    }
+
     pub fn get_reg(&self, reg: Reg) -> u32 {
         let mode = self.cpsr.get_mode();
         use Reg::*;
@@ -113,6 +118,37 @@ impl Registers {
                 _ => (),
             },
         }
+    }
+
+    fn get_reg_from_u32(&self, reg: u32) -> Reg {
+        use Reg::*;
+        match reg {
+            0 => R0,
+            1 => R1,
+            2 => R2,
+            3 => R3,
+            4 => R4,
+            5 => R5,
+            6 => R6,
+            7 => R7,
+            8 => R8,
+            9 => R9,
+            10 => R10,
+            11 => R11,
+            12 => R12,
+            13 => R13,
+            14 => R14,
+            15 => R15,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn get_reg_i(&self, reg: u32) -> u32 {
+        self.get_reg(self.get_reg_from_u32(reg))
+    }
+
+    pub fn set_reg_i(&mut self, reg: u32, value: u32) {
+        self.set_reg(self.get_reg_from_u32(reg), value);
     }
 
     pub fn _get_n(&self) -> bool {

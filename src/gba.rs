@@ -24,7 +24,7 @@ impl Gba {
         let (mut bus, pixels, debug) = Sysbus::new(bios, rom);
 
         let gba = Self {
-            cpu: Arm7tdmi::new(true, &mut bus),
+            cpu: Arm7tdmi::new(false, &mut bus),
             bus,
             next_frame_cycle: 0,
         };
