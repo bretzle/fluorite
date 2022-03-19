@@ -3,6 +3,8 @@ use std::ops::{Deref, DerefMut};
 
 use crate::io::scheduler::Scheduler;
 
+use super::Gpu;
+
 #[derive(Clone, Copy, PartialEq)]
 pub enum BGMode {
     Mode0 = 0,
@@ -98,5 +100,384 @@ impl Deref for Dispcnt {
 impl DerefMut for Dispcnt {
     fn deref_mut(&mut self) -> &mut DISPCNTFlags {
         &mut self.flags
+    }
+}
+
+
+
+bitflags! {
+    pub struct DISPSTATFlags: u16 {
+        const VBLANK = 1 << 0;
+        const HBLANK = 1 << 1;
+        const VCOUNTER = 1 << 2;
+        const VBLANK_IRQ_ENABLE = 1 << 3;
+        const HBLANK_IRQ_ENABLE = 1 << 4;
+        const VCOUNTER_IRQ_ENALBE = 1 << 5;
+    }
+}
+
+pub struct Dispstat {
+    pub flags: DISPSTATFlags,
+    pub vcount_setting: u8,
+}
+
+impl Dispstat {
+    pub fn new() -> Self {
+        Self {
+            flags: DISPSTATFlags::empty(),
+            vcount_setting: 0,
+        }
+    }
+}
+
+impl Deref for Dispstat {
+    type Target = DISPSTATFlags;
+
+    fn deref(&self) -> &DISPSTATFlags {
+        &self.flags
+    }
+}
+
+impl DerefMut for Dispstat {
+    fn deref_mut(&mut self) -> &mut DISPSTATFlags {
+        &mut self.flags
+    }
+}
+
+impl  Dispstat {
+    pub fn read(&self, byte: u8) -> u8 {
+        match byte {
+            0 => self.flags.bits as u8,
+            1 => self.vcount_setting as u8,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+        match byte {
+            0 => {
+                let old_bits = self.flags.bits;
+                self.flags.bits = self.flags.bits & 0x7 | ((value as u16) & !0x7 & DISPSTATFlags::all().bits);
+                assert_eq!(old_bits & 0x7, self.flags.bits & 0x7);
+            },
+            1 => self.vcount_setting = value as u8,
+            _ => unreachable!(),
+        }
+    }
+}
+
+
+#[derive(Clone, Copy)]
+pub struct BGCNT {
+    pub priority: u8,
+    pub tile_block: u8,
+    pub mosaic: bool,
+    pub bpp8: bool,
+    pub map_block: u8,
+    pub wrap: bool,
+    pub screen_size: u8,
+}
+
+impl BGCNT {
+    pub fn new() -> BGCNT {
+        BGCNT {
+            priority: 0,
+            tile_block: 0,
+            mosaic: false,
+            bpp8: false,
+            map_block: 0,
+            wrap: false,
+            screen_size: 0,
+        }
+    }
+	
+    fn read(&self, byte: u8) -> u8 {
+        match byte {
+            0 => (self.bpp8 as u8) << 7 | (self.mosaic as u8) << 6 | self.tile_block << 2 | self.priority,
+            1 => self.screen_size << 6 | (self.wrap as u8) << 5 | self.map_block,
+            _ => unreachable!(),
+        }
+    }
+
+    fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+        match byte {
+            0 => {
+                self.priority = value & 0x3;
+                self.tile_block = value >> 2 & 0x3;
+                self.mosaic = value >> 6 & 0x1 != 0;
+                self.bpp8 = value >> 7 & 0x1 != 0;
+            },
+            1 => {
+                self.map_block = value & 0x1F;
+                self.wrap = value >> 5 & 0x1 != 0;
+                self.screen_size = value >> 6 & 0x3;
+            },
+            _ => unreachable!(),
+        }
+    }
+}
+
+
+pub struct MosaicSize {
+    pub h_size: u8,
+    pub v_size: u8,
+}
+
+impl MosaicSize {
+    pub fn new() -> MosaicSize {
+        MosaicSize {
+            h_size: 1,
+            v_size: 1,
+        }
+    }
+
+    pub fn read(&self) -> u8 {
+        (self.v_size - 1) << 4 | (self.h_size - 1)
+    }
+
+    pub fn write(&mut self, value: u8) {
+        self.h_size = (value & 0xF) + 1;
+        self.v_size = (value >> 4) + 1;
+    }
+}
+
+pub struct MOSAIC {
+    pub bg_size: MosaicSize,
+    pub obj_size: MosaicSize,
+}
+
+impl MOSAIC {
+    pub fn new() -> MOSAIC {
+        MOSAIC {
+            bg_size: MosaicSize::new(),
+            obj_size: MosaicSize::new(),
+        }
+    }
+	
+    fn read(&self, byte: u8) -> u8 {
+        match byte {
+            0 => self.bg_size.read(),
+            1 => self.obj_size.read(),
+            _ => unreachable!(),
+        }
+    }
+
+    fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+        match byte {
+            0 => self.bg_size.write(value),
+            1 => self.obj_size.write(value),
+            _ => unreachable!(),
+        }
+    }
+}
+
+
+pub struct BLDCNTTargetPixelSelection {
+    pub enabled: [bool; 6]
+}
+
+impl BLDCNTTargetPixelSelection {
+    pub fn new() -> BLDCNTTargetPixelSelection {
+        BLDCNTTargetPixelSelection {
+            enabled: [false; 6],
+        }
+    }
+
+    pub fn read(&self) -> u8 {
+        (self.enabled[0] as u8) << 0 |
+        (self.enabled[1] as u8) << 1 |
+        (self.enabled[2] as u8) << 2 |
+        (self.enabled[3] as u8) << 3 |
+        (self.enabled[4] as u8) << 4 |
+        (self.enabled[5] as u8) << 5
+    }
+
+    pub fn write(&mut self, value: u8) {
+        self.enabled[0] = value >> 0 & 0x1 != 0;
+        self.enabled[1] = value >> 1 & 0x1 != 0;
+        self.enabled[2] = value >> 2 & 0x1 != 0;
+        self.enabled[3] = value >> 3 & 0x1 != 0;
+        self.enabled[4] = value >> 4 & 0x1 != 0;
+        self.enabled[5] = value >> 5 & 0x1 != 0;
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum ColorSFX {
+    None = 0,
+    AlphaBlend = 1,
+    BrightnessInc = 2,
+    BrightnessDec = 3,
+}
+
+impl ColorSFX {
+    pub fn from(value: u8) -> ColorSFX {
+        use ColorSFX::*;
+        match value {
+            0 => None,
+            1 => AlphaBlend,
+            2 => BrightnessInc,
+            3 => BrightnessDec,
+            _ => unreachable!(),
+        }
+    }
+}
+
+pub struct BLDCNT {
+    pub target_pixel1: BLDCNTTargetPixelSelection,
+    pub effect: ColorSFX,
+    pub target_pixel2: BLDCNTTargetPixelSelection,
+}
+
+impl BLDCNT {
+    pub fn new() -> BLDCNT {
+        BLDCNT {
+            target_pixel1: BLDCNTTargetPixelSelection::new(),
+            effect: ColorSFX::None,
+            target_pixel2: BLDCNTTargetPixelSelection::new(),
+        }
+    }
+	
+    fn read(&self, byte: u8) -> u8 {
+        match byte {
+            0 => (self.effect as u8) << 6 | self.target_pixel1.read(),
+            1 => self.target_pixel2.read(),
+            _ => unreachable!(),
+        }
+    }
+
+    fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+        match byte {
+            0 => {
+                self.target_pixel1.write(value);
+                self.effect = ColorSFX::from(value >> 6);
+            },
+            1 => self.target_pixel2.write(value),
+            _ => unreachable!(),
+        }
+    }
+}
+
+
+#[derive(Clone, Copy, PartialEq)]
+pub struct WindowControl {
+    pub bg0_enable: bool,
+    pub bg1_enable: bool,
+    pub bg2_enable: bool,
+    pub bg3_enable: bool,
+    pub obj_enable: bool,
+    pub color_special_enable: bool,
+}
+
+impl WindowControl {
+    pub fn new() -> Self {
+        Self {
+            bg0_enable: false,
+            bg1_enable: false,
+            bg2_enable: false,
+            bg3_enable: false,
+            obj_enable: false,
+            color_special_enable: false,
+        }
+    }
+
+    pub fn all() -> Self {
+        Self {
+            bg0_enable: true,
+            bg1_enable: true,
+            bg2_enable: true,
+            bg3_enable: true,
+            obj_enable: true,
+            color_special_enable: true,
+        }
+    }
+	
+    fn read(&self, byte: u8) -> u8 {
+        match byte {
+            0 => (self.color_special_enable as u8) << 5 | (self.obj_enable as u8) << 4 | (self.bg3_enable as u8) << 3 |
+                (self.bg2_enable as u8) << 2 | (self.bg1_enable as u8) << 1 | (self.bg0_enable as u8) << 0,
+            _ => unreachable!(),
+        }
+    }
+
+    fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+        match byte {
+            0 => {
+                self.color_special_enable = value >> 5 & 0x1 != 0;
+                self.obj_enable = value >> 4 & 0x1 != 0;
+                self.bg3_enable = value >> 3 & 0x1 != 0;
+                self.bg2_enable = value >> 2 & 0x1 != 0;
+                self.bg1_enable = value >> 1 & 0x1 != 0;
+                self.bg0_enable = value >> 0 & 0x1 != 0;
+            },
+            _ => unreachable!(),
+        }
+    }
+}
+
+
+
+
+
+pub struct BLDALPHA {
+    raw_eva: u8,
+    raw_evb: u8,
+    pub eva: u16,
+    pub evb: u16,
+}
+
+impl BLDALPHA {
+    pub fn new() -> BLDALPHA {
+        BLDALPHA {
+            raw_eva: 0,
+            raw_evb: 0,
+            eva: 0,
+            evb: 0,
+        }
+    }
+	
+    fn read(&self, byte: u8) -> u8 {
+        match byte {
+            0 => self.raw_eva,
+            1 => self.raw_evb,
+            _ => unreachable!(),
+        }
+    }
+
+    fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+        match byte {
+            0 => {
+                self.raw_eva = value & 0x1F;
+                self.eva = std::cmp::min(0x10, self.raw_eva as u16);
+            }
+            1 => {
+                self.raw_evb = value & 0x1F;
+                self.evb = std::cmp::min(0x10, self.raw_evb as u16);
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+
+pub struct BLDY {
+    pub evy: u8,
+}
+
+impl BLDY {
+    pub fn new() -> BLDY {
+        BLDY {
+            evy: 0,
+        }
+    }
+	
+    fn read(&self, _byte: u8) -> u8 { 0 }
+
+    fn write(&mut self, __scheduler: &mut Scheduler, byte: u8, value: u8) {
+        match byte {
+            0 => self.evy = std::cmp::min(0x10, value & 0x1F),
+            1 => (),
+            _ => unreachable!(),
+        }
     }
 }

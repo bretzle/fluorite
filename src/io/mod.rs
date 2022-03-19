@@ -1,16 +1,19 @@
 use self::{
+    dma::Dma,
     gpu::Gpu,
     memory::{MemoryRegion, MemoryValue},
-    scheduler::Scheduler,
+    scheduler::{Event, EventType, Scheduler}, interrupt_controller::InterruptController,
 };
-use crate::gba::{DebugSpec, Pixels};
+use crate::gba::{self, DebugSpec, Pixels};
 use num::cast::FromPrimitive;
 use std::{cell::Cell, collections::VecDeque, mem::size_of};
 
+pub mod dma;
 pub mod gpu;
 pub mod keypad;
 pub mod memory;
 pub mod scheduler;
+pub mod interrupt_controller;
 
 #[derive(Clone, Copy)]
 pub enum MemoryAccess {
@@ -46,10 +49,10 @@ pub struct Sysbus {
     // Devices
     gpu: Gpu,
     apu: (),
-    dma: (),
+    dma: Dma,
     timers: (),
     keypad: (),
-    interrupt_controller: (),
+    interrupt_controller: InterruptController,
     rtc: (),
     backup: (),
 
@@ -80,10 +83,10 @@ impl Sysbus {
 
             gpu,
             apu: (),
-            dma: (),
+            dma: Dma::new(),
             timers: (),
             keypad: (),
-            interrupt_controller: (),
+            interrupt_controller: InterruptController::new(),
             rtc: (),
             backup: (),
 
@@ -225,15 +228,45 @@ impl Sysbus {
         self.waitcnt.clock_prefetch(clocks_inc);
 
         for _ in 0..clocks_inc {
-            // TODO: self.handle_events();
+            self.handle_events();
             // TODO: self.rtc.clock();
             // TODO: self.apu.clock();
         }
         self.clocks_ahead += clocks_inc;
         while self.clocks_ahead >= 4 {
             self.clocks_ahead -= 4;
-            // TODO: self.interrupt_controller.request |= self.ppu.emulate_dot();
+            self.interrupt_controller.request |= self.gpu.emulate_dot();
         }
+    }
+
+    pub fn handle_events(&mut self) {
+        self.scheduler.cycle += 1;
+        while let Some(event) = self.scheduler.get_next_event() {
+            self.handle_event(event);
+        }
+    }
+
+    pub fn handle_event(&mut self, event: EventType) {
+        match event {
+            EventType::TimerOverflow(_timer) => println!("TODO: {event:?}"),
+            EventType::FrameSequencer(step) => {
+                // self.apu.clock_sequencer(step);
+                self.scheduler.add(Event {
+                    cycle: self.scheduler.cycle + (gba::CLOCK_FREQ / 512),
+                    event_type: EventType::FrameSequencer((step + 1) % 8),
+                });
+            }
+        }
+    }
+
+    pub fn interrupts_requested(&mut self) -> bool {
+        // if self.keypad.interrupt_requested() {
+        //     self.interrupt_controller.request |= InterruptRequest::KEYPAD
+        // }
+
+        self.interrupt_controller.master_enable.bits() != 0
+            && (self.interrupt_controller.request.bits() & self.interrupt_controller.enable.bits())
+                != 0
     }
 
     pub fn get_cycle(&self) -> usize {
@@ -245,7 +278,105 @@ impl Sysbus {
     }
 
     pub fn run_dma(&mut self) {
-        // TODO
+        let dma_channel = self.dma.get_channel_running(
+            self.gpu.hblank_called(),
+            self.gpu.vblank_called(),
+            // [self.apu.fifo_a_req(), self.apu.fifo_b_req()],
+            [false; 2],
+        );
+        if dma_channel < 4 {
+            self.dma.in_dma = true;
+            let channel = &mut self.dma.channels[dma_channel];
+            let is_fifo = (channel.num == 1 || channel.num == 2) && channel.cnt.start_timing == 3;
+            let count = if is_fifo { 4 } else { channel.count_latch };
+            let mut src_addr = channel.sad_latch;
+            let mut dest_addr = channel.dad_latch;
+            let src_addr_ctrl = channel.cnt.src_addr_ctrl;
+            let dest_addr_ctrl = if is_fifo {
+                2
+            } else {
+                channel.cnt.dest_addr_ctrl
+            };
+            let transfer_32 = if is_fifo {
+                true
+            } else {
+                channel.cnt.transfer_32
+            };
+            let irq = channel.cnt.irq;
+            channel.cnt.enable = channel.cnt.start_timing != 0 && channel.cnt.repeat;
+            println!(
+                "Running DMA{}: Writing {} values to {:08X} from {:08X}, size: {}",
+                dma_channel,
+                count,
+                dest_addr,
+                src_addr,
+                if transfer_32 { 32 } else { 16 }
+            );
+
+            // TODO:
+            // if MemoryRegion::get_region(dest_addr) == MemoryRegion::ROM2H
+            //     && self.cart_backup.is_eeprom_access(dest_addr, self.rom.len())
+            // {
+            //     self.cart_backup.init_eeprom(count)
+            // }
+
+            let (access_width, addr_change, addr_mask) = if transfer_32 {
+                (2, 4, 0x3)
+            } else {
+                (1, 2, 0x1)
+            };
+            src_addr &= !addr_mask;
+            dest_addr &= !addr_mask;
+            let mut first = true;
+            let original_dest_addr = dest_addr;
+            for _ in 0..count {
+                let cycle_type = if first { Cycle::N } else { Cycle::S };
+                self.inc_clock(cycle_type, src_addr, access_width);
+                self.inc_clock(cycle_type, dest_addr, access_width);
+                if transfer_32 {
+                    self.write::<u32>(dest_addr, self.read::<u32>(src_addr))
+                } else {
+                    self.write::<u16>(dest_addr, self.read::<u16>(src_addr))
+                }
+
+                src_addr = match src_addr_ctrl {
+                    0 => src_addr.wrapping_add(addr_change),
+                    1 => src_addr.wrapping_sub(addr_change),
+                    2 => src_addr,
+                    _ => panic!("Invalid DMA Source Address Control!"),
+                };
+                dest_addr = match dest_addr_ctrl {
+                    0 | 3 => dest_addr.wrapping_add(addr_change),
+                    1 => dest_addr.wrapping_sub(addr_change),
+                    2 => dest_addr,
+                    _ => unreachable!(),
+                };
+                first = false;
+            }
+            let channel = &mut self.dma.channels[dma_channel];
+            channel.sad_latch = src_addr;
+            channel.dad_latch = dest_addr;
+            if channel.cnt.enable {
+                channel.count_latch = channel.count.count as u32
+            } // Only reload Count
+            if dest_addr_ctrl == 3 {
+                channel.dad_latch = original_dest_addr
+            }
+            for _ in 0..2 {
+                self.inc_clock(Cycle::I, 0, 0)
+            }
+
+            // if irq {
+            //     self.interrupt_controller.request |= match dma_channel {
+            //         0 => InterruptRequest::DMA0,
+            //         1 => InterruptRequest::DMA1,
+            //         2 => InterruptRequest::DMA2,
+            //         3 => InterruptRequest::DMA3,
+            //         _ => unreachable!(),
+            //     }
+            // }
+            self.dma.in_dma = false;
+        }
     }
 
     fn read_mem<T>(mem: &[u8], addr: u32) -> T
@@ -292,7 +423,6 @@ impl Sysbus {
         if (addr as usize) < self.rom.len() {
             Self::read_mem(&self.rom, addr)
         } else {
-            println!("Returning Invalid ROM Read at 0x{:08X}", addr + 0x08000000);
             num::zero()
         }
     }

@@ -8,7 +8,6 @@ use gba::Gba;
 use glfw::{Key, Modifiers};
 use imgui::*;
 use std::collections::VecDeque;
-use std::path::PathBuf;
 use std::thread;
 use utils::WeakPointer;
 
@@ -29,7 +28,12 @@ fn main() -> color_eyre::Result<()> {
     // let (render_tx, render_rx) = flume::unbounded();
     let (keypad_tx, keypad_rx) = flume::unbounded();
 
-    let (mut gba, pixels_mutex, debug_windows_spec_mutex) = Gba::new(BIOS.to_vec(), ROM.to_vec());
+    let rom = match std::env::args().nth(1) {
+        Some(path) => std::fs::read(path).unwrap(),
+        None => ROM.to_vec(),
+    };
+
+    let (mut gba, pixels_mutex, debug_windows_spec_mutex) = Gba::new(BIOS.to_vec(), rom);
     let mut registers: WeakPointer<Registers> = WeakPointer::default();
     {
         let regs = unsafe { &mut *(&mut registers as *mut _) };

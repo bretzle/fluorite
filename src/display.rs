@@ -36,7 +36,7 @@ impl Display {
 
             window.make_current();
             window.set_resizable(false);
-            unsafe { glfwSwapInterval(0) };
+            // unsafe { glfwSwapInterval(0) };
             window.set_all_polling(true);
 
             gl::load_with(|name| window.get_proc_address(name));

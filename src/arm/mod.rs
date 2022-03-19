@@ -6,7 +6,7 @@ use std::mem::size_of;
 
 use num::cast;
 
-use self::registers::Registers;
+use self::registers::{Mode, Reg, Registers};
 use crate::io::{memory::MemoryValue, Cycle, MemoryAccess, Sysbus};
 
 include!(concat!(env!("OUT_DIR"), "/cond_lut.rs"));
@@ -99,7 +99,22 @@ impl Arm7tdmi {
     }
 
     pub fn handle_irq(&mut self, bus: &mut Sysbus) {
-        // TODO
+        if self.regs.get_i() || !bus.interrupts_requested() {
+            return;
+        }
+        self.regs.change_mode(Mode::IRQ);
+        let lr = if self.regs.get_t() {
+            self.read::<u16>(bus, MemoryAccess::N, self.regs.pc);
+            self.regs.pc.wrapping_sub(2).wrapping_add(4)
+        } else {
+            self.read::<u32>(bus, MemoryAccess::N, self.regs.pc);
+            self.regs.pc.wrapping_sub(4).wrapping_add(4)
+        };
+        self.regs.set_reg(Reg::R14, lr);
+        self.regs.set_t(false);
+        self.regs.set_i(true);
+        self.regs.pc = 0x18;
+        self.fill_arm_instr_buffer(bus);
     }
 }
 
@@ -237,7 +252,7 @@ impl Arm7tdmi {
         }
     }
 
-	pub(self) fn add(&mut self, op1: u32, op2: u32, change_status: bool) -> u32 {
+    pub(self) fn add(&mut self, op1: u32, op2: u32, change_status: bool) -> u32 {
         let result = op1.overflowing_add(op2);
         if change_status {
             self.regs.set_c(result.1);
@@ -255,7 +270,8 @@ impl Arm7tdmi {
             self.regs.set_c(result.1 || result2.1);
             self.regs.set_z(result2.0 == 0);
             self.regs.set_n(result2.0 & 0x8000_0000 != 0);
-            self.regs.set_v((!(op1 ^ op2)) & (op1 ^ result2.0) & 0x8000_0000 != 0);
+            self.regs
+                .set_v((!(op1 ^ op2)) & (op1 ^ result2.0) & 0x8000_0000 != 0);
         }
         result2.0 as u32
     }
@@ -264,7 +280,9 @@ impl Arm7tdmi {
         let old_c = self.regs.get_c();
         self.regs.set_c(true);
         let result = self.adc(op1, !op2, change_status); // Simulate adding op1 + !op2 + 1
-        if !change_status { self.regs.set_c(old_c) }
+        if !change_status {
+            self.regs.set_c(old_c)
+        }
         result
     }
 

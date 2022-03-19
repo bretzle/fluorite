@@ -143,6 +143,12 @@ impl Registers {
         }
     }
 
+	pub fn change_mode(&mut self, mode: Mode) {
+        let cpsr = self.get_reg(Reg::CPSR);
+        self.set_mode(mode);
+        self.set_reg(Reg::SPSR, cpsr);
+    }
+
     pub fn get_reg_i(&self, reg: u32) -> u32 {
         self.get_reg(self.get_reg_from_u32(reg))
     }
@@ -151,22 +157,22 @@ impl Registers {
         self.set_reg(self.get_reg_from_u32(reg), value);
     }
 
-    pub fn _get_n(&self) -> bool {
+    pub fn get_n(&self) -> bool {
         self.cpsr.contains(StatusRegister::N)
     }
-    pub fn _get_z(&self) -> bool {
+    pub fn get_z(&self) -> bool {
         self.cpsr.contains(StatusRegister::Z)
     }
     pub fn get_c(&self) -> bool {
         self.cpsr.contains(StatusRegister::C)
     }
-    pub fn _get_v(&self) -> bool {
+    pub fn get_v(&self) -> bool {
         self.cpsr.contains(StatusRegister::V)
     }
     pub fn get_i(&self) -> bool {
         self.cpsr.contains(StatusRegister::I)
     }
-    pub fn _get_f(&self) -> bool {
+    pub fn get_f(&self) -> bool {
         self.cpsr.contains(StatusRegister::F)
     }
     pub fn get_flags(&self) -> u32 {
