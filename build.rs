@@ -41,7 +41,7 @@ fn generate_cond_lut<P: AsRef<Path>>(path: P) -> io::Result<()> {
                 0xC => !z && n == v,
                 0xD => z || n != v,
                 0xE => true,
-                0xF => false, // TODO: Change
+                0xF => false,
                 _ => unreachable!(),
             };
         }
@@ -172,171 +172,110 @@ fn generate_arm_lut<P: AsRef<Path>>(path: P) -> io::Result<()> {
 fn generate_thumb_lut<P: AsRef<Path>>(path: P) -> io::Result<()> {
     let mut file = File::create(path)?;
 
-    //     writeln!(file, "impl<Memory: MemoryInterface> Arm7tdmi<Memory> {{")?;
-    //     writeln!(file, "\tconst ARM_HANDLERS: [ArmHandler<Memory>; 4096] = [")?;
-    //     for key in 0..4096 {
-    //         let inst = ((key & 0xFF0) << 16) | ((key & 0xF) << 4);
-    //         let handler = decode_arm_entry(inst);
-    //         writeln!(file, "\t\tArmHandler(Arm7tdmi::{}),", handler.1)?;
-    //     }
-    //     writeln!(file, "\t];")?;
-    //     writeln!(file, "}}")?;
+    writeln!(
+        file,
+        "static THUMB_LUT: [InstructionHandler<u16>; 256] = ["
+    )?;
+
+    // Bits 0-7 of opcode = Bits 16-31 of instr
+
+    for opcode in 0..256 {
+        let inst = opcode << 8;
+
+        let output = if opcode & 0b1111_1000 == 0b0001_1000 {
+            format!("add_sub::<{}, {}>", bit!(inst, 10), bit!(inst, 9))
+        } else if opcode & 0b1110_0000 == 0b0000_0000 {
+            format!("move_shifted_reg::<{}, {}>", bit!(inst, 12), bit!(inst, 11))
+        } else if opcode & 0b1110_0000 == 0b0010_0000 {
+            format!(
+                "immediate::<{}, {}, {}, {}, {}>",
+                bit!(inst, 12),
+                bit!(inst, 11),
+                bit!(inst, 10),
+                bit!(inst, 9),
+                bit!(inst, 8)
+            )
+        } else if opcode & 0b1111_1100 == 0b0100_0000 {
+            "alu".to_string()
+        } else if opcode & 0b1111_1100 == 0b0100_0100 {
+            format!("hi_reg_bx::<{}, {}>", bit!(inst, 9), bit!(inst, 8))
+        } else if opcode & 0b1111_1000 == 0b0100_1000 {
+            format!(
+                "load_pc_rel::<{}, {}, {}>",
+                bit!(inst, 10),
+                bit!(inst, 9),
+                bit!(inst, 8)
+            )
+        } else if opcode & 0b1111_0010 == 0b0101_0000 {
+            format!(
+                "load_store_reg_offset::<{}, {}>",
+                bit!(inst, 11),
+                bit!(inst, 10)
+            )
+        } else if opcode & 0b1111_0010 == 0b0101_0010 {
+            format!(
+                "load_store_sign_ext::<{}, {}>",
+                bit!(inst, 11),
+                bit!(inst, 10)
+            )
+        } else if opcode & 0b1110_0000 == 0b0110_0000 {
+            format!(
+                "load_store_imm_offset::<{}, {}>",
+                bit!(inst, 12),
+                bit!(inst, 11)
+            )
+        } else if opcode & 0b1111_0000 == 0b1000_0000 {
+            format!("load_store_halfword::<{}>", bit!(inst, 11))
+        } else if opcode & 0b1111_0000 == 0b1001_0000 {
+            format!(
+                "load_store_sp_rel::<{}, {}, {}, {}>",
+                bit!(inst, 11),
+                bit!(inst, 10),
+                bit!(inst, 9),
+                bit!(inst, 8)
+            )
+        } else if opcode & 0b1111_0000 == 0b1010_0000 {
+            format!(
+                "get_rel_addr::<{}, {}, {}, {}>",
+                bit!(inst, 11),
+                bit!(inst, 10),
+                bit!(inst, 9),
+                bit!(inst, 8)
+            )
+        } else if opcode & 0b1111_1111 == 0b1011_0000 {
+            "add_offset_sp".to_string()
+        } else if opcode & 0b1111_0110 == 0b1011_0100 {
+            format!("push_pop_regs::<{}, {}>", bit!(inst, 11), bit!(inst, 8))
+        } else if opcode & 0b1111_0000 == 0b1100_0000 {
+            format!(
+                "multiple_load_store::<{}, {}, {}, {}>",
+                bit!(inst, 11),
+                bit!(inst, 10),
+                bit!(inst, 9),
+                bit!(inst, 8)
+            )
+        } else if opcode & 0b1111_1111 == 0b1101_1111 {
+            "thumb_software_interrupt".to_string()
+        } else if opcode & 0b1111_0000 == 0b1101_0000 {
+            format!(
+                "cond_branch::<{}, {}, {}, {}>",
+                bit!(inst, 11),
+                bit!(inst, 10),
+                bit!(inst, 9),
+                bit!(inst, 8)
+            )
+        } else if opcode & 0b1111_1000 == 0b1110_0000 {
+            "uncond_branch".to_string()
+        } else if opcode & 0b1111_0000 == 0b1111_0000 {
+            format!("branch_with_link::<{}>", bit!(inst, 11))
+        } else {
+            "undefined_instr_thumb".to_string()
+        };
+
+        writeln!(file, "\tArm7tdmi::{},", output)?;
+    }
+
+    writeln!(file, "];")?;
 
     Ok(())
 }
-
-// fn decode_arm_entry(i: u32) -> (&'static str, String) {
-//     const T: bool = true;
-//     const F: bool = false;
-
-//     // First, decode the the top-most non-condition bits
-//     match i.bit_range(26..28) {
-//         0b00 => {
-//             /* DataProcessing and friends */
-//             let result = match (i.bit_range(23..26), i.bit_range(4..8)) {
-//                 (0b000, 0b1001) => {
-//                     if 0b0 == i.ibit(22) {
-//                         Some((
-//                             "Multiply",
-//                             format!(
-//                                 "arm_mul_mla::<{UPDATE_FLAGS}, {ACCUMULATE}>",
-//                                 UPDATE_FLAGS = i.bit(20),
-//                                 ACCUMULATE = i.bit(21),
-//                             ),
-//                         ))
-//                     } else {
-//                         None
-//                     }
-//                 }
-//                 (0b001, 0b1001) => Some((
-//                     "MultiplyLong",
-//                     format!(
-//                         "arm_mull_mlal::<{UPDATE_FLAGS}, {ACCUMULATE}, {U_FLAG}>",
-//                         UPDATE_FLAGS = i.bit(20),
-//                         ACCUMULATE = i.bit(21),
-//                         U_FLAG = i.bit(22),
-//                     ),
-//                 )),
-//                 (0b010, 0b1001) => {
-//                     if 0b00 == i.bit_range(20..22) {
-//                         Some((
-//                             "SingleDataSwap",
-//                             format!("arm_swp::<{BYTE}>", BYTE = i.bit(22)),
-//                         ))
-//                     } else {
-//                         None
-//                     }
-//                 }
-//                 (0b010, 0b0001) => {
-//                     if 0b010 == i.bit_range(20..23) {
-//                         Some(("BranchExchange", format!("arm_bx")))
-//                     } else {
-//                         None
-//                     }
-//                 }
-//                 _ => None,
-//             };
-
-//             if let Some(result) = result {
-//                 result
-//             } else {
-//                 match (i.ibit(25), i.ibit(22), i.ibit(7), i.ibit(4)) {
-//                     (0, 0, 1, 1) => (
-//                         "HalfwordDataTransferRegOffset",
-//                         format!(
-//                             "arm_ldr_str_hs_reg::<{HS}, {LOAD}, {WRITEBACK}, {PRE_INDEX}, {ADD}>",
-//                             HS = (i & 0b1100000) >> 5,
-//                             LOAD = i.bit(20),
-//                             WRITEBACK = i.bit(21),
-//                             ADD = i.bit(23),
-//                             PRE_INDEX = i.bit(24),
-//                         ),
-//                     ),
-//                     (0, 1, 1, 1) => (
-//                         "HalfwordDataTransferImmediateOffset",
-//                         format!(
-//                             "arm_ldr_str_hs_imm::<{HS}, {LOAD}, {WRITEBACK}, {PRE_INDEX}, {ADD}>",
-//                             HS = (i & 0b1100000) >> 5,
-//                             LOAD = i.bit(20),
-//                             WRITEBACK = i.bit(21),
-//                             ADD = i.bit(23),
-//                             PRE_INDEX = i.bit(24)
-//                         ),
-//                     ),
-//                     _ => {
-//                         let set_cond_flags = i.bit(20);
-//                         // PSR Transfers are encoded as a subset of Data Processing,
-//                         // with S bit OFF and the encode opcode is one of TEQ,CMN,TST,CMN
-//                         let is_op_not_touching_rd = i.bit_range(21..25) & 0b1100 == 0b1000;
-//                         if !set_cond_flags && is_op_not_touching_rd {
-//                             if i.bit(21) {
-//                                 (
-//                                     "MoveToStatus",
-//                                     format!(
-//                                         "arm_transfer_to_status::<{IMM}, {SPSR_FLAG}>",
-//                                         IMM = i.bit(25),
-//                                         SPSR_FLAG = i.bit(22)
-//                                     ),
-//                                 )
-//                             } else {
-//                                 (
-//                                     "MoveFromStatus",
-//                                     format!("arm_mrs::<{SPSR_FLAG}>", SPSR_FLAG = i.bit(22)),
-//                                 )
-//                             }
-//                         } else {
-//                             ("DataProcessing", format!("arm_data_processing::<{OP}, {IMM}, {SET_FLAGS}, {SHIFT_BY_REG}>",
-//                                 OP=i.bit_range(21..25),
-//                                 IMM=i.bit(25),
-//                                 SET_FLAGS=i.bit(20),
-//                                 SHIFT_BY_REG=i.bit(4)))
-//                         }
-//                     }
-//                 }
-//             }
-//         }
-//         0b01 => {
-//             match (i.bit(25), i.bit(4)) {
-//                 (_, F) | (F, T) => ("SingleDataTransfer", format!(
-//                     "arm_ldr_str::<{LOAD}, {WRITEBACK}, {PRE_INDEX}, {BYTE}, {SHIFT}, {ADD}, {BS_OP}, {SHIFT_BY_REG}>",
-//                     LOAD = i.bit(20),
-//                     WRITEBACK = i.bit(21),
-//                     BYTE = i.bit(22),
-//                     ADD = i.bit(23),
-//                     PRE_INDEX = i.bit(24),
-//                     SHIFT = i.bit(25),
-//                     BS_OP = i.bit_range(5..7) as u8,
-//                     SHIFT_BY_REG = i.bit(4),
-//                 )),
-//                 (T, T) => ("Undefined", String::from("arm_undefined")), /* Possible ARM11 but we don't implement these */
-//             }
-//         }
-//         0b10 => match i.bit(25) {
-//             F => (
-//                 "BlockDataTransfer",
-//                 format!(
-//                     "arm_ldm_stm::<{LOAD}, {WRITEBACK}, {FLAG_S}, {ADD}, {PRE_INDEX}>",
-//                     LOAD = i.bit(20),
-//                     WRITEBACK = i.bit(21),
-//                     FLAG_S = i.bit(22),
-//                     ADD = i.bit(23),
-//                     PRE_INDEX = i.bit(24),
-//                 ),
-//             ),
-//             T => (
-//                 "BranchLink",
-//                 format!("arm_b_bl::<{LINK}>", LINK = i.bit(24)),
-//             ),
-//         },
-//         0b11 => {
-//             match (i.ibit(25), i.ibit(24), i.ibit(4)) {
-//                 (0b0, _, _) => ("Undefined", String::from("arm_undefined")), /* CoprocessorDataTransfer not implemented */
-//                 (0b1, 0b0, 0b0) => ("Undefined", String::from("arm_undefined")), /* CoprocessorDataOperation not implemented */
-//                 (0b1, 0b0, 0b1) => ("Undefined", String::from("arm_undefined")), /* CoprocessorRegisterTransfer not implemented */
-//                 (0b1, 0b1, _) => ("SoftwareInterrupt", String::from("arm_swi")),
-//                 _ => ("Undefined", String::from("arm_undefined")),
-//             }
-//         }
-//         _ => unreachable!(),
-//     }
-// }

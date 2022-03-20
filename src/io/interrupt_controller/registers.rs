@@ -55,11 +55,9 @@ impl InterruptEnable {
     }
 
     pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
-        match byte {
-            0 => self.bits = self.bits & !0x00FF | (value as u16) & InterruptEnable::all().bits,
-            1 => {
-                self.bits = self.bits & !0xFF00 | (value as u16) << 8 & InterruptEnable::all().bits
-            }
+        self.bits = match byte {
+            0 => self.bits & !0x00FF | (value as u16) & InterruptEnable::all().bits,
+            1 => self.bits & !0xFF00 | (value as u16) << 8 & InterruptEnable::all().bits,
             _ => unreachable!(),
         }
     }
@@ -74,15 +72,10 @@ impl InterruptMasterEnable {
         }
     }
 
-    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
-        match byte {
-            0 => {
-                self.bits = self.bits & !0x00FF | (value as u16) & InterruptMasterEnable::all().bits
-            }
-            1 => {
-                self.bits =
-                    self.bits & !0xFF00 | (value as u16) << 8 & InterruptMasterEnable::all().bits
-            }
+    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, val: u8) {
+        self.bits = match byte {
+            0 => self.bits & !0x00FF | (val as u16) & InterruptMasterEnable::all().bits,
+            1 => self.bits & !0xFF00 | (val as u16) << 8 & InterruptMasterEnable::all().bits,
             _ => unreachable!(),
         }
     }

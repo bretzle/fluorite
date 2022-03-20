@@ -39,7 +39,7 @@ impl Arm7tdmi {
 
     pub fn emulate_instr(&mut self, bus: &mut Sysbus) {
         if self.regs.get_t() {
-            // TODO
+            self.emulate_thumb_instr(bus);
         } else {
             self.emulate_arm_instr(bus);
         }
@@ -92,9 +92,9 @@ impl Arm7tdmi {
         self.internal = false;
     }
 
-    pub fn internal(&mut self, io: &mut Sysbus) {
-        io.setup_openbus(self.regs.pc, self.regs.get_t(), &self.pipeline);
-        io.inc_clock(Cycle::I, 0, 0);
+    pub fn internal(&mut self, bus: &mut Sysbus) {
+        bus.setup_openbus(self.regs.pc, self.regs.get_t(), &self.pipeline);
+        bus.inc_clock(Cycle::I, 0, 0);
         self.next_access = MemoryAccess::N;
     }
 
@@ -288,5 +288,17 @@ impl Arm7tdmi {
 
     pub(self) fn sbc(&mut self, op1: u32, op2: u32, change_status: bool) -> u32 {
         self.adc(op1, !op2, change_status)
+    }
+
+    pub(self) fn inc_mul_clocks(&mut self, bus: &mut Sysbus, op1: u32, signed: bool) {
+        let mut mask = 0xFFFF_FF00;
+        loop {
+            self.internal(bus);
+            let value = op1 & mask;
+            if mask == 0 || value == 0 || signed && value == mask {
+                break;
+            }
+            mask <<= 8;
+        }
     }
 }

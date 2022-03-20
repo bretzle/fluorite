@@ -37,7 +37,7 @@ pub enum MemoryRegion {
 impl MemoryRegion {
     pub fn get_region(addr: u32) -> MemoryRegion {
         match addr >> 24 {
-            0x00 if addr < 0x00004000 => MemoryRegion::BIOS, // Not Mirrored
+            0x00 if addr < 0x4000 => MemoryRegion::BIOS, // Not Mirrored
             0x02 => MemoryRegion::EWRAM,
             0x03 => MemoryRegion::IWRAM,
             0x04 => MemoryRegion::IO,

@@ -15,6 +15,16 @@ pub struct Gpu {
 
     // Backgrounds
     bgcnts: [BGCNT; 4],
+    hofs: [OFS; 4],
+    vofs: [OFS; 4],
+    dxs: [RotationScalingParameter; 2],
+    dmxs: [RotationScalingParameter; 2],
+    dys: [RotationScalingParameter; 2],
+    dmys: [RotationScalingParameter; 2],
+    bgxs: [ReferencePointCoord; 2],
+    bgys: [ReferencePointCoord; 2],
+    bgxs_latch: [ReferencePointCoord; 2],
+    bgys_latch: [ReferencePointCoord; 2],
     mosaic: MOSAIC,
 
     // Windows
@@ -64,6 +74,16 @@ impl Gpu {
             vcount: 0,
 
             bgcnts: [BGCNT::new(); 4],
+            hofs: [OFS::new(); 4],
+            vofs: [OFS::new(); 4],
+            dxs: [RotationScalingParameter::new(); 2],
+            dmxs: [RotationScalingParameter::new(); 2],
+            dys: [RotationScalingParameter::new(); 2],
+            dmys: [RotationScalingParameter::new(); 2],
+            bgxs: [ReferencePointCoord::new(); 2],
+            bgys: [ReferencePointCoord::new(); 2],
+            bgxs_latch: [ReferencePointCoord::new(); 2],
+            bgys_latch: [ReferencePointCoord::new(); 2],
             mosaic: MOSAIC::new(),
 
             bldcnt: BLDCNT::new(),
@@ -100,9 +120,22 @@ impl Gpu {
         assert_eq!(addr >> 12, 0x04000);
 
         match addr & 0xFFF {
-			0x004 => self.dispstat.read(0),
-			0x005 => self.dispstat.read(1),
-			0x006 => self.vcount as u8,
+            0x000 => self.dispcnt.read(0),
+            0x001 => self.dispcnt.read(1),
+            0x002 => self.green_swap as u8,
+            0x003 => 0, // Unused area of Green Swap
+            0x004 => self.dispstat.read(0),
+            0x005 => self.dispstat.read(1),
+            0x006 => self.vcount as u8,
+            0x007 => 0, // Unused area of VCOUNT
+            0x008 => self.bgcnts[0].read(0),
+            0x009 => self.bgcnts[0].read(1),
+            0x00A => self.bgcnts[1].read(0),
+            0x00B => self.bgcnts[1].read(1),
+            0x00C => self.bgcnts[2].read(0),
+            0x00D => self.bgcnts[2].read(1),
+            0x00E => self.bgcnts[3].read(0),
+            0x00F => self.bgcnts[3].read(1),
             _ => panic!("Ignoring GPU Read at 0x{:08X}", addr),
         }
     }
@@ -113,6 +146,20 @@ impl Gpu {
         match addr & 0xFFF {
             0x000 => self.dispcnt.write(0, val),
             0x001 => self.dispcnt.write(1, val),
+            0x002 => self.green_swap = val & 0x1 != 0,
+            0x003 => (),
+            0x004 => self.dispstat.write(scheduler, 0, val),
+            0x005 => self.dispstat.write(scheduler, 1, val),
+            0x006 => (),
+            0x007 => (),
+            0x008 => self.bgcnts[0].write(0, val),
+            0x009 => self.bgcnts[0].write(1, val),
+            0x00A => self.bgcnts[1].write(0, val),
+            0x00B => self.bgcnts[1].write(1, val),
+            0x00C => self.bgcnts[2].write(0, val),
+            0x00D => self.bgcnts[2].write(1, val),
+            0x00E => self.bgcnts[3].write(0, val),
+            0x00F => self.bgcnts[3].write(1, val),
             _ => panic!("Ignoring GPU Write 0x{addr:08X} = 0x{val:02X}"),
         }
     }
@@ -185,9 +232,8 @@ impl Gpu {
         if self.dot == 308 {
             self.dot = 0;
             if self.vcount == 227 {
-                // TODO
-                // self.bgxs_latch = self.bgxs.clone();
-                // self.bgys_latch = self.bgys.clone();
+                self.bgxs_latch = self.bgxs.clone();
+                self.bgys_latch = self.bgys.clone();
             }
             self.vcount = (self.vcount + 1) % 228;
             if self.vcount == self.dispstat.vcount_setting {
@@ -214,7 +260,24 @@ impl Gpu {
         }
 
         match self.dispcnt.mode {
-            BGMode::Mode0 => todo!(),
+            BGMode::Mode0 => {
+                let mut bgs = vec![];
+                if self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG0) {
+                    bgs.push(0)
+                }
+                if self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG1) {
+                    bgs.push(1)
+                }
+                if self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG2) {
+                    bgs.push(2)
+                }
+                if self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG3) {
+                    bgs.push(3)
+                }
+
+                bgs.into_iter().for_each(|bg_i| self.render_text_line(bg_i));
+                self.process_lines(0, 3);
+            }
             BGMode::Mode1 => todo!(),
             BGMode::Mode2 => todo!(),
             BGMode::Mode3 => {
@@ -395,6 +458,114 @@ impl Gpu {
 
     fn render_objs_line(&mut self) {
         todo!()
+    }
+
+    fn render_text_line(&mut self, bg_i: usize) {
+        let x_offset = self.hofs[bg_i].offset as usize;
+        let y_offset = self.vofs[bg_i].offset as usize;
+        let bgcnt = self.bgcnts[bg_i];
+        let tile_start_addr = bgcnt.tile_block as usize * 0x4000;
+        let map_start_addr = bgcnt.map_block as usize * 0x800;
+        let bit_depth = if bgcnt.bpp8 { 8 } else { 4 }; // Also bytes per row of tile
+        let (mosaic_x, mosaic_y) = if bgcnt.mosaic {
+            (
+                self.mosaic.bg_size.h_size as usize,
+                self.mosaic.bg_size.v_size as usize,
+            )
+        } else {
+            (1, 1)
+        };
+
+        let dot_y = self.vcount as usize;
+        for dot_x in 0..gba::WIDTH {
+            let x = (dot_x + x_offset) / mosaic_x * mosaic_x;
+            let y = (dot_y + y_offset) / mosaic_y * mosaic_y;
+            // Get Screen Entry
+            let mut map_x = x / 8;
+            let mut map_y = y / 8;
+            let map_start_addr = map_start_addr
+                + match bgcnt.screen_size {
+                    0 => 0,
+                    1 => {
+                        if (map_x / 32) % 2 == 1 {
+                            0x800
+                        } else {
+                            0
+                        }
+                    }
+                    2 => {
+                        if (map_y / 32) % 2 == 1 {
+                            0x800
+                        } else {
+                            0
+                        }
+                    }
+                    3 => {
+                        let x_overflowed = (map_x / 32) % 2 == 1;
+                        let y_overflowed = (map_y / 32) % 2 == 1;
+                        if x_overflowed && y_overflowed {
+                            0x800 * 3
+                        } else if y_overflowed {
+                            0x800 * 2
+                        } else if x_overflowed {
+                            0x800 * 1
+                        } else {
+                            0
+                        }
+                    }
+                    _ => unreachable!(),
+                };
+            map_x %= 32;
+            map_y %= 32;
+            let addr = map_start_addr + map_y * 32 * 2 + map_x * 2;
+            let screen_entry = u16::from_le_bytes([self.vram[addr], self.vram[addr + 1]]) as usize;
+            let tile_num = screen_entry & 0x3FF;
+            let flip_x = (screen_entry >> 10) & 0x1 != 0;
+            let flip_y = (screen_entry >> 11) & 0x1 != 0;
+            let palette_num = (screen_entry >> 12) & 0xF;
+
+            // Convert from tile to pixels
+            let (palette_num, color_num) = self.get_color_from_tile(
+                tile_start_addr,
+                tile_num,
+                flip_x,
+                flip_y,
+                bit_depth,
+                x % 8,
+                y % 8,
+                palette_num,
+            );
+            self.bg_lines[bg_i][dot_x] = if color_num == 0 {
+                Self::TRANSPARENT_COLOR
+            } else {
+                self.bg_palettes[palette_num * 16 + color_num]
+            };
+        }
+    }
+
+    fn get_color_from_tile(
+        &self,
+        tile_start_addr: usize,
+        tile_num: usize,
+        flip_x: bool,
+        flip_y: bool,
+        bit_depth: usize,
+        tile_x: usize,
+        tile_y: usize,
+        palette_num: usize,
+    ) -> (usize, usize) {
+        let addr = tile_start_addr + 8 * bit_depth * tile_num;
+        if tile_start_addr < 0x10000 && addr >= 0x10000 {
+            return (0, 0);
+        } // BG maps can't use OBJ tiles
+        let tile_x = if flip_x { 7 - tile_x } else { tile_x };
+        let tile_y = if flip_y { 7 - tile_y } else { tile_y };
+        let tile = self.vram[addr + tile_y * bit_depth + tile_x / (8 / bit_depth)] as usize;
+        if bit_depth == 8 {
+            (0, tile)
+        } else {
+            (palette_num, ((tile >> 4 * (tile_x % 2)) & 0xF))
+        }
     }
 
     pub fn write_palette_ram(&mut self, addr: u32, value: u8) {

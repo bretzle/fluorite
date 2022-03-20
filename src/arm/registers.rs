@@ -57,7 +57,8 @@ impl Registers {
 
     pub fn skip_bios(&mut self) {
         self.pc = 0x08000000;
-        self.cpsr.bits = 0x1F;
+        self.usr[13] = 0x0300_7F00;
+        self.cpsr.bits = 0x5F;
     }
 
     pub fn get_reg(&self, reg: Reg) -> u32 {
@@ -248,15 +249,15 @@ impl StatusRegister {
     }
 
     pub fn get_mode(&self) -> Mode {
-        match Some(self.bits() & 0x1F) {
-            Some(m) if m == Mode::USR as u32 => Mode::USR,
-            Some(m) if m == Mode::FIQ as u32 => Mode::FIQ,
-            Some(m) if m == Mode::IRQ as u32 => Mode::IRQ,
-            Some(m) if m == Mode::SVC as u32 => Mode::SVC,
-            Some(m) if m == Mode::ABT as u32 => Mode::ABT,
-            Some(m) if m == Mode::SYS as u32 => Mode::SYS,
-            Some(m) if m == Mode::UND as u32 => Mode::UND,
-            _ => panic!("Invalid Mode"),
+        match self.bits() & 0x1F {
+            m if m == Mode::USR as u32 => Mode::USR,
+            m if m == Mode::FIQ as u32 => Mode::FIQ,
+            m if m == Mode::IRQ as u32 => Mode::IRQ,
+            m if m == Mode::SVC as u32 => Mode::SVC,
+            m if m == Mode::ABT as u32 => Mode::ABT,
+            m if m == Mode::SYS as u32 => Mode::SYS,
+            m if m == Mode::UND as u32 => Mode::UND,
+            bits => panic!("Invalid Mode: {bits:05b}"),
         }
     }
 

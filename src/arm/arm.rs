@@ -21,10 +21,9 @@ impl Arm7tdmi {
         self.pipeline[0] = self.pipeline[1];
         self.regs.pc = self.regs.pc.wrapping_add(4);
 
-        let condition =
-            CONDITION_LUT[self.regs.get_flags() as usize | ((instr as usize >> 28) & 0xF)];
+        let cond = CONDITION_LUT[self.regs.get_flags() as usize | ((instr as usize >> 28) & 0xF)];
 
-        if condition {
+        if cond {
             ARM_LUT[((instr as usize) >> 16 & 0xFF0) | ((instr as usize) >> 4 & 0xF)](
                 self, bus, instr,
             );
@@ -35,7 +34,15 @@ impl Arm7tdmi {
 
     // ARM.3: Branch and Exchange (BX)
     fn branch_and_exchange(&mut self, bus: &mut Sysbus, instr: u32) {
-        todo!()
+        self.instruction_prefetch::<u32>(bus, MemoryAccess::N);
+        self.regs.pc = self.regs.get_reg_i(instr & 0xF);
+        if self.regs.pc & 0x1 != 0 {
+            self.regs.pc -= 1;
+            self.regs.set_t(true);
+            self.fill_thumb_instr_buffer(bus);
+        } else {
+            self.fill_arm_instr_buffer(bus)
+        }
     }
 
     // ARM.4: Branch and Branch with Link (B, BL)
@@ -127,7 +134,7 @@ impl Arm7tdmi {
                 self.instruction_prefetch::<u32>(bus, MemoryAccess::N);
                 self.regs.pc = result;
                 if self.regs.get_t() {
-                    todo!()
+                    self.fill_thumb_instr_buffer(bus)
                 } else {
                     self.fill_arm_instr_buffer(bus)
                 }
@@ -189,17 +196,72 @@ impl Arm7tdmi {
     }
 
     // ARM.7: Multiply and Multiply-Accumulate (MUL, MLA)
-    fn mul_mula<const A: bool, const S: bool>(&mut self, bus: &mut Sysbus, instr: u32) {
-        todo!()
-    }
-
-    // ARM.8: Multiply Long and Multiply-Accumulate Long (MULL, MLAL)
-    fn mul_long<const U: bool, const A: bool, const S: bool>(
+    fn mul_mula<const ACCUMULATE: bool, const SET_STATUS: bool>(
         &mut self,
         bus: &mut Sysbus,
         instr: u32,
     ) {
-        todo!()
+        assert_eq!(instr >> 22 & 0x3F, 0b000000);
+        assert_eq!(instr >> 4 & 0xF, 0b1001);
+
+        let dest_reg = instr >> 16 & 0xF;
+        let op1_reg = instr >> 12 & 0xF;
+        let op1 = self.regs.get_reg_i(op1_reg);
+        let op2 = self.regs.get_reg_i(instr >> 8 & 0xF);
+        let op3 = self.regs.get_reg_i(instr & 0xF);
+
+        self.instruction_prefetch::<u32>(bus, MemoryAccess::S);
+        self.inc_mul_clocks(bus, op2, true);
+        let result = if ACCUMULATE {
+            self.internal(bus);
+            op2.wrapping_mul(op3).wrapping_add(op1)
+        } else {
+            assert_eq!(op1_reg, 0);
+            op2.wrapping_mul(op3)
+        };
+        if SET_STATUS {
+            self.regs.set_n(result & 0x8000_0000 != 0);
+            self.regs.set_z(result == 0);
+        }
+        self.regs.set_reg_i(dest_reg, result);
+    }
+
+    // ARM.8: Multiply Long and Multiply-Accumulate Long (MULL, MLAL)
+    fn mul_long<const SIGNED: bool, const ACCUMULATE: bool, const SET_STATUS: bool>(
+        &mut self,
+        bus: &mut Sysbus,
+        instr: u32,
+    ) {
+        assert_eq!(instr >> 23 & 0x1F, 0b00001);
+
+        let src_dest_reg_high = instr >> 16 & 0xF;
+        let src_dest_reg_low = instr >> 12 & 0xF;
+        let op1 = self.regs.get_reg_i(instr >> 8 & 0xF);
+        assert_eq!(instr >> 4 & 0xF, 0b1001);
+        let op2 = self.regs.get_reg_i(instr & 0xF);
+
+        self.instruction_prefetch::<u32>(bus, MemoryAccess::S);
+        self.internal(bus);
+        self.inc_mul_clocks(bus, op1 as u32, SIGNED);
+        let result = if SIGNED {
+            (op1 as i32 as u64).wrapping_mul(op2 as i32 as u64)
+        } else {
+            (op1 as u64) * (op2 as u64)
+        }
+        .wrapping_add(if ACCUMULATE {
+            self.internal(bus);
+            (self.regs.get_reg_i(src_dest_reg_high) as u64) << 32
+                | self.regs.get_reg_i(src_dest_reg_low) as u64
+        } else {
+            0
+        });
+        if SET_STATUS {
+            self.regs.set_n(result & 0x8000_0000_0000_0000 != 0);
+            self.regs.set_z(result == 0);
+        }
+        self.regs.set_reg_i(src_dest_reg_low, (result >> 0) as u32);
+        self.regs
+            .set_reg_i(src_dest_reg_high, (result >> 32) as u32);
     }
 
     // ARM.9: Single Data Transfer (LDR, STR)
@@ -489,13 +551,41 @@ impl Arm7tdmi {
     }
 
     // ARM.12: Single Data Swap (SWP)
-    fn single_data_swap<const B: bool>(&mut self, bus: &mut Sysbus, instr: u32) {
-        todo!()
+    fn single_data_swap<const BYTE: bool>(&mut self, bus: &mut Sysbus, instr: u32) {
+        assert_eq!(instr >> 23 & 0x1F, 0b00010);
+        assert_eq!(instr >> 20 & 0x3, 0b00);
+        assert_eq!(instr >> 4 & 0xFF, 0b00001001);
+
+        let base = self.regs.get_reg_i(instr >> 16 & 0xF);
+        let dest_reg = instr >> 12 & 0xF;
+        let src_reg = instr & 0xF;
+        let src = self.regs.get_reg_i(src_reg);
+
+        self.instruction_prefetch::<u32>(bus, MemoryAccess::N);
+        let value = if BYTE {
+            let value = self.read::<u8>(bus, MemoryAccess::N, base) as u32;
+            self.write::<u8>(bus, MemoryAccess::S, base, src as u8);
+            value
+        } else {
+            let value = self
+                .read::<u32>(bus, MemoryAccess::N, base & !0x3)
+                .rotate_right((base & 0x3) * 8);
+            self.write::<u32>(bus, MemoryAccess::S, base & !0x3, src);
+            value
+        };
+        self.regs.set_reg_i(dest_reg, value);
+        self.internal(bus);
     }
 
     // ARM.13: Software Interrupt (SWI)
     fn arm_software_interrupt(&mut self, bus: &mut Sysbus, instr: u32) {
-        todo!()
+        assert_eq!(instr >> 24 & 0xF, 0b1111);
+        self.instruction_prefetch::<u32>(bus, MemoryAccess::N);
+        self.regs.change_mode(Mode::SVC);
+        self.regs.set_reg(Reg::R14, self.regs.pc.wrapping_sub(4));
+        self.regs.set_i(true);
+        self.regs.pc = 0x8;
+        self.fill_arm_instr_buffer(bus);
     }
 
     // ARM.14: Coprocessor Data Operations (CDP)
@@ -506,7 +596,7 @@ impl Arm7tdmi {
     }
 
     // ARM.17: Undefined Instruction
-    fn undefined_instr_arm(&mut self, _bus: &mut Sysbus, _instr: u32) {
+    fn undefined_instr_arm(&mut self, _: &mut Sysbus, _: u32) {
         unimplemented!("ARM.17: Undefined Instruction not implemented!");
     }
 }

@@ -37,6 +37,7 @@ fn main() -> color_eyre::Result<()> {
     let mut registers: WeakPointer<Registers> = WeakPointer::default();
     {
         let regs = unsafe { &mut *(&mut registers as *mut _) };
+        let gba = unsafe { &mut *(&mut gba as *mut Gba) };
 
         thread::spawn(move || {
             *regs = WeakPointer::from(&mut gba.cpu.regs);
@@ -89,7 +90,7 @@ fn main() -> color_eyre::Result<()> {
                 if debug_spec.reg_enable {
                     use Reg::*;
                     #[rustfmt::skip]
-                    Window::new("Registers").build(ui, || {
+                    Window::new("Registers").resizable(false).build(ui, || {
 						ui.text(format!("R0   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R0)));
 						ui.text(format!("R1   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R1)));
 						ui.text(format!("R2   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R2)));
@@ -106,6 +107,7 @@ fn main() -> color_eyre::Result<()> {
 						ui.text(format!("R13  0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R13)));
 						ui.text(format!("R14  0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R14)));
 						ui.text(format!("R15  0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R15)));
+						ui.text(if registers.get_t() {"THUMB"} else {"ARM"});
 					});
                 }
 

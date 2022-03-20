@@ -5,7 +5,7 @@ use self::{
     memory::{MemoryRegion, MemoryValue},
     scheduler::{Event, EventType, Scheduler},
 };
-use crate::gba::{self, DebugSpec, Pixels};
+use crate::{gba::{self, DebugSpec, Pixels}, io::interrupt_controller::InterruptRequest};
 use num::cast::FromPrimitive;
 use std::{cell::Cell, collections::VecDeque, mem::size_of};
 
@@ -113,7 +113,7 @@ impl Sysbus {
         match MemoryRegion::get_region(addr) {
             MemoryRegion::BIOS => self.read_bios(addr),
             MemoryRegion::EWRAM => Self::read_mem(&self.ewram, addr & Self::EWRAM_MASK),
-            MemoryRegion::IWRAM => todo!(),
+            MemoryRegion::IWRAM => Self::read_mem(&self.iwram, addr & Self::IWRAM_MASK),
             MemoryRegion::IO => Self::read_from_bytes(self, &Self::read_io_register, addr),
             MemoryRegion::Palette => todo!(),
             MemoryRegion::VRAM => todo!(),
@@ -142,7 +142,7 @@ impl Sysbus {
         match MemoryRegion::get_region(addr) {
             MemoryRegion::BIOS => todo!(),
             MemoryRegion::EWRAM => Self::write_mem(&mut self.ewram, addr & Self::EWRAM_MASK, value),
-            MemoryRegion::IWRAM => todo!(),
+            MemoryRegion::IWRAM => Self::write_mem(&mut self.iwram, addr & Self::IWRAM_MASK, value),
             MemoryRegion::IO => Self::write_from_bytes(self, &Self::write_register, addr, value),
             MemoryRegion::Palette => self.write_palette_ram(addr, value),
             MemoryRegion::VRAM => self.write_vram(Gpu::parse_vram_addr(addr), value),
@@ -340,15 +340,15 @@ impl Sysbus {
                 self.inc_clock(Cycle::I, 0, 0)
             }
 
-            // if irq {
-            //     self.interrupt_controller.request |= match dma_channel {
-            //         0 => InterruptRequest::DMA0,
-            //         1 => InterruptRequest::DMA1,
-            //         2 => InterruptRequest::DMA2,
-            //         3 => InterruptRequest::DMA3,
-            //         _ => unreachable!(),
-            //     }
-            // }
+            if irq {
+                self.interrupt_controller.request |= match dma_channel {
+                    0 => InterruptRequest::DMA0,
+                    1 => InterruptRequest::DMA1,
+                    2 => InterruptRequest::DMA2,
+                    3 => InterruptRequest::DMA3,
+                    _ => unreachable!(),
+                }
+            }
             self.dma.in_dma = false;
         }
     }
@@ -441,6 +441,30 @@ impl Sysbus {
     fn write_register(&mut self, addr: u32, val: u8) {
         match addr {
             0x04000000..=0x0400005F => self.gpu.write_register(&mut self.scheduler, addr, val),
+            0x040000B0..=0x040000BB => {
+                self.dma.channels[0].write(&mut self.scheduler, addr as u8 - 0xB0, val)
+            }
+            0x040000BC..=0x040000C7 => {
+                self.dma.channels[1].write(&mut self.scheduler, addr as u8 - 0xBC, val)
+            }
+            0x040000C8..=0x040000D3 => {
+                self.dma.channels[2].write(&mut self.scheduler, addr as u8 - 0xC8, val)
+            }
+            0x040000D4..=0x040000DF => {
+                self.dma.channels[3].write(&mut self.scheduler, addr as u8 - 0xD4, val)
+            }
+            0x04000206..=0x04000207 => (), // Unused IO Register
+            0x04000208 => {
+                self.interrupt_controller
+                    .master_enable
+                    .write(&mut self.scheduler, 0, val)
+            }
+            0x04000209 => {
+                self.interrupt_controller
+                    .master_enable
+                    .write(&mut self.scheduler, 1, val)
+            }
+            0x0400020A..=0x040002FF => (), // Unused IO Register
             _ => panic!("Writng Unimplemented IO Register at {addr:08X} = {val:02X}",),
         }
     }

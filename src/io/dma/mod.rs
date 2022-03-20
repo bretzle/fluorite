@@ -132,7 +132,7 @@ impl DmaChannel {
         }
     }
 
-    fn write(&mut self, scheduler: &mut Scheduler, byte: u8, value: u8) {
+    pub fn write(&mut self, scheduler: &mut Scheduler, byte: u8, value: u8) {
         match byte {
             0x0 => self.sad.write(scheduler, 0, value),
             0x1 => self.sad.write(scheduler, 1, value),
