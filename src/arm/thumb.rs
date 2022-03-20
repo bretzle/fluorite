@@ -16,8 +16,29 @@ impl Arm7tdmi {
         self.pipeline[1] = self.read::<u16>(bus, MemoryAccess::S, self.regs.pc & !0x1) as u32;
     }
 
+    #[inline]
+    #[cfg(feature = "decode")]
+    pub fn decode_thumb_instr(addr: u32, instr: u16) -> String {
+        use yaxpeax_arch::{Arch, Decoder, U8Reader};
+        use yaxpeax_arm::armv7::ARMv7;
+
+        let data = [(instr & 0xFF) as u8, (instr >> 8 & 0xFF) as u8];
+        let mut reader = U8Reader::new(&data);
+        let decoder = <ARMv7 as Arch>::Decoder::default_thumb();
+        match decoder.decode(&mut reader) {
+            Ok(i) => format!(
+                "{:08X?} ({:08X?}) [{:02X?}, {:02X?}] -> {i}",
+                addr, instr, data[0], data[1]
+            ),
+            Err(e) => format!("{e:?}"),
+        }
+    }
+
     pub(super) fn emulate_thumb_instr(&mut self, bus: &mut Sysbus) {
         let instr = self.pipeline[0] as u16;
+
+        #[cfg(feature = "decode")]
+        println!("{}", Self::decode_thumb_instr(self.regs.pc.wrapping_sub(2), instr));
 
         self.pipeline[0] = self.pipeline[1];
         self.regs.pc = self.regs.pc.wrapping_add(2);
