@@ -143,7 +143,11 @@ impl Registers {
         }
     }
 
-	pub fn change_mode(&mut self, mode: Mode) {
+    pub fn restore_cpsr(&mut self) {
+        self.cpsr.bits = self.get_reg(Reg::SPSR);
+    }
+
+    pub fn change_mode(&mut self, mode: Mode) {
         let cpsr = self.get_reg(Reg::CPSR);
         self.set_mode(mode);
         self.set_reg(Reg::SPSR, cpsr);

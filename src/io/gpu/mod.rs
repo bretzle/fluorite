@@ -25,8 +25,8 @@ pub struct Gpu {
 
     // Color Special Effects
     bldcnt: BLDCNT,
-	bldalpha: BLDALPHA,
-	bldy: BLDY,
+    bldalpha: BLDALPHA,
+    bldy: BLDY,
 
     // Palettes
     bg_palettes: [u16; 0x100],
@@ -51,7 +51,7 @@ pub struct Gpu {
 }
 
 impl Gpu {
-	const TRANSPARENT_COLOR: u16 = 0x8000;
+    const TRANSPARENT_COLOR: u16 = 0x8000;
 
     pub fn new() -> (Self, Pixels, DebugSpec) {
         let pixels = Arc::new(Mutex::new(vec![0; WIDTH * HEIGHT]));
@@ -66,16 +66,16 @@ impl Gpu {
             bgcnts: [BGCNT::new(); 4],
             mosaic: MOSAIC::new(),
 
-			bldcnt: BLDCNT::new(),
-			bldalpha: BLDALPHA::new(),
-			bldy: BLDY::new(),
+            bldcnt: BLDCNT::new(),
+            bldalpha: BLDALPHA::new(),
+            bldy: BLDY::new(),
 
-			win_0_cnt: WindowControl::new(),
+            win_0_cnt: WindowControl::new(),
             win_1_cnt: WindowControl::new(),
             win_out_cnt: WindowControl::new(),
             win_obj_cnt: WindowControl::new(),
 
-			bg_palettes: [0; 0x100],
+            bg_palettes: [0; 0x100],
             obj_palettes: [0; 0x100],
 
             vram: vec![0; 0x18000].into_boxed_slice(),
@@ -94,6 +94,17 @@ impl Gpu {
         };
 
         (gpu, pixels, debug)
+    }
+
+    pub fn read_register(&self, addr: u32) -> u8 {
+        assert_eq!(addr >> 12, 0x04000);
+
+        match addr & 0xFFF {
+			0x004 => self.dispstat.read(0),
+			0x005 => self.dispstat.read(1),
+			0x006 => self.vcount as u8,
+            _ => panic!("Ignoring GPU Read at 0x{:08X}", addr),
+        }
     }
 
     pub fn write_register(&mut self, scheduler: &mut Scheduler, addr: u32, val: u8) {
@@ -225,7 +236,27 @@ impl Gpu {
                 self.process_lines(2, 2);
             }
 
-            BGMode::Mode4 => todo!(),
+            BGMode::Mode4 => {
+                let (mosaic_x, mosaic_y) = if self.bgcnts[2].mosaic {
+                    (
+                        self.mosaic.bg_size.h_size as usize,
+                        self.mosaic.bg_size.v_size,
+                    )
+                } else {
+                    (1, 1)
+                };
+                let y = self.vcount / mosaic_y * mosaic_y;
+                let start_addr = if self.dispcnt.contains(DISPCNTFlags::DISPLAY_FRAME_SELECT) {
+                    0xA000
+                } else {
+                    0
+                } + y as usize * gba::WIDTH;
+                for dot_x in 0..gba::WIDTH {
+                    let x = dot_x / mosaic_x * mosaic_x;
+                    self.bg_lines[2][dot_x] = self.bg_palettes[self.vram[start_addr + x] as usize];
+                }
+                self.process_lines(2, 2);
+            }
             BGMode::Mode5 => todo!(),
         }
     }
@@ -365,8 +396,23 @@ impl Gpu {
     fn render_objs_line(&mut self) {
         todo!()
     }
-}
 
+    pub fn write_palette_ram(&mut self, addr: u32, value: u8) {
+        let addr = (addr & 0x3FF) as usize;
+        let palettes = if addr < 0x200 {
+            &mut self.bg_palettes
+        } else {
+            &mut self.obj_palettes
+        };
+        let index = (addr & 0x1FF) / 2;
+        if addr % 2 == 0 {
+            palettes[index] = palettes[index] & !0x00FF | (value as u16) << 0;
+        } else {
+            palettes[index] = palettes[index] & !0xFF00 | (value as u16) << 8 & !0x8000;
+            // Clear high bit
+        }
+    }
+}
 
 #[derive(Clone, Copy, PartialEq)]
 enum Layer {

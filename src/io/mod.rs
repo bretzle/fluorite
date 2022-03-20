@@ -1,8 +1,9 @@
 use self::{
     dma::Dma,
     gpu::Gpu,
+    interrupt_controller::InterruptController,
     memory::{MemoryRegion, MemoryValue},
-    scheduler::{Event, EventType, Scheduler}, interrupt_controller::InterruptController,
+    scheduler::{Event, EventType, Scheduler},
 };
 use crate::gba::{self, DebugSpec, Pixels};
 use num::cast::FromPrimitive;
@@ -10,10 +11,10 @@ use std::{cell::Cell, collections::VecDeque, mem::size_of};
 
 pub mod dma;
 pub mod gpu;
+pub mod interrupt_controller;
 pub mod keypad;
 pub mod memory;
 pub mod scheduler;
-pub mod interrupt_controller;
 
 #[derive(Clone, Copy)]
 pub enum MemoryAccess {
@@ -68,6 +69,9 @@ pub struct Sysbus {
 }
 
 impl Sysbus {
+    const EWRAM_MASK: u32 = 0x3FFFF;
+    const IWRAM_MASK: u32 = 0x7FFF;
+
     pub fn new(bios: Vec<u8>, rom: Vec<u8>) -> (Self, Pixels, DebugSpec) {
         let (gpu, pixels, debug) = Gpu::new();
 
@@ -106,26 +110,11 @@ impl Sysbus {
     where
         T: MemoryValue,
     {
-        use num::cast;
-
-        fn read_from_bytes<T, F, D>(device: &D, read_fn: &F, addr: u32) -> T
-        where
-            T: MemoryValue,
-            F: Fn(&D, u32) -> u8,
-        {
-            let mut value: T = num::zero();
-            for i in 0..size_of::<T>() as u32 {
-                value =
-                    cast::<u8, T>(read_fn(device, addr + i)).unwrap() << (8 * i as usize) | value;
-            }
-            value
-        }
-
         match MemoryRegion::get_region(addr) {
             MemoryRegion::BIOS => self.read_bios(addr),
-            MemoryRegion::EWRAM => todo!(),
+            MemoryRegion::EWRAM => Self::read_mem(&self.ewram, addr & Self::EWRAM_MASK),
             MemoryRegion::IWRAM => todo!(),
-            MemoryRegion::IO => todo!(),
+            MemoryRegion::IO => Self::read_from_bytes(self, &Self::read_io_register, addr),
             MemoryRegion::Palette => todo!(),
             MemoryRegion::VRAM => todo!(),
             MemoryRegion::OAM => todo!(),
@@ -150,27 +139,12 @@ impl Sysbus {
     where
         T: MemoryValue,
     {
-        fn write_from_bytes<T, F, D>(device: &mut D, write_fn: &F, addr: u32, value: T)
-        where
-            T: MemoryValue,
-            F: Fn(&mut D, u32, u8),
-        {
-            let mask = FromPrimitive::from_u8(0xFF).unwrap();
-            for i in 0..size_of::<T>() {
-                write_fn(
-                    device,
-                    addr + i as u32,
-                    num::cast::<T, u8>(value >> 8 * i & mask).unwrap(),
-                );
-            }
-        }
-
         match MemoryRegion::get_region(addr) {
             MemoryRegion::BIOS => todo!(),
-            MemoryRegion::EWRAM => todo!(),
+            MemoryRegion::EWRAM => Self::write_mem(&mut self.ewram, addr & Self::EWRAM_MASK, value),
             MemoryRegion::IWRAM => todo!(),
-            MemoryRegion::IO => write_from_bytes(self, &Self::write_register, addr, value),
-            MemoryRegion::Palette => todo!(),
+            MemoryRegion::IO => Self::write_from_bytes(self, &Self::write_register, addr, value),
+            MemoryRegion::Palette => self.write_palette_ram(addr, value),
             MemoryRegion::VRAM => self.write_vram(Gpu::parse_vram_addr(addr), value),
             MemoryRegion::OAM => todo!(),
             MemoryRegion::ROM0L => todo!(),
@@ -397,6 +371,19 @@ impl Sysbus {
 }
 
 impl Sysbus {
+    fn read_from_bytes<T, F, D>(device: &D, read_fn: &F, addr: u32) -> T
+    where
+        T: MemoryValue,
+        F: Fn(&D, u32) -> u8,
+    {
+        let mut value: T = num::zero();
+        for i in 0..size_of::<T>() as u32 {
+            value =
+                num::cast::<u8, T>(read_fn(device, addr + i)).unwrap() << (8 * i as usize) | value;
+        }
+        value
+    }
+
     fn read_bios<T>(&self, addr: u32) -> T
     where
         T: MemoryValue,
@@ -426,9 +413,31 @@ impl Sysbus {
             num::zero()
         }
     }
+
+    fn read_io_register(&self, addr: u32) -> u8 {
+        match addr {
+            0x04000000..=0x0400005F => self.gpu.read_register(addr),
+            _ => panic!("Reading Unimplemented IO Register at {addr:08X}"),
+        }
+    }
 }
 
 impl Sysbus {
+    fn write_from_bytes<T, F, D>(device: &mut D, write_fn: &F, addr: u32, value: T)
+    where
+        T: MemoryValue,
+        F: Fn(&mut D, u32, u8),
+    {
+        let mask = FromPrimitive::from_u8(0xFF).unwrap();
+        for i in 0..size_of::<T>() {
+            write_fn(
+                device,
+                addr + i as u32,
+                num::cast::<T, u8>(value >> 8 * i & mask).unwrap(),
+            );
+        }
+    }
+
     fn write_register(&mut self, addr: u32, val: u8) {
         match addr {
             0x04000000..=0x0400005F => self.gpu.write_register(&mut self.scheduler, addr, val),
@@ -447,6 +456,19 @@ impl Sysbus {
             self.gpu.vram[addr + 1] = value;
         } else {
             Self::write_mem(&mut self.gpu.vram, addr, value);
+        }
+    }
+
+    fn write_palette_ram<T>(&mut self, addr: u32, value: T)
+    where
+        T: MemoryValue,
+    {
+        if size_of::<T>() == 1 {
+            let value = num::cast::<T, u8>(value).unwrap();
+            self.gpu.write_palette_ram(addr & !0x1, value);
+            self.gpu.write_palette_ram(addr | 0x1, value);
+        } else {
+            Self::write_from_bytes(&mut self.gpu, &Gpu::write_palette_ram, addr, value)
         }
     }
 }

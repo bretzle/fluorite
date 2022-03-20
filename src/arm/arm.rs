@@ -204,18 +204,93 @@ impl Arm7tdmi {
 
     // ARM.9: Single Data Transfer (LDR, STR)
     fn single_data_transfer<
-        const I: bool,
-        const P: bool,
-        const U: bool,
-        const B: bool,
-        const W: bool,
+        const SHIFTED_REG_OFFSET: bool,
+        const PRE_OFFSET: bool,
+        const ADD_OFFSET: bool,
+        const TRANSFER_BYTE: bool,
+        const WRITEBACK: bool,
         const L: bool,
     >(
         &mut self,
         bus: &mut Sysbus,
         instr: u32,
     ) {
-        todo!()
+        assert_eq!(instr >> 26 & 0b11, 0b01);
+
+        let mut write_back = WRITEBACK || !PRE_OFFSET;
+        let load = instr >> 20 & 0x1 != 0;
+        let base_reg = instr >> 16 & 0xF;
+        let base = self.regs.get_reg_i(base_reg);
+        let src_dest_reg = instr >> 12 & 0xF;
+        self.instruction_prefetch::<u32>(bus, MemoryAccess::N);
+
+        let offset = if SHIFTED_REG_OFFSET {
+            let shift = instr >> 7 & 0x1F;
+            let shift_type = instr >> 5 & 0x3;
+            assert_eq!(instr >> 4 & 0x1, 0);
+            let offset_reg = instr & 0xF;
+            assert_ne!(offset_reg, 15);
+            let operand = self.regs.get_reg_i(offset_reg);
+            self.shift(bus, shift_type, operand, shift, true, false)
+        } else {
+            instr & 0xFFF
+        };
+
+        let mut exec = |addr| {
+            if load {
+                let access_type = if src_dest_reg == 15 {
+                    MemoryAccess::N
+                } else {
+                    MemoryAccess::S
+                };
+                let value = if TRANSFER_BYTE {
+                    self.read::<u8>(bus, access_type, addr) as u32
+                } else {
+                    self.read::<u32>(bus, access_type, addr & !0x3)
+                        .rotate_right((addr & 0x3) * 8)
+                };
+                self.internal(bus);
+                self.regs.set_reg_i(src_dest_reg, value);
+                if src_dest_reg == base_reg {
+                    write_back = false
+                }
+                if src_dest_reg == 15 {
+                    self.fill_arm_instr_buffer(bus)
+                }
+            } else {
+                let value = self.regs.get_reg_i(src_dest_reg);
+                let value = if src_dest_reg == 15 {
+                    value.wrapping_add(4)
+                } else {
+                    value
+                };
+                if TRANSFER_BYTE {
+                    self.write::<u8>(bus, MemoryAccess::N, addr, value as u8);
+                } else {
+                    self.write::<u32>(bus, MemoryAccess::N, addr & !0x3, value);
+                }
+            }
+        };
+        let offset_applied = if ADD_OFFSET {
+            base.wrapping_add(offset)
+        } else {
+            base.wrapping_sub(offset)
+        };
+        if PRE_OFFSET {
+            exec(offset_applied);
+            if write_back {
+                self.regs.set_reg_i(base_reg, offset_applied)
+            }
+        } else {
+            // TOOD: Take into account privilege of access
+            let force_non_privileged_access = instr >> 21 & 0x1 != 0;
+            assert_eq!(force_non_privileged_access, false);
+            // Write back is not done if src_reg == base_reg
+            exec(base);
+            if write_back {
+                self.regs.set_reg_i(base_reg, offset_applied)
+            }
+        }
     }
 
     // ARM.10: Halfword and Signed Data Transfer (STRH,LDRH,LDRSB,LDRSH)
@@ -303,17 +378,114 @@ impl Arm7tdmi {
 
     // ARM.11: Block Data Transfer (LDM,STM)
     fn block_data_transfer<
-        const P: bool,
-        const U: bool,
-        const S: bool,
-        const W: bool,
-        const L: bool,
+        const PRE_OFFSET: bool,
+        const ADD_OFFSET: bool,
+        const PSR_FORCE_USR: bool,
+        const WRITEBACK: bool,
+        const LOAD: bool,
     >(
         &mut self,
         bus: &mut Sysbus,
         instr: u32,
     ) {
-        todo!()
+        assert_eq!(instr >> 25 & 0x7, 0b100);
+        let pre_offset = PRE_OFFSET ^ !ADD_OFFSET;
+        let base_reg = instr >> 16 & 0xF;
+        assert_ne!(base_reg, 0xF);
+        let base = self.regs.get_reg_i(base_reg);
+        let base_offset = base & 0x3;
+        let base = base - base_offset;
+        let mut r_list = (instr & 0xFFFF) as u16;
+        let write_back = WRITEBACK && !(LOAD && r_list & (1 << base_reg) != 0);
+        let actual_mode = self.regs.get_mode();
+        if PSR_FORCE_USR && !(LOAD && r_list & 0x8000 != 0) {
+            self.regs.set_mode(Mode::USR)
+        }
+
+        self.instruction_prefetch::<u32>(bus, MemoryAccess::N);
+        let mut loaded_pc = false;
+        let num_regs = r_list.count_ones();
+        let start_addr = if ADD_OFFSET {
+            base
+        } else {
+            base.wrapping_sub(num_regs * 4)
+        };
+        let mut addr = start_addr;
+        let final_addr = if ADD_OFFSET {
+            addr + 4 * num_regs
+        } else {
+            start_addr
+        } + base_offset;
+        let (final_addr, inc_amount) = if num_regs == 0 {
+            (final_addr + 0x40, 0x40)
+        } else {
+            (final_addr, 4)
+        };
+        let mut calc_addr = || {
+            if pre_offset {
+                addr += inc_amount;
+                addr
+            } else {
+                let old_addr = addr;
+                addr += inc_amount;
+                old_addr
+            }
+        };
+        let mut exec = |addr, reg, last_access| {
+            if LOAD {
+                let value = self.read::<u32>(bus, MemoryAccess::S, addr);
+                self.regs.set_reg_i(reg, value);
+                if write_back {
+                    self.regs.set_reg_i(base_reg, final_addr)
+                }
+                if last_access {
+                    self.internal(bus)
+                }
+                if reg == 15 {
+                    if PSR_FORCE_USR {
+                        self.regs.restore_cpsr()
+                    }
+                    loaded_pc = true;
+                    self.next_access = MemoryAccess::N;
+                    self.fill_arm_instr_buffer(bus);
+                }
+            } else {
+                let value = self.regs.get_reg_i(reg);
+                let access_type = if last_access {
+                    MemoryAccess::N
+                } else {
+                    MemoryAccess::S
+                };
+                self.write::<u32>(
+                    bus,
+                    access_type,
+                    addr,
+                    if reg == 15 {
+                        value.wrapping_add(4)
+                    } else {
+                        value
+                    },
+                );
+                if write_back {
+                    self.regs.set_reg_i(base_reg, final_addr)
+                }
+            }
+        };
+        if num_regs == 0 {
+            exec(start_addr, 15, true);
+        } else {
+            let mut reg = 0;
+            while r_list != 0x1 {
+                if r_list & 0x1 != 0 {
+                    exec(calc_addr(), reg, false);
+                }
+                reg += 1;
+                r_list >>= 1;
+            }
+            exec(calc_addr(), reg, true);
+        }
+
+        self.regs.set_mode(actual_mode);
     }
 
     // ARM.12: Single Data Swap (SWP)
