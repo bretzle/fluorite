@@ -5,7 +5,10 @@ use self::{
     memory::{MemoryRegion, MemoryValue},
     scheduler::{Event, EventType, Scheduler},
 };
-use crate::{gba::{self, DebugSpec, Pixels}, io::interrupt_controller::InterruptRequest};
+use crate::{
+    gba::{self, DebugSpec, Pixels},
+    io::interrupt_controller::InterruptRequest,
+};
 use num::cast::FromPrimitive;
 use std::{cell::Cell, collections::VecDeque, mem::size_of};
 
@@ -100,7 +103,7 @@ impl Sysbus {
             pc: 0,
             in_thumb: false,
             pipeline: [0; 2],
-            bios_latch: Cell::new(0),
+            bios_latch: Cell::new(0xE129F000),
         };
 
         (bus, pixels, debug)
@@ -453,6 +456,24 @@ impl Sysbus {
             0x040000D4..=0x040000DF => {
                 self.dma.channels[3].write(&mut self.scheduler, addr as u8 - 0xD4, val)
             }
+            0x04000200 => self
+                .interrupt_controller
+                .enable
+                .write(&mut self.scheduler, 0, val),
+            0x04000201 => self
+                .interrupt_controller
+                .enable
+                .write(&mut self.scheduler, 1, val),
+            0x04000202 => self
+                .interrupt_controller
+                .request
+                .write(&mut self.scheduler, 0, val),
+            0x04000203 => self
+                .interrupt_controller
+                .request
+                .write(&mut self.scheduler, 1, val),
+            0x04000204 => self.waitcnt.write(&mut self.scheduler, 0, val),
+            0x04000205 => self.waitcnt.write(&mut self.scheduler, 1, val),
             0x04000206..=0x04000207 => (), // Unused IO Register
             0x04000208 => {
                 self.interrupt_controller
@@ -465,6 +486,8 @@ impl Sysbus {
                     .write(&mut self.scheduler, 1, val)
             }
             0x0400020A..=0x040002FF => (), // Unused IO Register
+            0x04000300 => self.haltcnt = (self.haltcnt & !0x00FF) | val as u16,
+            0x04000301 => self.haltcnt = (self.haltcnt & !0xFF00) | (val as u16) << 8,
             _ => panic!("Writng Unimplemented IO Register at {addr:08X} = {val:02X}",),
         }
     }
@@ -597,5 +620,47 @@ impl WaitStateControl {
     pub fn get_sram_access_time(&self, cycle: Cycle) -> u32 {
         assert_ne!(cycle, Cycle::I);
         1 + WaitStateControl::SRAM_ACCESS_TIMINGS[self.sram_setting]
+    }
+
+    fn read(&self, byte: u8) -> u8 {
+        match byte {
+            0 => {
+                (self.s_wait_state_settings[1] << 7
+                    | self.n_wait_state_settings[1] << 5
+                    | self.s_wait_state_settings[0] << 4
+                    | self.n_wait_state_settings[0] << 2
+                    | self.sram_setting) as u8
+            }
+            1 => {
+                ((self.type_flag as usize) << 7
+                    | (self.use_prefetch as usize) << 6
+                    | self.phi_terminal_out << 3
+                    | self.s_wait_state_settings[2] << 2
+                    | self.n_wait_state_settings[2]) as u8
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+        match byte {
+            0 => {
+                let value = value as usize;
+                self.sram_setting = value & 0x3;
+                self.n_wait_state_settings[0] = (value >> 2) & 0x3;
+                self.s_wait_state_settings[0] = (value >> 4) & 0x1;
+                self.n_wait_state_settings[1] = (value >> 5) & 0x3;
+                self.s_wait_state_settings[1] = (value >> 7) & 0x1;
+            }
+            1 => {
+                let value = value as usize;
+                self.n_wait_state_settings[2] = (value >> 0) & 0x3;
+                self.s_wait_state_settings[2] = (value >> 2) & 0x1;
+                self.phi_terminal_out = (value >> 3) & 0x3;
+                self.use_prefetch = (value >> 6) & 0x1 != 0;
+                // Type Flag is read only
+            }
+            _ => unreachable!(),
+        }
     }
 }
