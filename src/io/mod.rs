@@ -134,7 +134,7 @@ impl Sysbus {
             MemoryRegion::ROM2L => todo!(),
             MemoryRegion::ROM2H => todo!(),
             MemoryRegion::SRAM => todo!(),
-            MemoryRegion::Unused => todo!(),
+            MemoryRegion::Unused => self.read_openbus(addr),
         }
     }
 
@@ -422,6 +422,33 @@ impl Sysbus {
             0x04000000..=0x0400005F => self.gpu.read_register(addr),
             _ => panic!("Reading Unimplemented IO Register at {addr:08X}"),
         }
+    }
+
+    fn read_openbus<T>(&self, addr: u32) -> T
+    where
+        T: MemoryValue,
+    {
+        use MemoryRegion::*;
+        let value = if self.in_thumb {
+            match MemoryRegion::get_region(self.pc) {
+                EWRAM | Palette | VRAM | ROM0L | ROM0H | ROM1L | ROM1H | ROM2L | ROM2H => {
+                    self.pipeline[1] * 0x00010001
+                }
+                BIOS | OAM => self.pipeline[0] | self.pipeline[1] << 16,
+                IWRAM if self.pc & 0x3 != 0 => self.pipeline[0] | self.pipeline[1] << 16,
+                IWRAM => self.pipeline[1] | self.pipeline[0] << 16,
+                IO | SRAM | Unused => 0,
+            }
+        } else {
+            self.pipeline[1]
+        };
+        let mask = match std::mem::size_of::<T>() {
+            1 => 0xFF,
+            2 => 0xFFFF,
+            4 => 0xFFFF_FFFF,
+            _ => unreachable!(),
+        };
+        FromPrimitive::from_u32((value >> ((addr & 3) * 8)) & mask).unwrap()
     }
 }
 

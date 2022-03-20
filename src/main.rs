@@ -108,6 +108,7 @@ fn main() -> color_eyre::Result<()> {
 						ui.text(format!("R14  0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R14)));
 						ui.text(format!("R15  0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R15)));
 						ui.text(if registers.get_t() {"THUMB"} else {"ARM"});
+						ui.text(format!("M: {:?} N: {} Z: {} C: {} V {}", registers.get_mode(), registers.get_n()as u8, registers.get_z()as u8, registers.get_c()as u8, registers.get_v()as u8));
 					});
                 }
 

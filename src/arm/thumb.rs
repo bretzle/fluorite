@@ -1,4 +1,5 @@
 use super::Arm7tdmi;
+use crate::arm::registers::Mode;
 use crate::arm::registers::Reg;
 use crate::arm::InstructionHandler;
 use crate::arm::CONDITION_LUT;
@@ -359,12 +360,30 @@ impl Arm7tdmi {
     }
 
     // THUMB.11: load/store SP-relative
-    fn load_store_sp_rel<const L: bool, const Rd2: bool, const Rd1: bool, const Rd0: bool>(
+    fn load_store_sp_rel<const LOAD: bool, const Rd2: bool, const Rd1: bool, const Rd0: bool>(
         &mut self,
         bus: &mut Sysbus,
         instr: u16,
     ) {
-        todo!()
+        assert_eq!(instr >> 12 & 0xF, 0b1001);
+        let src_dest_reg = (Rd2 as u32) << 2 | (Rd1 as u32) << 1 | (Rd0 as u32);
+        let offset = (instr & 0xFF) * 4;
+        let addr = self.regs.get_reg(Reg::R13).wrapping_add(offset as u32);
+        self.instruction_prefetch::<u16>(bus, MemoryAccess::N);
+        if LOAD {
+            let value = self
+                .read::<u32>(bus, MemoryAccess::S, addr & !0x3)
+                .rotate_right((addr & 0x3) * 8);
+            self.regs.set_reg_i(src_dest_reg, value);
+            self.internal(bus);
+        } else {
+            self.write::<u32>(
+                bus,
+                MemoryAccess::N,
+                addr & !0x3,
+                self.regs.get_reg_i(src_dest_reg),
+            );
+        }
     }
 
     // THUMB.12: get relative address
@@ -373,12 +392,34 @@ impl Arm7tdmi {
         bus: &mut Sysbus,
         instr: u16,
     ) {
-        todo!()
+        assert_eq!(instr >> 12 & 0xF, 0b1010);
+
+        let dest_reg = (Rd2 as u32) << 2 | (Rd1 as u32) << 1 | (Rd0 as u32);
+        let src = if SP {
+            // SP
+            self.regs.get_reg(Reg::R13)
+        } else {
+            // PC
+            self.regs.pc & !0x2
+        };
+        let offset = (instr & 0xFF) as u32;
+        self.regs.set_reg_i(dest_reg, src.wrapping_add(offset * 4));
+        self.instruction_prefetch::<u16>(bus, MemoryAccess::S);
     }
 
     // THUMB.13: add offset to stack pointer
     fn add_offset_sp(&mut self, bus: &mut Sysbus, instr: u16) {
-        todo!()
+        assert_eq!(instr >> 8 & 0xFF, 0b10110000);
+        let sub = instr >> 7 & 0x1 != 0;
+        let offset = ((instr & 0x7F) * 4) as u32;
+        let sp = self.regs.get_reg(Reg::R13);
+        let value = if sub {
+            sp.wrapping_sub(offset)
+        } else {
+            sp.wrapping_add(offset)
+        };
+        self.regs.set_reg(Reg::R13, value);
+        self.instruction_prefetch::<u16>(bus, MemoryAccess::S);
     }
 
     // THUMB.14: push/pop registers
@@ -521,7 +562,7 @@ impl Arm7tdmi {
         assert_eq!(condition < 0xE, true);
         let offset = (instr & 0xFF) as i8 as u32;
         // if self.should_exec(condition as u32) {
-        if CONDITION_LUT[condition] {
+        if CONDITION_LUT[self.regs.get_flags() as usize | condition] {
             self.instruction_prefetch::<u16>(bus, MemoryAccess::N);
             self.regs.pc = self.regs.pc.wrapping_add(offset.wrapping_mul(2));
             self.fill_thumb_instr_buffer(bus);
@@ -531,13 +572,30 @@ impl Arm7tdmi {
     }
 
     // THUMB.17: software interrupt
-    fn thumb_software_interrupt(&mut self, bus: &mut Sysbus, instr: u16) {
-        todo!()
+    fn thumb_software_interrupt(&mut self, io: &mut Sysbus, instr: u16) {
+        assert_eq!(instr >> 8 & 0xFF, 0b11011111);
+        self.instruction_prefetch::<u16>(io, MemoryAccess::N);
+        self.regs.change_mode(Mode::SVC);
+        self.regs.set_reg(Reg::R14, self.regs.pc.wrapping_sub(2));
+        self.regs.set_t(false);
+        self.regs.set_i(true);
+        self.regs.pc = 0x8;
+        self.fill_arm_instr_buffer(io);
     }
 
     // THUMB.18: unconditional branch
-    fn uncond_branch(&mut self, bus: &mut Sysbus, instr: u16) {
-        todo!()
+    fn uncond_branch(&mut self, io: &mut Sysbus, instr: u16) {
+        assert_eq!(instr >> 11, 0b11100);
+        let offset = (instr & 0x7FF) as u32;
+        let offset = if offset >> 10 & 0x1 != 0 {
+            0xFFFF_F800 | offset
+        } else {
+            offset
+        };
+
+        self.instruction_prefetch::<u16>(io, MemoryAccess::N);
+        self.regs.pc = self.regs.pc.wrapping_add(offset << 1);
+        self.fill_thumb_instr_buffer(io);
     }
 
     // THUMB.19: long branch with link
