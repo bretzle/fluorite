@@ -2,3 +2,5 @@
 .idea/
 
 roms/pokemon/
+
+*.log

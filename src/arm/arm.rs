@@ -33,10 +33,7 @@ impl Arm7tdmi {
         let decoder = <ARMv7 as Arch>::Decoder::default();
 
         match decoder.decode(&mut reader) {
-            Ok(i) => format!(
-                "{:08X?} ({:08X?}) [{:02X?}, {:02X?}, {:02X?}, {:02X?}] -> {i}",
-                addr, instr, data[0], data[1], data[2], data[3],
-            ),
+            Ok(i) => format!("{:08X?} [{:08X?}] -> {i}", addr, instr,),
             Err(e) => format!("{e:?}"),
         }
     }
@@ -45,7 +42,29 @@ impl Arm7tdmi {
         let instr = self.pipeline[0];
 
         #[cfg(feature = "decode")]
-        println!("{}", Self::decode_arm_instr(self.regs.pc.wrapping_sub(4), instr));
+        {
+            use std::io::Write;
+
+            let reg = &self.regs;
+
+            writeln!(
+                self.decode_log,
+                "{:<50}  ({:08X} {:08X} {:08X} {:08X} {:08X}) {}",
+                Self::decode_arm_instr(self.regs.pc.wrapping_sub(4), instr),
+                reg.get_reg_i(0),
+                reg.get_reg_i(1),
+                reg.get_reg_i(2),
+                reg.get_reg_i(3),
+                reg.get_reg_i(11),
+                format!(
+                    "N: {} Z: {} C: {} V {}",
+                    reg.get_n() as u8,
+                    reg.get_z() as u8,
+                    reg.get_c() as u8,
+                    reg.get_v() as u8
+                )
+            );
+        }
 
         self.pipeline[0] = self.pipeline[1];
         self.regs.pc = self.regs.pc.wrapping_add(4);
@@ -469,11 +488,11 @@ impl Arm7tdmi {
 
     // ARM.11: Block Data Transfer (LDM,STM)
     fn block_data_transfer<
-        const PRE_OFFSET: bool,
-        const ADD_OFFSET: bool,
-        const PSR_FORCE_USR: bool,
-        const WRITEBACK: bool,
-        const LOAD: bool,
+        const PRE_OFFSET: bool,    // P true
+        const ADD_OFFSET: bool,    // U
+        const PSR_FORCE_USR: bool, // S
+        const WRITEBACK: bool,     // W true
+        const LOAD: bool,          // L
     >(
         &mut self,
         bus: &mut Sysbus,
@@ -507,21 +526,16 @@ impl Arm7tdmi {
         } else {
             start_addr
         } + base_offset;
+
         let (final_addr, inc_amount) = if num_regs == 0 {
-            (final_addr + 0x40, 0x40)
+            match ADD_OFFSET {
+                true => (final_addr + 0x40, 0x40),
+                false => (final_addr - 0x40, 0x40),
+            }
         } else {
             (final_addr, 4)
         };
-        let mut calc_addr = || {
-            if pre_offset {
-                addr += inc_amount;
-                addr
-            } else {
-                let old_addr = addr;
-                addr += inc_amount;
-                old_addr
-            }
-        };
+
         let mut exec = |addr, reg, last_access| {
             if LOAD {
                 let value = self.read::<u32>(bus, MemoryAccess::S, addr);
@@ -563,8 +577,26 @@ impl Arm7tdmi {
             }
         };
         if num_regs == 0 {
-            exec(start_addr, 15, true);
+            let addr = match (ADD_OFFSET, PRE_OFFSET) {
+                (true, true) => start_addr + 4,
+                (true, false) => start_addr,
+                (false, true) => start_addr - 0x40,
+                (false, false) => start_addr - 0x3C,
+            };
+
+            exec(addr, 15, true);
         } else {
+            let mut calc_addr = || {
+                if pre_offset {
+                    addr += inc_amount;
+                    addr
+                } else {
+                    let old_addr = addr;
+                    addr += inc_amount;
+                    old_addr
+                }
+            };
+
             let mut reg = 0;
             while r_list != 0x1 {
                 if r_list & 0x1 != 0 {

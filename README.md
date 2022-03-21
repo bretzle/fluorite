@@ -4,7 +4,7 @@ jsmolka
 
 | name     | passes  |
 |----------|---------|
-| arm      | ❌ #530  |
+| arm      | ✔️       |
 | bios     | ✔️       |
 | flash128 | ❌ crash |
 | flash64  | ❌ crash |

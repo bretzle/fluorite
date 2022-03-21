@@ -18,6 +18,9 @@ pub struct Arm7tdmi {
     pipeline: [u32; 2],
     next_access: MemoryAccess,
     internal: bool,
+
+	#[cfg(feature = "decode")]
+	decode_log: std::fs::File,
 }
 
 impl Arm7tdmi {
@@ -27,6 +30,9 @@ impl Arm7tdmi {
             pipeline: [0; 2],
             next_access: MemoryAccess::N,
             internal: false,
+
+			#[cfg(feature = "decode")]
+			decode_log: std::fs::File::create("decode.log").unwrap(),
         };
 
         if !bios {

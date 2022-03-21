@@ -26,10 +26,7 @@ impl Arm7tdmi {
         let mut reader = U8Reader::new(&data);
         let decoder = <ARMv7 as Arch>::Decoder::default_thumb();
         match decoder.decode(&mut reader) {
-            Ok(i) => format!(
-                "{:08X?} ({:08X?}) [{:02X?}, {:02X?}] -> {i}",
-                addr, instr, data[0], data[1]
-            ),
+            Ok(i) => format!("{:08X?} [  {:04X?}  ] -> {i}", addr, instr,),
             Err(e) => format!("{e:?}"),
         }
     }
@@ -38,7 +35,29 @@ impl Arm7tdmi {
         let instr = self.pipeline[0] as u16;
 
         #[cfg(feature = "decode")]
-        println!("{}", Self::decode_thumb_instr(self.regs.pc.wrapping_sub(2), instr));
+        {
+            use std::io::Write;
+
+            let reg = &self.regs;
+
+            writeln!(
+                self.decode_log,
+                "{:<50}  ({:08X} {:08X} {:08X} {:08X} {:08X}) {}",
+                Self::decode_thumb_instr(self.regs.pc.wrapping_sub(2), instr),
+                reg.get_reg_i(0),
+                reg.get_reg_i(1),
+                reg.get_reg_i(2),
+                reg.get_reg_i(3),
+                reg.get_reg_i(11),
+                format!(
+                    "N: {} Z: {} C: {} V {}",
+                    reg.get_n() as u8,
+                    reg.get_z() as u8,
+                    reg.get_c() as u8,
+                    reg.get_v() as u8
+                )
+            );
+        }
 
         self.pipeline[0] = self.pipeline[1];
         self.regs.pc = self.regs.pc.wrapping_add(2);
