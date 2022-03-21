@@ -1,0 +1,3 @@
+[submodule "roms/lemon"]
+	path = roms/lemon
+	url = https://github.com/PeterLemon/GBA
