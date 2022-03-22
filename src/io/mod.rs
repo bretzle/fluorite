@@ -4,6 +4,7 @@ use self::{
     interrupt_controller::InterruptController,
     memory::{MemoryRegion, MemoryValue},
     scheduler::{Event, EventType, Scheduler},
+    timers::Timers,
 };
 use crate::{
     gba::{self, DebugSpec, Pixels},
@@ -18,6 +19,7 @@ pub mod interrupt_controller;
 pub mod keypad;
 pub mod memory;
 pub mod scheduler;
+pub mod timers;
 
 #[derive(Clone, Copy)]
 pub enum MemoryAccess {
@@ -54,7 +56,7 @@ pub struct Sysbus {
     gpu: Gpu,
     _apu: (),
     dma: Dma,
-    _timers: (),
+    timers: Timers,
     _keypad: (),
     interrupt_controller: InterruptController,
     _rtc: (),
@@ -91,7 +93,7 @@ impl Sysbus {
             gpu,
             _apu: (),
             dma: Dma::new(),
-            _timers: (),
+            timers: Timers::new(),
             _keypad: (),
             interrupt_controller: InterruptController::new(),
             _rtc: (),
@@ -149,7 +151,7 @@ impl Sysbus {
             MemoryRegion::Io => Self::write_from_bytes(self, &Self::write_register, addr, value),
             MemoryRegion::Palette => self.write_palette_ram(addr, value),
             MemoryRegion::Vram => self.write_vram(Gpu::parse_vram_addr(addr), value),
-            MemoryRegion::Oam => todo!(),
+            MemoryRegion::Oam => self.write_oam(Gpu::parse_oam_addr(addr), value),
             MemoryRegion::Rom0L => todo!(),
             MemoryRegion::Rom0H => todo!(),
             MemoryRegion::Rom1L => todo!(),
@@ -225,7 +227,7 @@ impl Sysbus {
 
     pub fn handle_event(&mut self, event: EventType) {
         match event {
-            EventType::_TimerOverflow(_timer) => println!("TODO: {event:?}"),
+            EventType::TimerOverflow(_timer) => println!("TODO: {event:?}"),
             EventType::FrameSequencer(step) => {
                 // self.apu.clock_sequencer(step);
                 self.scheduler.add(Event {
@@ -420,6 +422,10 @@ impl Sysbus {
     fn read_io_register(&self, addr: u32) -> u8 {
         match addr {
             0x04000000..=0x0400005F => self.gpu.read_register(addr),
+            0x04000100..=0x04000103 => self.timers.timers[0].read(&self.scheduler, addr as u8 % 4),
+            0x04000104..=0x04000107 => self.timers.timers[1].read(&self.scheduler, addr as u8 % 4),
+            0x04000108..=0x0400010B => self.timers.timers[2].read(&self.scheduler, addr as u8 % 4),
+            0x0400010C..=0x0400010F => self.timers.timers[3].read(&self.scheduler, addr as u8 % 4),
             _ => panic!("Reading Unimplemented IO Register at {addr:08X}"),
         }
     }
@@ -482,6 +488,18 @@ impl Sysbus {
             }
             0x040000D4..=0x040000DF => {
                 self.dma.channels[3].write(&mut self.scheduler, addr as u8 - 0xD4, val)
+            }
+            0x04000100..=0x04000103 => {
+                self.timers.timers[0].write(&mut self.scheduler, addr as u8 % 4, val)
+            }
+            0x04000104..=0x04000107 => {
+                self.timers.timers[1].write(&mut self.scheduler, addr as u8 % 4, val)
+            }
+            0x04000108..=0x0400010B => {
+                self.timers.timers[2].write(&mut self.scheduler, addr as u8 % 4, val)
+            }
+            0x0400010C..=0x0400010F => {
+                self.timers.timers[3].write(&mut self.scheduler, addr as u8 % 4, val)
             }
             0x04000110..=0x0400011F => (), // unused. TODO: verify this
             0x04000120..=0x0400012A => println!("Writng SerialCom(1) at {addr:08X} = {val:02X}",), // TODO: serial communication(1)
@@ -547,6 +565,15 @@ impl Sysbus {
             self.gpu.write_palette_ram(addr | 0x1, value);
         } else {
             Self::write_from_bytes(&mut self.gpu, &Gpu::write_palette_ram, addr, value)
+        }
+    }
+
+    fn write_oam<T>(&mut self, addr: u32, val: T)
+    where
+        T: MemoryValue,
+    {
+        if size_of::<T>() != 1 {
+            Self::write_mem(&mut self.gpu.oam, addr, val)
         }
     }
 }

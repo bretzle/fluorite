@@ -44,6 +44,7 @@ pub struct Gpu {
 
     // Ram
     pub vram: Box<[u8]>,
+    pub oam: Box<[u8]>,
 
     // DMA
     hblank_called: bool,
@@ -99,6 +100,7 @@ impl Gpu {
             obj_palettes: [0; 0x100],
 
             vram: vec![0; 0x18000].into_boxed_slice(),
+            oam: vec![0; 0x400].into_boxed_slice(),
 
             hblank_called: false,
             vblank_called: false,
@@ -172,6 +174,11 @@ impl Gpu {
         } else {
             addr & 0x17FFF
         }
+    }
+
+    #[inline]
+    pub fn parse_oam_addr(addr: u32) -> u32 {
+        addr & 0x3FF
     }
 
     pub fn hblank_called(&mut self) -> bool {
