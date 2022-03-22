@@ -53,7 +53,7 @@ pub struct Sysbus {
     clocks_ahead: u32,
 
     // Devices
-    gpu: Gpu,
+    pub gpu: Gpu,
     _apu: (),
     dma: Dma,
     timers: Timers,
@@ -77,8 +77,8 @@ impl Sysbus {
     const EWRAM_MASK: u32 = 0x3FFFF;
     const IWRAM_MASK: u32 = 0x7FFF;
 
-    pub fn new(bios: Vec<u8>, rom: Vec<u8>) -> (Self, Pixels, DebugSpec) {
-        let (gpu, pixels, debug) = Gpu::new();
+    pub fn new(bios: Vec<u8>, rom: Vec<u8>) -> (Self,  DebugSpec) {
+        let (gpu, debug) = Gpu::new();
 
         let bus = Self {
             bios: bios.into_boxed_slice(),
@@ -108,7 +108,7 @@ impl Sysbus {
             bios_latch: Cell::new(0xE129F000),
         };
 
-        (bus, pixels, debug)
+        (bus, debug)
     }
 
     pub fn read<T>(&self, addr: u32) -> T

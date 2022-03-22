@@ -16,12 +16,12 @@ pub struct Gba {
     pub next_frame_cycle: usize,
 }
 
-pub type Pixels = Arc<Mutex<Vec<u16>>>;
+pub type Pixels = Vec<u16>;
 pub type DebugSpec = Arc<Mutex<DebugSpecification>>;
 
 impl Gba {
-    pub fn new(bios: Vec<u8>, rom: Vec<u8>) -> (Self, Pixels, DebugSpec) {
-        let (mut bus, pixels, debug) = Sysbus::new(bios, rom);
+    pub fn new(bios: Vec<u8>, rom: Vec<u8>) -> (Self, DebugSpec) {
+        let (mut bus, debug) = Sysbus::new(bios, rom);
 
         let gba = Self {
             cpu: Arm7tdmi::new(false, &mut bus),
@@ -29,7 +29,7 @@ impl Gba {
             next_frame_cycle: 0,
         };
 
-        (gba, pixels, debug)
+        (gba, debug)
     }
 
     pub fn emulate_frame(&mut self) {
@@ -40,5 +40,9 @@ impl Gba {
             self.cpu.handle_irq(&mut self.bus);
             self.cpu.emulate_instr(&mut self.bus);
         }
+    }
+
+    pub fn get_pixels(&self) -> &[u16] {
+        &self.bus.gpu.pixels
     }
 }

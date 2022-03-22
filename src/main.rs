@@ -33,7 +33,7 @@ fn main() -> color_eyre::Result<()> {
         None => ROM.to_vec(),
     };
 
-    let (mut gba, pixels_mutex, debug_windows_spec_mutex) = Gba::new(BIOS.to_vec(), rom);
+    let (mut gba, debug_windows_spec_mutex) = Gba::new(BIOS.to_vec(), rom);
     let mut registers: WeakPointer<Registers> = WeakPointer::default();
     {
         let regs = unsafe { &mut *(&mut registers as *mut _) };
@@ -48,7 +48,7 @@ fn main() -> color_eyre::Result<()> {
         });
     }
 
-    let mut pixels_lock = None;
+    // let mut pixels_lock = None;
 
     let mut imgui = Context::create();
     let mut display = Display::new(&mut imgui);
@@ -66,15 +66,15 @@ fn main() -> color_eyre::Result<()> {
     while !display.should_close() {
         if !paused {
             // debug_windows = render_rx.recv().unwrap();
-            pixels_lock.replace(pixels_mutex.lock().unwrap());
+            // pixels_lock.replace(pixels_mutex.lock().unwrap());
         }
 
-        let pixels = pixels_lock.take().unwrap();
+        // let pixels = pixels_lock.take().unwrap();
         let mut debug_spec = debug_windows_spec_mutex.lock().unwrap();
         let mut debug_copy = debug_windows.clone();
 
         display.render(
-            &pixels,
+            gba.get_pixels(),
             &keypad_tx,
             &mut imgui,
             |ui, keys_pressed, modifers| {
@@ -202,9 +202,9 @@ fn main() -> color_eyre::Result<()> {
 
         drop(debug_spec);
 
-        if paused {
-            pixels_lock = Some(pixels);
-        }
+        // if paused {
+        //     pixels_lock = Some(pixels);
+        // }
     }
 
     Ok(())

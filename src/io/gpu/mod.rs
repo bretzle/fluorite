@@ -57,15 +57,15 @@ pub struct Gpu {
     objs_line: [OBJPixel; gba::WIDTH],
     windows_lines: [[bool; gba::WIDTH]; 3],
 
-    pixels: Pixels,
+    pub pixels: Pixels,
     _debug_spec: DebugSpec,
 }
 
 impl Gpu {
     const TRANSPARENT_COLOR: u16 = 0x8000;
 
-    pub fn new() -> (Self, Pixels, DebugSpec) {
-        let pixels = Arc::new(Mutex::new(vec![0; WIDTH * HEIGHT]));
+    pub fn new() -> (Self, DebugSpec) {
+        let pixels = vec![0; WIDTH * HEIGHT];
         let debug = Arc::new(Mutex::new(DebugSpecification::new()));
 
         let gpu = Self {
@@ -111,11 +111,11 @@ impl Gpu {
             objs_line: [OBJPixel::none(); gba::WIDTH],
             windows_lines: [[false; gba::WIDTH]; 3],
 
-            pixels: pixels.clone(),
+            pixels,
             _debug_spec: debug.clone(),
         };
 
-        (gpu, pixels, debug)
+        (gpu, debug)
     }
 
     pub fn read_register(&self, addr: u32) -> u8 {
@@ -350,7 +350,7 @@ impl Gpu {
             self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG3),
             self.dispcnt.contains(DISPCNTFlags::DISPLAY_OBJ),
         ];
-        let mut pixels = self.pixels.lock().unwrap();
+        let mut pixels = &mut self.pixels;
         for dot_x in 0..gba::WIDTH {
             let window_control = if self.windows_lines[0][dot_x] {
                 self.win_0_cnt
