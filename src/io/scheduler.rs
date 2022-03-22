@@ -32,7 +32,7 @@ impl Scheduler {
             .push(event.event_type, Reverse(event.cycle));
     }
 
-    pub fn remove(&mut self, event_type: EventType) {
+    pub fn _remove(&mut self, event_type: EventType) {
         self.event_queue.remove(&event_type);
     }
 }
@@ -44,6 +44,6 @@ pub struct Event {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EventType {
-    TimerOverflow(usize),
+    _TimerOverflow(usize),
     FrameSequencer(usize),
 }

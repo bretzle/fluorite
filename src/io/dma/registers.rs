@@ -13,7 +13,7 @@ impl Address {
         }
     }
 
-    pub fn read(&self, _byte: u8) -> u8 {
+    pub fn _read(&self, _byte: u8) -> u8 {
         0
     }
 
@@ -44,7 +44,7 @@ impl WordCount {
         self.max as u32
     }
 
-    pub fn read(&self, _byte: u8) -> u8 {
+    pub fn _read(&self, _byte: u8) -> u8 {
         0
     }
 
@@ -57,7 +57,7 @@ impl WordCount {
     }
 }
 
-pub struct DMACNT {
+pub struct DmaCnt {
     pub dest_addr_ctrl: u8,
     pub src_addr_ctrl: u8,
     pub repeat: bool,
@@ -70,9 +70,9 @@ pub struct DMACNT {
     is_dma3: bool,
 }
 
-impl DMACNT {
-    pub fn new(is_dma3: bool) -> DMACNT {
-        DMACNT {
+impl DmaCnt {
+    pub fn new(is_dma3: bool) -> Self {
+        Self {
             dest_addr_ctrl: 0,
             src_addr_ctrl: 0,
             repeat: false,
@@ -85,8 +85,8 @@ impl DMACNT {
             is_dma3,
         }
     }
-	
-    pub fn read(&self, byte: u8) -> u8 {
+
+    pub fn _read(&self, byte: u8) -> u8 {
         match byte {
             0 => (self.src_addr_ctrl & 0x1) << 7 | self.dest_addr_ctrl << 5,
             1 => {

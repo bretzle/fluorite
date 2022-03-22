@@ -123,7 +123,7 @@ impl Arm7tdmi {
         let op2 = if IMM {
             let shift = (instr >> 8) & 0xF;
             let operand = instr & 0xFF;
-            if (opcode < 0x5 || opcode > 0x7) && shift != 0 {
+            if !(0x5..=0x7).contains(&opcode) && shift != 0 {
                 self.shift(bus, 3, operand, shift * 2, true, change_status)
             } else {
                 operand.rotate_right(shift * 2)
@@ -148,7 +148,7 @@ impl Arm7tdmi {
                 op2,
                 shift,
                 !shift_by_reg,
-                change_status && (opcode < 0x5 || opcode > 0x7),
+                change_status && !(0x5..=0x7).contains(&opcode),
             )
         };
         let op1 = self.regs.get_reg_i((instr >> 16) & 0xF);
@@ -171,9 +171,9 @@ impl Arm7tdmi {
             self.regs.set_z(result == 0);
             self.regs.set_n(result & 0x8000_0000 != 0);
         } else if special_change_status {
-            self.regs.set_reg(Reg::CPSR, self.regs.get_reg(Reg::SPSR))
+            self.regs.set_reg(Reg::Cpsr, self.regs.get_reg(Reg::Spsr))
         } else {
-            assert_eq!(opcode & 0xC != 0x8, true)
+            assert!(opcode & 0xC != 0x8)
         }
         let mut clocked = false;
         if opcode & 0xC != 0x8 {
@@ -206,7 +206,7 @@ impl Arm7tdmi {
     ) {
         assert_eq!(instr >> 26 & 0b11, 0b00);
         assert_eq!(instr >> 23 & 0b11, 0b10);
-        let status_reg = if P { Reg::SPSR } else { Reg::CPSR };
+        let status_reg = if P { Reg::Spsr } else { Reg::Cpsr };
         let msr = L;
         assert_eq!(instr >> 20 & 0b1, 0b0);
         self.instruction_prefetch::<u32>(bus, MemoryAccess::S);
@@ -222,7 +222,7 @@ impl Arm7tdmi {
             if instr >> 17 & 0x1 != 0 {
                 mask |= 0x0000FF00
             } // Extension
-            if self.regs.get_mode() != Mode::USR && instr >> 16 & 0x1 != 0 {
+            if self.regs.get_mode() != Mode::User && instr >> 16 & 0x1 != 0 {
                 mask |= 0x000000FF
             } // Control
             assert_eq!(instr >> 12 & 0xF, 0xF);
@@ -236,7 +236,7 @@ impl Arm7tdmi {
             let value = self.regs.get_reg(status_reg) & !mask | operand & mask;
             self.regs.set_reg(status_reg, value);
         } else {
-            assert_eq!(IMM, false);
+            assert!(!IMM);
             self.regs
                 .set_reg_i(instr >> 12 & 0xF, self.regs.get_reg(status_reg));
             assert_eq!(instr & 0xFFF, 0);
@@ -307,7 +307,7 @@ impl Arm7tdmi {
             self.regs.set_n(result & 0x8000_0000_0000_0000 != 0);
             self.regs.set_z(result == 0);
         }
-        self.regs.set_reg_i(src_dest_reg_low, (result >> 0) as u32);
+        self.regs.set_reg_i(src_dest_reg_low, result as u32);
         self.regs
             .set_reg_i(src_dest_reg_high, (result >> 32) as u32);
     }
@@ -394,7 +394,7 @@ impl Arm7tdmi {
         } else {
             // TOOD: Take into account privilege of access
             let force_non_privileged_access = instr >> 21 & 0x1 != 0;
-            assert_eq!(force_non_privileged_access, false);
+            assert!(!force_non_privileged_access);
             // Write back is not done if src_reg == base_reg
             exec(base);
             if write_back {
@@ -478,7 +478,7 @@ impl Arm7tdmi {
             }
         } else {
             exec(base);
-            assert_eq!(instr >> 24 & 0x1 != 0, false);
+            assert!(instr >> 24 & 0x1 == 0);
             // Write back is not done if src_reg == base_reg
             if write_back {
                 self.regs.set_reg_i(base_reg, offset_applied)
@@ -509,7 +509,7 @@ impl Arm7tdmi {
         let write_back = WRITEBACK && !(LOAD && r_list & (1 << base_reg) != 0);
         let actual_mode = self.regs.get_mode();
         if PSR_FORCE_USR && !(LOAD && r_list & 0x8000 != 0) {
-            self.regs.set_mode(Mode::USR)
+            self.regs.set_mode(Mode::User)
         }
 
         self.instruction_prefetch::<u32>(bus, MemoryAccess::N);
@@ -642,7 +642,7 @@ impl Arm7tdmi {
     fn arm_software_interrupt(&mut self, bus: &mut Sysbus, instr: u32) {
         assert_eq!(instr >> 24 & 0xF, 0b1111);
         self.instruction_prefetch::<u32>(bus, MemoryAccess::N);
-        self.regs.change_mode(Mode::SVC);
+        self.regs.change_mode(Mode::Supervisor);
         self.regs.set_reg(Reg::R14, self.regs.pc.wrapping_sub(4));
         self.regs.set_i(true);
         self.regs.pc = 0x8;
@@ -657,6 +657,7 @@ impl Arm7tdmi {
     }
 
     // ARM.17: Undefined Instruction
+    #[allow(dead_code)]
     fn undefined_instr_arm(&mut self, _: &mut Sysbus, _: u32) {
         unimplemented!("ARM.17: Undefined Instruction not implemented!");
     }

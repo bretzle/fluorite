@@ -17,40 +17,40 @@ impl Sysbus {
 
 #[derive(PartialEq)]
 pub enum MemoryRegion {
-    BIOS,
-    EWRAM,
-    IWRAM,
-    IO,
+    Bios,
+    Ewram,
+    Iwram,
+    Io,
     Palette,
-    VRAM,
-    OAM,
-    ROM0L,
-    ROM0H,
-    ROM1L,
-    ROM1H,
-    ROM2L,
-    ROM2H,
-    SRAM,
+    Vram,
+    Oam,
+    Rom0L,
+    Rom0H,
+    Rom1L,
+    Rom1H,
+    Rom2L,
+    Rom2H,
+    Sram,
     Unused,
 }
 
 impl MemoryRegion {
     pub fn get_region(addr: u32) -> MemoryRegion {
         match addr >> 24 {
-            0x00 if addr < 0x4000 => MemoryRegion::BIOS, // Not Mirrored
-            0x02 => MemoryRegion::EWRAM,
-            0x03 => MemoryRegion::IWRAM,
-            0x04 => MemoryRegion::IO,
+            0x00 if addr < 0x4000 => MemoryRegion::Bios, // Not Mirrored
+            0x02 => MemoryRegion::Ewram,
+            0x03 => MemoryRegion::Iwram,
+            0x04 => MemoryRegion::Io,
             0x05 => MemoryRegion::Palette,
-            0x06 => MemoryRegion::VRAM,
-            0x07 => MemoryRegion::OAM,
-            0x08 => MemoryRegion::ROM0L,
-            0x09 => MemoryRegion::ROM0H,
-            0x0A => MemoryRegion::ROM1L,
-            0x0B => MemoryRegion::ROM1H,
-            0x0C => MemoryRegion::ROM2L,
-            0x0D => MemoryRegion::ROM2H,
-            0x0E | 0x0F => MemoryRegion::SRAM,
+            0x06 => MemoryRegion::Vram,
+            0x07 => MemoryRegion::Oam,
+            0x08 => MemoryRegion::Rom0L,
+            0x09 => MemoryRegion::Rom0H,
+            0x0A => MemoryRegion::Rom1L,
+            0x0B => MemoryRegion::Rom1H,
+            0x0C => MemoryRegion::Rom2L,
+            0x0D => MemoryRegion::Rom2H,
+            0x0E | 0x0F => MemoryRegion::Sram,
             _ => MemoryRegion::Unused,
         }
     }

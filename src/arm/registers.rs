@@ -18,8 +18,8 @@ pub enum Reg {
     R13 = 13, // SP
     R14 = 14, // LR
     R15 = 15, // PC
-    CPSR,
-    SPSR,
+    Cpsr,
+    Spsr,
 }
 
 #[derive(Clone)]
@@ -67,25 +67,25 @@ impl Registers {
         match reg {
             R0 | R1 | R2 | R3 | R4 | R5 | R6 | R7 => self.usr[reg as usize],
             R8 | R9 | R10 | R11 | R12 => match mode {
-                Mode::FIQ => self.fiq[reg as usize - 8],
+                Mode::Fiq => self.fiq[reg as usize - 8],
                 _ => self.usr[reg as usize],
             },
             R13 | R14 => match mode {
-                Mode::FIQ => self.fiq[reg as usize - 8],
-                Mode::SVC => self.svc[reg as usize - 13],
-                Mode::ABT => self.abt[reg as usize - 13],
-                Mode::IRQ => self.irq[reg as usize - 13],
-                Mode::UND => self.und[reg as usize - 13],
+                Mode::Fiq => self.fiq[reg as usize - 8],
+                Mode::Supervisor => self.svc[reg as usize - 13],
+                Mode::Abort => self.abt[reg as usize - 13],
+                Mode::Irq => self.irq[reg as usize - 13],
+                Mode::Undefined => self.und[reg as usize - 13],
                 _ => self.usr[reg as usize],
             },
             R15 => self.pc,
-            CPSR => self.cpsr.bits,
-            SPSR => match mode {
-                Mode::FIQ => self.spsr[0].bits(),
-                Mode::SVC => self.spsr[1].bits(),
-                Mode::ABT => self.spsr[2].bits(),
-                Mode::IRQ => self.spsr[3].bits(),
-                Mode::UND => self.spsr[4].bits(),
+            Cpsr => self.cpsr.bits,
+            Spsr => match mode {
+                Mode::Fiq => self.spsr[0].bits(),
+                Mode::Supervisor => self.spsr[1].bits(),
+                Mode::Abort => self.spsr[2].bits(),
+                Mode::Irq => self.spsr[3].bits(),
+                Mode::Undefined => self.spsr[4].bits(),
                 _ => self.cpsr.bits(),
             },
         }
@@ -97,25 +97,25 @@ impl Registers {
         match reg {
             R0 | R1 | R2 | R3 | R4 | R5 | R6 | R7 => self.usr[reg as usize] = value,
             R8 | R9 | R10 | R11 | R12 => match mode {
-                Mode::FIQ => self.fiq[reg as usize - 8] = value,
+                Mode::Fiq => self.fiq[reg as usize - 8] = value,
                 _ => self.usr[reg as usize] = value,
             },
             R13 | R14 => match mode {
-                Mode::FIQ => self.fiq[reg as usize - 8] = value,
-                Mode::SVC => self.svc[reg as usize - 13] = value,
-                Mode::ABT => self.abt[reg as usize - 13] = value,
-                Mode::IRQ => self.irq[reg as usize - 13] = value,
-                Mode::UND => self.und[reg as usize - 13] = value,
+                Mode::Fiq => self.fiq[reg as usize - 8] = value,
+                Mode::Supervisor => self.svc[reg as usize - 13] = value,
+                Mode::Abort => self.abt[reg as usize - 13] = value,
+                Mode::Irq => self.irq[reg as usize - 13] = value,
+                Mode::Undefined => self.und[reg as usize - 13] = value,
                 _ => self.usr[reg as usize] = value,
             },
             R15 => self.pc = value,
-            CPSR => self.cpsr.bits = value,
-            SPSR => match mode {
-                Mode::FIQ => self.spsr[0] = StatusRegister::from_bits(value).unwrap(),
-                Mode::SVC => self.spsr[1] = StatusRegister::from_bits(value).unwrap(),
-                Mode::ABT => self.spsr[2] = StatusRegister::from_bits(value).unwrap(),
-                Mode::IRQ => self.spsr[3] = StatusRegister::from_bits(value).unwrap(),
-                Mode::UND => self.spsr[4] = StatusRegister::from_bits(value).unwrap(),
+            Cpsr => self.cpsr.bits = value,
+            Spsr => match mode {
+                Mode::Fiq => self.spsr[0] = StatusRegister::from_bits(value).unwrap(),
+                Mode::Supervisor => self.spsr[1] = StatusRegister::from_bits(value).unwrap(),
+                Mode::Abort => self.spsr[2] = StatusRegister::from_bits(value).unwrap(),
+                Mode::Irq => self.spsr[3] = StatusRegister::from_bits(value).unwrap(),
+                Mode::Undefined => self.spsr[4] = StatusRegister::from_bits(value).unwrap(),
                 _ => (),
             },
         }
@@ -145,13 +145,13 @@ impl Registers {
     }
 
     pub fn restore_cpsr(&mut self) {
-        self.cpsr.bits = self.get_reg(Reg::SPSR);
+        self.cpsr.bits = self.get_reg(Reg::Spsr);
     }
 
     pub fn change_mode(&mut self, mode: Mode) {
-        let cpsr = self.get_reg(Reg::CPSR);
+        let cpsr = self.get_reg(Reg::Cpsr);
         self.set_mode(mode);
-        self.set_reg(Reg::SPSR, cpsr);
+        self.set_reg(Reg::Spsr, cpsr);
     }
 
     pub fn get_reg_i(&self, reg: u32) -> u32 {
@@ -177,7 +177,7 @@ impl Registers {
     pub fn get_i(&self) -> bool {
         self.cpsr.contains(StatusRegister::I)
     }
-    pub fn get_f(&self) -> bool {
+    pub fn _get_f(&self) -> bool {
         self.cpsr.contains(StatusRegister::F)
     }
     pub fn get_flags(&self) -> u32 {
@@ -217,13 +217,13 @@ impl Registers {
 
 #[derive(Debug, PartialEq)]
 pub enum Mode {
-    USR = 0b10000,
-    FIQ = 0b10001,
-    IRQ = 0b10010,
-    SVC = 0b10011,
-    ABT = 0b10111,
-    SYS = 0b11111,
-    UND = 0b11011,
+    User = 0b10000,
+    Fiq = 0b10001,
+    Irq = 0b10010,
+    Supervisor = 0b10011,
+    Abort = 0b10111,
+    System = 0b11111,
+    Undefined = 0b11011,
 }
 
 bitflags! {
@@ -245,18 +245,18 @@ bitflags! {
 
 impl StatusRegister {
     pub fn reset() -> Self {
-        Self::from_bits(Mode::SYS as u32).unwrap()
+        Self::from_bits(Mode::System as u32).unwrap()
     }
 
     pub fn get_mode(&self) -> Mode {
         match self.bits() & 0x1F {
-            m if m == Mode::USR as u32 => Mode::USR,
-            m if m == Mode::FIQ as u32 => Mode::FIQ,
-            m if m == Mode::IRQ as u32 => Mode::IRQ,
-            m if m == Mode::SVC as u32 => Mode::SVC,
-            m if m == Mode::ABT as u32 => Mode::ABT,
-            m if m == Mode::SYS as u32 => Mode::SYS,
-            m if m == Mode::UND as u32 => Mode::UND,
+            m if m == Mode::User as u32 => Mode::User,
+            m if m == Mode::Fiq as u32 => Mode::Fiq,
+            m if m == Mode::Irq as u32 => Mode::Irq,
+            m if m == Mode::Supervisor as u32 => Mode::Supervisor,
+            m if m == Mode::Abort as u32 => Mode::Abort,
+            m if m == Mode::System as u32 => Mode::System,
+            m if m == Mode::Undefined as u32 => Mode::Undefined,
             bits => panic!("Invalid Mode: {bits:05b}"),
         }
     }

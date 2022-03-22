@@ -52,13 +52,13 @@ pub struct Sysbus {
 
     // Devices
     gpu: Gpu,
-    apu: (),
+    _apu: (),
     dma: Dma,
-    timers: (),
-    keypad: (),
+    _timers: (),
+    _keypad: (),
     interrupt_controller: InterruptController,
-    rtc: (),
-    backup: (),
+    _rtc: (),
+    _backup: (),
 
     // registers
     haltcnt: u16,
@@ -89,13 +89,13 @@ impl Sysbus {
             clocks_ahead: 0,
 
             gpu,
-            apu: (),
+            _apu: (),
             dma: Dma::new(),
-            timers: (),
-            keypad: (),
+            _timers: (),
+            _keypad: (),
             interrupt_controller: InterruptController::new(),
-            rtc: (),
-            backup: (),
+            _rtc: (),
+            _backup: (),
 
             haltcnt: 0,
             waitcnt: WaitStateControl::new(),
@@ -114,26 +114,26 @@ impl Sysbus {
         T: MemoryValue,
     {
         match MemoryRegion::get_region(addr) {
-            MemoryRegion::BIOS => self.read_bios(addr),
-            MemoryRegion::EWRAM => Self::read_mem(&self.ewram, addr & Self::EWRAM_MASK),
-            MemoryRegion::IWRAM => Self::read_mem(&self.iwram, addr & Self::IWRAM_MASK),
-            MemoryRegion::IO => Self::read_from_bytes(self, &Self::read_io_register, addr),
+            MemoryRegion::Bios => self.read_bios(addr),
+            MemoryRegion::Ewram => Self::read_mem(&self.ewram, addr & Self::EWRAM_MASK),
+            MemoryRegion::Iwram => Self::read_mem(&self.iwram, addr & Self::IWRAM_MASK),
+            MemoryRegion::Io => Self::read_from_bytes(self, &Self::read_io_register, addr),
             MemoryRegion::Palette => todo!(),
-            MemoryRegion::VRAM => todo!(),
-            MemoryRegion::OAM => todo!(),
-            MemoryRegion::ROM0L => {
+            MemoryRegion::Vram => todo!(),
+            MemoryRegion::Oam => todo!(),
+            MemoryRegion::Rom0L => {
                 // if (0x080000C4..=0x80000C9).contains(&addr) {
                 // 	todo!()
                 // } else {
                 self.read_rom(addr)
                 // }
             }
-            MemoryRegion::ROM0H => todo!(),
-            MemoryRegion::ROM1L => todo!(),
-            MemoryRegion::ROM1H => todo!(),
-            MemoryRegion::ROM2L => todo!(),
-            MemoryRegion::ROM2H => todo!(),
-            MemoryRegion::SRAM => todo!(),
+            MemoryRegion::Rom0H => todo!(),
+            MemoryRegion::Rom1L => todo!(),
+            MemoryRegion::Rom1H => todo!(),
+            MemoryRegion::Rom2L => todo!(),
+            MemoryRegion::Rom2H => todo!(),
+            MemoryRegion::Sram => todo!(),
             MemoryRegion::Unused => self.read_openbus(addr),
         }
     }
@@ -143,20 +143,20 @@ impl Sysbus {
         T: MemoryValue,
     {
         match MemoryRegion::get_region(addr) {
-            MemoryRegion::BIOS => todo!(),
-            MemoryRegion::EWRAM => Self::write_mem(&mut self.ewram, addr & Self::EWRAM_MASK, value),
-            MemoryRegion::IWRAM => Self::write_mem(&mut self.iwram, addr & Self::IWRAM_MASK, value),
-            MemoryRegion::IO => Self::write_from_bytes(self, &Self::write_register, addr, value),
+            MemoryRegion::Bios => todo!(),
+            MemoryRegion::Ewram => Self::write_mem(&mut self.ewram, addr & Self::EWRAM_MASK, value),
+            MemoryRegion::Iwram => Self::write_mem(&mut self.iwram, addr & Self::IWRAM_MASK, value),
+            MemoryRegion::Io => Self::write_from_bytes(self, &Self::write_register, addr, value),
             MemoryRegion::Palette => self.write_palette_ram(addr, value),
-            MemoryRegion::VRAM => self.write_vram(Gpu::parse_vram_addr(addr), value),
-            MemoryRegion::OAM => todo!(),
-            MemoryRegion::ROM0L => todo!(),
-            MemoryRegion::ROM0H => todo!(),
-            MemoryRegion::ROM1L => todo!(),
-            MemoryRegion::ROM1H => todo!(),
-            MemoryRegion::ROM2L => todo!(),
-            MemoryRegion::ROM2H => todo!(),
-            MemoryRegion::SRAM => todo!(),
+            MemoryRegion::Vram => self.write_vram(Gpu::parse_vram_addr(addr), value),
+            MemoryRegion::Oam => todo!(),
+            MemoryRegion::Rom0L => todo!(),
+            MemoryRegion::Rom0H => todo!(),
+            MemoryRegion::Rom1L => todo!(),
+            MemoryRegion::Rom1H => todo!(),
+            MemoryRegion::Rom2L => todo!(),
+            MemoryRegion::Rom2H => todo!(),
+            MemoryRegion::Sram => todo!(),
             MemoryRegion::Unused => todo!(),
         }
     }
@@ -167,10 +167,10 @@ impl Sysbus {
             1
         } else {
             match MemoryRegion::get_region(addr) {
-                MemoryRegion::BIOS => 1,                                 // BIOS ROM
-                MemoryRegion::EWRAM => [3, 3, 6][access_width as usize], // WRAM - On-board 256K
-                MemoryRegion::IWRAM => 1,
-                MemoryRegion::IO => 1,
+                MemoryRegion::Bios => 1,                                 // BIOS ROM
+                MemoryRegion::Ewram => [3, 3, 6][access_width as usize], // WRAM - On-board 256K
+                MemoryRegion::Iwram => 1,
+                MemoryRegion::Io => 1,
                 MemoryRegion::Palette => {
                     if access_width < 2 {
                         1
@@ -178,27 +178,27 @@ impl Sysbus {
                         2
                     }
                 }
-                MemoryRegion::VRAM => {
+                MemoryRegion::Vram => {
                     if access_width < 2 {
                         1
                     } else {
                         2
                     }
                 }
-                MemoryRegion::OAM => 1,
-                MemoryRegion::ROM0L | MemoryRegion::ROM0H => {
+                MemoryRegion::Oam => 1,
+                MemoryRegion::Rom0L | MemoryRegion::Rom0H => {
                     self.waitcnt
                         .get_rom_access_time(0, cycle, access_width, addr)
                 }
-                MemoryRegion::ROM1L | MemoryRegion::ROM1H => {
+                MemoryRegion::Rom1L | MemoryRegion::Rom1H => {
                     self.waitcnt
                         .get_rom_access_time(1, cycle, access_width, addr)
                 }
-                MemoryRegion::ROM2L | MemoryRegion::ROM2H => {
+                MemoryRegion::Rom2L | MemoryRegion::Rom2H => {
                     self.waitcnt
                         .get_rom_access_time(2, cycle, access_width, addr)
                 }
-                MemoryRegion::SRAM => self.waitcnt.get_sram_access_time(cycle),
+                MemoryRegion::Sram => self.waitcnt.get_sram_access_time(cycle),
                 MemoryRegion::Unused => 1,
             }
         };
@@ -225,7 +225,7 @@ impl Sysbus {
 
     pub fn handle_event(&mut self, event: EventType) {
         match event {
-            EventType::TimerOverflow(_timer) => println!("TODO: {event:?}"),
+            EventType::_TimerOverflow(_timer) => println!("TODO: {event:?}"),
             EventType::FrameSequencer(step) => {
                 // self.apu.clock_sequencer(step);
                 self.scheduler.add(Event {
@@ -431,13 +431,13 @@ impl Sysbus {
         use MemoryRegion::*;
         let value = if self.in_thumb {
             match MemoryRegion::get_region(self.pc) {
-                EWRAM | Palette | VRAM | ROM0L | ROM0H | ROM1L | ROM1H | ROM2L | ROM2H => {
+                Ewram | Palette | Vram | Rom0L | Rom0H | Rom1L | Rom1H | Rom2L | Rom2H => {
                     self.pipeline[1] * 0x00010001
                 }
-                BIOS | OAM => self.pipeline[0] | self.pipeline[1] << 16,
-                IWRAM if self.pc & 0x3 != 0 => self.pipeline[0] | self.pipeline[1] << 16,
-                IWRAM => self.pipeline[1] | self.pipeline[0] << 16,
-                IO | SRAM | Unused => 0,
+                Bios | Oam => self.pipeline[0] | self.pipeline[1] << 16,
+                Iwram if self.pc & 0x3 != 0 => self.pipeline[0] | self.pipeline[1] << 16,
+                Iwram => self.pipeline[1] | self.pipeline[0] << 16,
+                Io | Sram | Unused => 0,
             }
         } else {
             self.pipeline[1]
@@ -463,7 +463,7 @@ impl Sysbus {
             write_fn(
                 device,
                 addr + i as u32,
-                num::cast::<T, u8>(value >> 8 * i & mask).unwrap(),
+                num::cast::<T, u8>(value >> (8 * i) & mask).unwrap(),
             );
         }
     }
@@ -483,6 +483,10 @@ impl Sysbus {
             0x040000D4..=0x040000DF => {
                 self.dma.channels[3].write(&mut self.scheduler, addr as u8 - 0xD4, val)
             }
+            0x04000110..=0x0400011F => (), // unused. TODO: verify this
+            0x04000120..=0x0400012A => println!("Writng SerialCom(1) at {addr:08X} = {val:02X}",), // TODO: serial communication(1)
+            0x04000130..=0x04000132 => println!("Writng Keypad at {addr:08X} = {val:02X}",), // TODO: Keypad Input
+            0x04000134..=0x04000158 => println!("Writng SerialCom(2) at {addr:08X} = {val:02X}",), // TODO: serial communication(2)
             0x04000200 => self
                 .interrupt_controller
                 .enable
@@ -553,7 +557,7 @@ struct WaitStateControl {
     s_wait_state_settings: [usize; 3],
     phi_terminal_out: usize,
     use_prefetch: bool,
-    type_flag: bool,
+    _type_flag: bool,
     // Prefetch Buffer
     can_prefetch: bool,
     prefetch: VecDeque<u32>,
@@ -574,7 +578,7 @@ impl WaitStateControl {
             s_wait_state_settings: [0; 3],
             phi_terminal_out: 0,
             use_prefetch: false,
-            type_flag: false,
+            _type_flag: false,
             // Prefetch Buffer
             can_prefetch: true,
             prefetch: VecDeque::new(),
@@ -649,7 +653,7 @@ impl WaitStateControl {
         1 + WaitStateControl::SRAM_ACCESS_TIMINGS[self.sram_setting]
     }
 
-    fn read(&self, byte: u8) -> u8 {
+    fn _read(&self, byte: u8) -> u8 {
         match byte {
             0 => {
                 (self.s_wait_state_settings[1] << 7
@@ -659,7 +663,7 @@ impl WaitStateControl {
                     | self.sram_setting) as u8
             }
             1 => {
-                ((self.type_flag as usize) << 7
+                ((self._type_flag as usize) << 7
                     | (self.use_prefetch as usize) << 6
                     | self.phi_terminal_out << 3
                     | self.s_wait_state_settings[2] << 2
@@ -681,7 +685,7 @@ impl WaitStateControl {
             }
             1 => {
                 let value = value as usize;
-                self.n_wait_state_settings[2] = (value >> 0) & 0x3;
+                self.n_wait_state_settings[2] = value & 0x3;
                 self.s_wait_state_settings[2] = (value >> 2) & 0x1;
                 self.phi_terminal_out = (value >> 3) & 0x3;
                 self.use_prefetch = (value >> 6) & 0x1 != 0;

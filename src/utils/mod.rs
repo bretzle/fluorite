@@ -42,16 +42,15 @@ impl<T> From<&mut T> for WeakPointer<T> {
 
 unsafe impl<T> Send for WeakPointer<T> {}
 
-
 #[macro_export]
 macro_rules! time {
-	($s:literal, $t:block) => {{
-		let now = std::time::Instant::now();
+    ($s:literal, $t:block) => {{
+        let now = std::time::Instant::now();
 
-		let ret = $t;
+        let ret = $t;
 
-		println!("{}: {:?}", $s, now.elapsed());
+        println!("{}: {:?}", $s, now.elapsed());
 
-		ret
-	}};
+        ret
+    }};
 }

@@ -14,18 +14,18 @@ pub struct Gpu {
     vcount: u8,
 
     // Backgrounds
-    bgcnts: [BGCNT; 4],
-    hofs: [OFS; 4],
-    vofs: [OFS; 4],
-    dxs: [RotationScalingParameter; 2],
-    dmxs: [RotationScalingParameter; 2],
-    dys: [RotationScalingParameter; 2],
-    dmys: [RotationScalingParameter; 2],
+    bgcnts: [BgCnt; 4],
+    hofs: [Ofs; 4],
+    vofs: [Ofs; 4],
+    _dxs: [RotationScalingParameter; 2],
+    _dmxs: [RotationScalingParameter; 2],
+    _dys: [RotationScalingParameter; 2],
+    _dmys: [RotationScalingParameter; 2],
     bgxs: [ReferencePointCoord; 2],
     bgys: [ReferencePointCoord; 2],
     bgxs_latch: [ReferencePointCoord; 2],
     bgys_latch: [ReferencePointCoord; 2],
-    mosaic: MOSAIC,
+    mosaic: Mosaic,
 
     // Windows
     win_0_cnt: WindowControl,
@@ -34,9 +34,9 @@ pub struct Gpu {
     win_obj_cnt: WindowControl,
 
     // Color Special Effects
-    bldcnt: BLDCNT,
-    bldalpha: BLDALPHA,
-    bldy: BLDY,
+    bldcnt: BldCnt,
+    bldalpha: BldAlpha,
+    bldy: Bldy,
 
     // Palettes
     bg_palettes: [u16; 0x100],
@@ -57,7 +57,7 @@ pub struct Gpu {
     windows_lines: [[bool; gba::WIDTH]; 3],
 
     pixels: Pixels,
-    debug_spec: DebugSpec,
+    _debug_spec: DebugSpec,
 }
 
 impl Gpu {
@@ -73,22 +73,22 @@ impl Gpu {
             dispstat: Dispstat::new(),
             vcount: 0,
 
-            bgcnts: [BGCNT::new(); 4],
-            hofs: [OFS::new(); 4],
-            vofs: [OFS::new(); 4],
-            dxs: [RotationScalingParameter::new(); 2],
-            dmxs: [RotationScalingParameter::new(); 2],
-            dys: [RotationScalingParameter::new(); 2],
-            dmys: [RotationScalingParameter::new(); 2],
+            bgcnts: [BgCnt::new(); 4],
+            hofs: [Ofs::new(); 4],
+            vofs: [Ofs::new(); 4],
+            _dxs: [RotationScalingParameter::new(); 2],
+            _dmxs: [RotationScalingParameter::new(); 2],
+            _dys: [RotationScalingParameter::new(); 2],
+            _dmys: [RotationScalingParameter::new(); 2],
             bgxs: [ReferencePointCoord::new(); 2],
             bgys: [ReferencePointCoord::new(); 2],
             bgxs_latch: [ReferencePointCoord::new(); 2],
             bgys_latch: [ReferencePointCoord::new(); 2],
-            mosaic: MOSAIC::new(),
+            mosaic: Mosaic::new(),
 
-            bldcnt: BLDCNT::new(),
-            bldalpha: BLDALPHA::new(),
-            bldy: BLDY::new(),
+            bldcnt: BldCnt::new(),
+            bldalpha: BldAlpha::new(),
+            bldy: Bldy::new(),
 
             win_0_cnt: WindowControl::new(),
             win_1_cnt: WindowControl::new(),
@@ -110,7 +110,7 @@ impl Gpu {
             windows_lines: [[false; gba::WIDTH]; 3],
 
             pixels: pixels.clone(),
-            debug_spec: debug.clone(),
+            _debug_spec: debug.clone(),
         };
 
         (gpu, pixels, debug)
@@ -188,24 +188,26 @@ impl Gpu {
 
     pub fn emulate_dot(&mut self) -> InterruptRequest {
         let mut interrupts = InterruptRequest::empty();
-        if self.dot < 240 {
-            // Visible
-            self.dispstat.remove(DISPSTATFlags::HBLANK);
-        } else {
-            // HBlank
-            if self.dot == 240 {
+
+        // TODO: feature(exclusive_range_pattern)
+        match self.dot {
+            0..=239 => self.dispstat.remove(DISPSTATFlags::HBLANK), // Visible
+            240 => {
+                // HBlank
                 if self.dispstat.contains(DISPSTATFlags::HBLANK_IRQ_ENABLE) {
                     interrupts.insert(InterruptRequest::HBLANK);
                 }
             }
-            if self.dot == 250 {
+            250 => {
                 // TODO: Take into account half
                 self.dispstat.insert(DISPSTATFlags::HBLANK);
                 if self.vcount < 160 {
-                    self.hblank_called = true
+                    self.hblank_called = true;
                 } // HDMA only occurs on visible scanlines
             }
+            _ => {}
         }
+
         if self.vcount < 160 && self.vcount != 227 {
             // Visible
             self.dispstat.remove(DISPSTATFlags::VBLANK);
@@ -232,8 +234,8 @@ impl Gpu {
         if self.dot == 308 {
             self.dot = 0;
             if self.vcount == 227 {
-                self.bgxs_latch = self.bgxs.clone();
-                self.bgys_latch = self.bgys.clone();
+                self.bgxs_latch = self.bgxs;
+                self.bgys_latch = self.bgys;
             }
             self.vcount = (self.vcount + 1) % 228;
             if self.vcount == self.dispstat.vcount_setting {
@@ -367,7 +369,7 @@ impl Gpu {
 
             // Store top 2 layers
             let mut colors = [self.bg_palettes[0], self.bg_palettes[0]]; // Default is backdrop color
-            let mut layers = [Layer::BD, Layer::BD];
+            let mut layers = [Layer::Bd, Layer::Bd];
             let mut priorities = [4, 4];
             let mut i = 0;
             for (bg_i, priority) in bgs.iter() {
@@ -389,15 +391,15 @@ impl Gpu {
                     colors[1] = colors[0];
                     layers[1] = layers[0];
                     colors[0] = obj_color;
-                    layers[0] = Layer::OBJ;
+                    layers[0] = Layer::Obj;
                     // Priority is irrelevant so no need to change it
                 } else if self.objs_line[dot_x].priority <= priorities[1] {
                     colors[1] = obj_color;
-                    layers[1] = Layer::OBJ;
+                    layers[1] = Layer::Obj;
                 }
             }
 
-            let trans_obj = layers[0] == Layer::OBJ && self.objs_line[dot_x].semitransparent;
+            let trans_obj = layers[0] == Layer::Obj && self.objs_line[dot_x].semitransparent;
             let target1_enabled =
                 self.bldcnt.target_pixel1.enabled[layers[0] as usize] || trans_obj;
             let target2_enabled = self.bldcnt.target_pixel2.enabled[layers[1] as usize];
@@ -426,7 +428,7 @@ impl Gpu {
                             colors[0]
                         }
                     }
-                    ColorSFX::BrightnessInc => {
+                    ColorSFX::_BrightnessInc => {
                         let mut new_color = 0;
                         for i in (0..3).rev() {
                             let val = colors[0] >> (5 * i) & 0x1F;
@@ -435,7 +437,7 @@ impl Gpu {
                         }
                         new_color
                     }
-                    ColorSFX::BrightnessDec => {
+                    ColorSFX::_BrightnessDec => {
                         let mut new_color = 0;
                         for i in (0..3).rev() {
                             let val = colors[0] >> (5 * i) & 0x1F;
@@ -452,7 +454,7 @@ impl Gpu {
         }
     }
 
-    fn render_window(&mut self, window_i: usize) {
+    fn render_window(&mut self, _window_i: usize) {
         todo!()
     }
 
@@ -461,8 +463,8 @@ impl Gpu {
     }
 
     fn render_text_line(&mut self, bg_i: usize) {
-        let x_offset = self.hofs[bg_i].offset as usize;
-        let y_offset = self.vofs[bg_i].offset as usize;
+        let x_offset = self.hofs[bg_i].0 as usize;
+        let y_offset = self.vofs[bg_i].0 as usize;
         let bgcnt = self.bgcnts[bg_i];
         let tile_start_addr = bgcnt.tile_block as usize * 0x4000;
         let map_start_addr = bgcnt.map_block as usize * 0x800;
@@ -508,7 +510,7 @@ impl Gpu {
                         } else if y_overflowed {
                             0x800 * 2
                         } else if x_overflowed {
-                            0x800 * 1
+                            0x800
                         } else {
                             0
                         }
@@ -543,6 +545,7 @@ impl Gpu {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn get_color_from_tile(
         &self,
         tile_start_addr: usize,
@@ -564,7 +567,7 @@ impl Gpu {
         if bit_depth == 8 {
             (0, tile)
         } else {
-            (palette_num, ((tile >> 4 * (tile_x % 2)) & 0xF))
+            (palette_num, ((tile >> (4 * (tile_x % 2))) & 0xF))
         }
     }
 
@@ -577,7 +580,7 @@ impl Gpu {
         };
         let index = (addr & 0x1FF) / 2;
         if addr % 2 == 0 {
-            palettes[index] = palettes[index] & !0x00FF | (value as u16) << 0;
+            palettes[index] = palettes[index] & !0x00FF | (value as u16);
         } else {
             palettes[index] = palettes[index] & !0xFF00 | (value as u16) << 8 & !0x8000;
             // Clear high bit
@@ -587,24 +590,24 @@ impl Gpu {
 
 #[derive(Clone, Copy, PartialEq)]
 enum Layer {
-    BG0 = 0,
-    BG1 = 1,
-    BG2 = 2,
-    BG3 = 3,
-    OBJ = 4,
-    BD = 5,
+    Bg0 = 0,
+    Bg1 = 1,
+    Bg2 = 2,
+    Bg3 = 3,
+    Obj = 4,
+    Bd = 5,
 }
 
 impl Layer {
     pub fn from(value: usize) -> Layer {
         use Layer::*;
         match value {
-            0 => BG0,
-            1 => BG1,
-            2 => BG2,
-            3 => BG3,
-            4 => OBJ,
-            5 => BD,
+            0 => Bg0,
+            1 => Bg1,
+            2 => Bg2,
+            3 => Bg3,
+            4 => Obj,
+            5 => Bd,
             _ => unreachable!(),
         }
     }

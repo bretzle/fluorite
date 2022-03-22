@@ -1,13 +1,13 @@
+use crate::{gba, io::keypad::KEYINPUT};
 use flume::Sender;
-use glfw::{ffi::glfwSwapInterval, Action, Context, Glfw, Key, Window};
+use glfw::{Action, Context, Glfw, Key, Window};
 use imgui_opengl_renderer::Renderer;
+use std::cmp::Ordering;
 use std::{
     collections::HashSet,
     sync::mpsc,
     time::{Duration, Instant},
 };
-
-use crate::{gba, io::keypad::KEYINPUT};
 
 pub struct Display {
     window: Window,
@@ -36,7 +36,7 @@ impl Display {
 
             window.make_current();
             window.set_resizable(false);
-            // unsafe { glfwSwapInterval(0) };
+            // unsafe { glfw::ffi::glfwSwapInterval(0) };
             window.set_all_polling(true);
 
             gl::load_with(|name| window.get_proc_address(name));
@@ -185,7 +185,7 @@ impl Display {
 
     pub fn render<F>(
         &mut self,
-        pixels: &Vec<u16>,
+        pixels: &[u16],
         keypad_tx: &Sender<(KEYINPUT, bool)>,
         imgui: &mut imgui::Context,
         imgui_draw: F,
@@ -193,17 +193,22 @@ impl Display {
         F: FnOnce(&imgui::Ui, HashSet<glfw::Key>, HashSet<glfw::Modifiers>),
     {
         let begin = Instant::now();
-        //let pixels = gba.get_pixels();
+
         let (width, height) = self.window.get_size();
 
-        let (tex_x, tex_y) = if width * gba::HEIGHT as i32 > height * gba::WIDTH as i32 {
-            let scaled_width = (gba::WIDTH as f32 / gba::HEIGHT as f32 * height as f32) as i32;
-            ((width - scaled_width) / 2, 0)
-        } else if width * (gba::HEIGHT as i32) < height * gba::WIDTH as i32 {
-            let scaled_height = (gba::HEIGHT as f32 / gba::WIDTH as f32 * width as f32) as i32;
-            (0, (height - scaled_height) / 2)
-        } else {
-            (0, 0)
+        const HEIGHT: i32 = gba::HEIGHT as i32;
+        const WIDTH: i32 = gba::WIDTH as i32;
+
+        let (tex_x, tex_y) = match (width * HEIGHT).cmp(&(height * WIDTH)) {
+            Ordering::Greater => {
+                let scaled_width = (WIDTH as f32 / HEIGHT as f32 * height as f32) as i32;
+                ((width - scaled_width) / 2, 0)
+            }
+            Ordering::Less => {
+                let scaled_height = (HEIGHT as f32 / WIDTH as f32 * width as f32) as i32;
+                (0, (height - scaled_height) / 2)
+            }
+            Ordering::Equal => (0, 0),
         };
 
         unsafe {
@@ -243,32 +248,30 @@ impl Display {
         let mut modifiers = HashSet::new();
         for (_, event) in glfw::flush_messages(&self.events) {
             Display::handle_event(io, &event);
-            match event {
-                glfw::WindowEvent::Key(key, _, action, new_modifiers) => {
-                    if action != Action::Release {
-                        keys_pressed.insert(key);
-                        modifiers.insert(new_modifiers);
-                    }
-                    let keypad_key = match key {
-                        Key::A => KEYINPUT::A,
-                        Key::B => KEYINPUT::B,
-                        Key::E => KEYINPUT::SELECT,
-                        Key::T => KEYINPUT::START,
-                        Key::Right => KEYINPUT::RIGHT,
-                        Key::Left => KEYINPUT::LEFT,
-                        Key::Up => KEYINPUT::UP,
-                        Key::Down => KEYINPUT::DOWN,
-                        Key::R => KEYINPUT::R,
-                        Key::L => KEYINPUT::L,
-                        _ => continue,
-                    };
-                    match action {
-                        Action::Press => keypad_tx.send((keypad_key, true)).unwrap(),
-                        Action::Release => keypad_tx.send((keypad_key, false)).unwrap(),
-                        _ => continue,
-                    };
+
+            if let glfw::WindowEvent::Key(key, _, action, new_modifiers) = event {
+                if action != Action::Release {
+                    keys_pressed.insert(key);
+                    modifiers.insert(new_modifiers);
                 }
-                _ => (),
+                let keypad_key = match key {
+                    Key::A => KEYINPUT::A,
+                    Key::B => KEYINPUT::B,
+                    Key::E => KEYINPUT::SELECT,
+                    Key::T => KEYINPUT::START,
+                    Key::Right => KEYINPUT::RIGHT,
+                    Key::Left => KEYINPUT::LEFT,
+                    Key::Up => KEYINPUT::UP,
+                    Key::Down => KEYINPUT::DOWN,
+                    Key::R => KEYINPUT::R,
+                    Key::L => KEYINPUT::L,
+                    _ => continue,
+                };
+                match action {
+                    Action::Press => keypad_tx.send((keypad_key, true)).unwrap(),
+                    Action::Release => keypad_tx.send((keypad_key, false)).unwrap(),
+                    _ => continue,
+                };
             }
         }
 

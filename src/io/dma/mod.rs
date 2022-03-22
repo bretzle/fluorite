@@ -1,4 +1,4 @@
-use self::registers::{Address, WordCount, DMACNT};
+use self::registers::{Address, DmaCnt, WordCount};
 
 use super::scheduler::Scheduler;
 
@@ -33,7 +33,8 @@ impl Dma {
                 return i;
             }
         }
-        return 4;
+
+        4
     }
 }
 
@@ -46,7 +47,7 @@ pub struct DmaChannel {
     sad: Address,
     dad: Address,
     pub count: WordCount,
-    pub cnt: DMACNT,
+    pub cnt: DmaCnt,
 }
 
 impl DmaChannel {
@@ -68,7 +69,7 @@ impl DmaChannel {
             sad: Address::new(src_any_memory),
             dad: Address::new(dest_any_memory),
             count: WordCount::new(count_is16bit),
-            cnt: DMACNT::new(count_is16bit),
+            cnt: DmaCnt::new(count_is16bit),
         }
     }
 
@@ -114,20 +115,20 @@ impl DmaChannel {
         };
     }
 
-    fn read(&self, byte: u8) -> u8 {
+    fn _read(&self, byte: u8) -> u8 {
         match byte {
-            0x0 => self.sad.read(0),
-            0x1 => self.sad.read(1),
-            0x2 => self.sad.read(2),
-            0x3 => self.sad.read(3),
-            0x4 => self.dad.read(0),
-            0x5 => self.dad.read(1),
-            0x6 => self.dad.read(2),
-            0x7 => self.dad.read(3),
-            0x8 => self.count.read(0),
-            0x9 => self.count.read(1),
-            0xA => self.cnt.read(0),
-            0xB => self.cnt.read(1),
+            0x0 => self.sad._read(0),
+            0x1 => self.sad._read(1),
+            0x2 => self.sad._read(2),
+            0x3 => self.sad._read(3),
+            0x4 => self.dad._read(0),
+            0x5 => self.dad._read(1),
+            0x6 => self.dad._read(2),
+            0x7 => self.dad._read(3),
+            0x8 => self.count._read(0),
+            0x9 => self.count._read(1),
+            0xA => self.cnt._read(0),
+            0xB => self.cnt._read(1),
             _ => unreachable!(),
         }
     }

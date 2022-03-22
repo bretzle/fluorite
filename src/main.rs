@@ -26,7 +26,7 @@ fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
 
     // let (render_tx, render_rx) = flume::unbounded();
-    let (keypad_tx, keypad_rx) = flume::unbounded();
+    let (keypad_tx, _keypad_rx) = flume::unbounded();
 
     let rom = match std::env::args().nth(1) {
         Some(path) => std::fs::read(path).unwrap(),
@@ -61,7 +61,7 @@ fn main() -> color_eyre::Result<()> {
     let map_labels = ["0", "1", "2", "3"];
     let tiles_block_labels = ["0", "1", "2", "3", "OBJ"];
 
-    let mut debug_windows = VecDeque::new();
+    let debug_windows = VecDeque::new();
 
     while !display.should_close() {
         if !paused {
@@ -134,7 +134,7 @@ fn main() -> color_eyre::Result<()> {
                 if debug_spec.tiles_enable {
                     let (pixels, width, height) = debug_copy.pop_front().unwrap();
                     let spec = &mut debug_spec.tiles_spec;
-                    let (palette, block, bpp8) =
+                    let (_palette, block, _bpp8) =
                         (&mut spec.palette, &mut spec.block, &mut spec.bpp8);
                     tiles_window.render(ui, &keys_pressed, pixels, width, height, || {
                         debug::control_combo_with_arrows(

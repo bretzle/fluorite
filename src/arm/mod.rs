@@ -1,13 +1,12 @@
+#[allow(clippy::module_inception)]
 mod arm;
 pub mod registers;
 mod thumb;
 
-use std::mem::size_of;
-
-use num::cast;
-
 use self::registers::{Mode, Reg, Registers};
 use crate::io::{memory::MemoryValue, Cycle, MemoryAccess, Sysbus};
+use num::cast;
+use std::mem::size_of;
 
 include!(concat!(env!("OUT_DIR"), "/cond_lut.rs"));
 
@@ -19,8 +18,8 @@ pub struct Arm7tdmi {
     next_access: MemoryAccess,
     internal: bool,
 
-	#[cfg(feature = "decode")]
-	decode_log: std::fs::File,
+    #[cfg(feature = "decode")]
+    decode_log: std::fs::File,
 }
 
 impl Arm7tdmi {
@@ -31,8 +30,8 @@ impl Arm7tdmi {
             next_access: MemoryAccess::N,
             internal: false,
 
-			#[cfg(feature = "decode")]
-			decode_log: std::fs::File::create("decode.log").unwrap(),
+            #[cfg(feature = "decode")]
+            decode_log: std::fs::File::create("decode.log").unwrap(),
         };
 
         if !bios {
@@ -108,7 +107,7 @@ impl Arm7tdmi {
         if self.regs.get_i() || !bus.interrupts_requested() {
             return;
         }
-        self.regs.change_mode(Mode::IRQ);
+        self.regs.change_mode(Mode::Irq);
         let lr = if self.regs.get_t() {
             self.read::<u16>(bus, MemoryAccess::N, self.regs.pc);
             self.regs.pc.wrapping_sub(2).wrapping_add(4)
@@ -169,7 +168,7 @@ impl Arm7tdmi {
                 _ => unreachable!(),
             }
         } else if shift > 31 {
-            assert_eq!(immediate, false);
+            assert!(!immediate);
             if !immediate {
                 self.internal(bus)
             }

@@ -46,7 +46,7 @@ bitflags! {
 }
 
 impl InterruptEnable {
-    pub fn read(&self, byte: u8) -> u8 {
+    pub fn _read(&self, byte: u8) -> u8 {
         match byte {
             0 => self.bits as u8,
             1 => (self.bits >> 8) as u8,
@@ -64,7 +64,7 @@ impl InterruptEnable {
 }
 
 impl InterruptMasterEnable {
-    pub fn read(&self, byte: u8) -> u8 {
+    pub fn _read(&self, byte: u8) -> u8 {
         match byte {
             0 => self.bits as u8,
             1 => (self.bits >> 8) as u8,
@@ -82,7 +82,7 @@ impl InterruptMasterEnable {
 }
 
 impl InterruptRequest {
-    pub fn read(&self, byte: u8) -> u8 {
+    pub fn _read(&self, byte: u8) -> u8 {
         match byte {
             0 => self.bits as u8,
             1 => (self.bits >> 8) as u8,
@@ -91,9 +91,9 @@ impl InterruptRequest {
     }
 
     pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
-        match byte {
-            0 => self.bits = self.bits & !((value as u16) << 0),
-            1 => self.bits = self.bits & !((value as u16) << 8),
+        self.bits &= match byte {
+            0 => !(value as u16),
+            1 => !((value as u16) << 8),
             _ => unreachable!(),
         }
     }

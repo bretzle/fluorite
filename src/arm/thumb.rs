@@ -66,14 +66,14 @@ impl Arm7tdmi {
     }
 
     // THUMB.1: move shifted register
-    fn move_shifted_reg<const OpH: bool, const OpL: bool>(&mut self, bus: &mut Sysbus, instr: u16) {
+    fn move_shifted_reg<const OPCODE: u32>(&mut self, bus: &mut Sysbus, instr: u16) {
         assert_eq!(instr >> 13, 0b000);
-        let opcode = (OpH as u32) << 1 | (OpL as u32);
+        assert_ne!(OPCODE, 0b11);
+
         let offset = (instr >> 6 & 0x1F) as u32;
         let src = self.regs.get_reg_i((instr >> 3 & 0x7) as u32);
         let dest_reg = (instr & 0x7) as u32;
-        assert_ne!(opcode, 0b11);
-        let result = self.shift(bus, opcode, src, offset, true, true);
+        let result = self.shift(bus, OPCODE, src, offset, true, true);
 
         self.regs.set_n(result & 0x8000_0000 != 0);
         self.regs.set_z(result == 0);
@@ -104,25 +104,12 @@ impl Arm7tdmi {
     }
 
     // THUMB.3: move/compare/add/subtract immediate
-    fn immediate<
-        const OpH: bool,
-        const OpL: bool,
-        const Rd2: bool,
-        const Rd1: bool,
-        const Rd0: bool,
-    >(
-        &mut self,
-        bus: &mut Sysbus,
-        instr: u16,
-    ) {
+    fn immediate<const OPCODE: u32, const DEST_REG: u32>(&mut self, bus: &mut Sysbus, instr: u16) {
         assert_eq!(instr >> 13, 0b001);
 
-        let opcode = (OpH as u8) << 1 | (OpL as u8);
-        let dest_reg = (Rd2 as u8) << 2 | (Rd1 as u8) << 1 | (Rd0 as u8);
-
         let immediate = (instr & 0xFF) as u32;
-        let op1 = self.regs.get_reg_i(dest_reg as u32);
-        let result = match opcode {
+        let op1 = self.regs.get_reg_i(DEST_REG as u32);
+        let result = match OPCODE {
             0b00 => immediate,                      // MOV
             0b01 => self.sub(op1, immediate, true), // CMP
             0b10 => self.add(op1, immediate, true), // ADD
@@ -132,8 +119,8 @@ impl Arm7tdmi {
         self.regs.set_z(result == 0);
         self.regs.set_n(result & 0x8000_0000 != 0);
 
-        if opcode != 0b01 {
-            self.regs.set_reg_i(dest_reg as u32, result)
+        if OPCODE != 0b01 {
+            self.regs.set_reg_i(DEST_REG as u32, result)
         }
         self.instruction_prefetch::<u16>(bus, MemoryAccess::S);
     }
@@ -181,9 +168,9 @@ impl Arm7tdmi {
     }
 
     // THUMB.5: Hi register operations/branch exchange
-    fn hi_reg_bx<const OpH: bool, const OpL: bool>(&mut self, bus: &mut Sysbus, instr: u16) {
+    fn hi_reg_bx<const OPCODE: u32>(&mut self, bus: &mut Sysbus, instr: u16) {
         assert_eq!(instr >> 10, 0b010001);
-        let opcode = (OpH as u16) << 1 | OpL as u16;
+
         let dest_reg_msb = instr >> 7 & 0x1;
         let src_reg_msb = instr >> 6 & 0x1;
         let src = self
@@ -191,7 +178,7 @@ impl Arm7tdmi {
             .get_reg_i((src_reg_msb << 3 | instr >> 3 & 0x7) as u32);
         let dest_reg = (dest_reg_msb << 3 | instr & 0x7) as u32;
         let dest = self.regs.get_reg_i(dest_reg);
-        let result = match opcode {
+        let result = match OPCODE {
             0b00 => self.add(dest, src, false), // ADD
             0b01 => self.sub(dest, src, true),  // CMP
             0b10 => src,
@@ -200,10 +187,10 @@ impl Arm7tdmi {
                 self.instruction_prefetch::<u16>(bus, MemoryAccess::N);
                 self.regs.pc = src;
                 if src & 0x1 != 0 {
-                    self.regs.pc = self.regs.pc & !0x1;
+                    self.regs.pc &= !0x1;
                     self.fill_thumb_instr_buffer(bus);
                 } else {
-                    self.regs.pc = self.regs.pc & !0x2;
+                    self.regs.pc &= !0x2;
                     self.regs.set_t(false);
                     self.fill_arm_instr_buffer(bus);
                 }
@@ -211,7 +198,7 @@ impl Arm7tdmi {
             }
             _ => unreachable!(),
         };
-        if opcode & 0x1 == 0 {
+        if OPCODE & 0x1 == 0 {
             self.regs.set_reg_i(dest_reg, result)
         }
         if dest_reg == 15 {
@@ -223,32 +210,24 @@ impl Arm7tdmi {
     }
 
     // THUMB.6: load PC-relative
-    fn load_pc_rel<const Rd2: bool, const Rd1: bool, const Rd0: bool>(
-        &mut self,
-        bus: &mut Sysbus,
-        instr: u16,
-    ) {
+    fn load_pc_rel<const DEST_REG: u32>(&mut self, bus: &mut Sysbus, instr: u16) {
         assert_eq!(instr >> 11, 0b01001);
-        let dest_reg = (Rd2 as u32) << 2 | (Rd1 as u32) << 1 | (Rd0 as u32);
+
         let offset = (instr & 0xFF) as u32;
         let addr = (self.regs.pc & !0x2).wrapping_add(offset * 4);
         self.instruction_prefetch::<u16>(bus, MemoryAccess::N);
         let value = self
             .read::<u32>(bus, MemoryAccess::N, addr & !0x3)
             .rotate_right((addr & 0x3) * 8);
-        self.regs.set_reg_i(dest_reg, value);
+        self.regs.set_reg_i(DEST_REG, value);
         self.internal(bus);
     }
 
     // THUMB.7: load/store with register offset
-    fn load_store_reg_offset<const OpH: bool, const OpL: bool>(
-        &mut self,
-        io: &mut Sysbus,
-        instr: u16,
-    ) {
+    fn load_store_reg_offset<const OPCODE: u32>(&mut self, io: &mut Sysbus, instr: u16) {
         assert_eq!(instr >> 12, 0b0101);
-        let opcode = (OpH as u8) << 1 | (OpL as u8);
         assert_eq!(instr >> 9 & 0x1, 0);
+
         let offset_reg = (instr >> 6 & 0x7) as u32;
         let base_reg = (instr >> 3 & 0x7) as u32;
         let addr = self
@@ -257,9 +236,9 @@ impl Arm7tdmi {
             .wrapping_add(self.regs.get_reg_i(offset_reg));
         let src_dest_reg = (instr & 0x7) as u32;
         self.instruction_prefetch::<u16>(io, MemoryAccess::N);
-        if opcode & 0b10 != 0 {
+        if OPCODE & 0b10 != 0 {
             // Load
-            let value = if opcode & 0b01 != 0 {
+            let value = if OPCODE & 0b01 != 0 {
                 self.read::<u8>(io, MemoryAccess::S, addr) as u32 // LDRB
             } else {
                 self.read::<u32>(io, MemoryAccess::S, addr & !0x3)
@@ -269,7 +248,7 @@ impl Arm7tdmi {
             self.internal(io);
         } else {
             // Store
-            if opcode & 0b01 != 0 {
+            if OPCODE & 0b01 != 0 {
                 // STRB
                 self.write::<u8>(
                     io,
@@ -290,16 +269,10 @@ impl Arm7tdmi {
     }
 
     // THUMB.8: load/store sign-extended byte/halfword
-    fn load_store_sign_ext<const OpH: bool, const OpL: bool>(
-        &mut self,
-        io: &mut Sysbus,
-        instr: u16,
-    ) {
+    fn load_store_sign_ext<const OPCODE: u32>(&mut self, io: &mut Sysbus, instr: u16) {
         assert_eq!(instr >> 12, 0b0101);
-
-        let opcode = (OpH as u8) << 1 | (OpL as u8);
-
         assert_eq!(instr >> 9 & 0x1, 1);
+
         let offset_reg = (instr >> 6 & 0x7) as u32;
         let base_reg = (instr >> 3 & 0x7) as u32;
         let src_dest_reg = (instr & 0x7) as u32;
@@ -309,7 +282,7 @@ impl Arm7tdmi {
             .wrapping_add(self.regs.get_reg_i(offset_reg));
 
         self.instruction_prefetch::<u16>(io, MemoryAccess::N);
-        if opcode == 0 {
+        if OPCODE == 0 {
             // STRH
             self.write::<u16>(
                 io,
@@ -320,7 +293,7 @@ impl Arm7tdmi {
         } else {
             // Load
             // TODO: Is access width 1?
-            let value = match opcode {
+            let value = match OPCODE {
                 1 => self.read::<u8>(io, MemoryAccess::S, addr) as i8 as u32,
                 2 => (self.read::<u16>(io, MemoryAccess::S, addr & !0x1) as u32)
                     .rotate_right((addr & 0x1) * 8),
@@ -400,13 +373,13 @@ impl Arm7tdmi {
     }
 
     // THUMB.11: load/store SP-relative
-    fn load_store_sp_rel<const LOAD: bool, const Rd2: bool, const Rd1: bool, const Rd0: bool>(
+    fn load_store_sp_rel<const LOAD: bool, const SRC_DEST_REG: u32>(
         &mut self,
         bus: &mut Sysbus,
         instr: u16,
     ) {
         assert_eq!(instr >> 12 & 0xF, 0b1001);
-        let src_dest_reg = (Rd2 as u32) << 2 | (Rd1 as u32) << 1 | (Rd0 as u32);
+
         let offset = (instr & 0xFF) * 4;
         let addr = self.regs.get_reg(Reg::R13).wrapping_add(offset as u32);
         self.instruction_prefetch::<u16>(bus, MemoryAccess::N);
@@ -414,27 +387,22 @@ impl Arm7tdmi {
             let value = self
                 .read::<u32>(bus, MemoryAccess::S, addr & !0x3)
                 .rotate_right((addr & 0x3) * 8);
-            self.regs.set_reg_i(src_dest_reg, value);
+            self.regs.set_reg_i(SRC_DEST_REG, value);
             self.internal(bus);
         } else {
             self.write::<u32>(
                 bus,
                 MemoryAccess::N,
                 addr & !0x3,
-                self.regs.get_reg_i(src_dest_reg),
+                self.regs.get_reg_i(SRC_DEST_REG),
             );
         }
     }
 
     // THUMB.12: get relative address
-    fn get_rel_addr<const SP: bool, const Rd2: bool, const Rd1: bool, const Rd0: bool>(
-        &mut self,
-        bus: &mut Sysbus,
-        instr: u16,
-    ) {
+    fn get_rel_addr<const SP: bool, const DEST_REG: u32>(&mut self, bus: &mut Sysbus, instr: u16) {
         assert_eq!(instr >> 12 & 0xF, 0b1010);
 
-        let dest_reg = (Rd2 as u32) << 2 | (Rd1 as u32) << 1 | (Rd0 as u32);
         let src = if SP {
             // SP
             self.regs.get_reg(Reg::R13)
@@ -443,7 +411,7 @@ impl Arm7tdmi {
             self.regs.pc & !0x2
         };
         let offset = (instr & 0xFF) as u32;
-        self.regs.set_reg_i(dest_reg, src.wrapping_add(offset * 4));
+        self.regs.set_reg_i(DEST_REG, src.wrapping_add(offset * 4));
         self.instruction_prefetch::<u16>(bus, MemoryAccess::S);
     }
 
@@ -528,14 +496,14 @@ impl Arm7tdmi {
     }
 
     // THUMB.15: multiple load/store
-    fn multiple_load_store<const LOAD: bool, const Rb2: bool, const Rb1: bool, const Rb0: bool>(
+    fn multiple_load_store<const LOAD: bool, const BSAE_REG: u32>(
         &mut self,
         io: &mut Sysbus,
         instr: u16,
     ) {
         assert_eq!(instr >> 12, 0b1100);
-        let base_reg = (Rb2 as u32) << 2 | (Rb1 as u32) << 1 | (Rb0 as u32);
-        let mut base = self.regs.get_reg_i(base_reg);
+
+        let mut base = self.regs.get_reg_i(BSAE_REG);
         let base_offset = base & 0x3;
         base -= base_offset;
         let mut r_list = (instr & 0xFF) as u8;
@@ -562,7 +530,7 @@ impl Arm7tdmi {
                     self.next_access = MemoryAccess::N
                 }
                 if first {
-                    self.regs.set_reg_i(base_reg, final_base);
+                    self.regs.set_reg_i(BSAE_REG, final_base);
                     first = false
                 }
             }
@@ -587,22 +555,17 @@ impl Arm7tdmi {
         if !LOAD {
             self.regs.pc = self.regs.pc.wrapping_sub(2)
         }
-        self.regs.set_reg_i(base_reg, base + base_offset);
+        self.regs.set_reg_i(BSAE_REG, base + base_offset);
     }
 
     // THUMB.16: conditional branch
-    fn cond_branch<const C3: bool, const C2: bool, const C1: bool, const C0: bool>(
-        &mut self,
-        bus: &mut Sysbus,
-        instr: u16,
-    ) {
+    fn cond_branch<const COND: usize>(&mut self, bus: &mut Sysbus, instr: u16) {
         assert_eq!(instr >> 12, 0b1101);
-        let condition =
-            (C3 as usize) << 3 | (C2 as usize) << 2 | (C1 as usize) << 1 | (C0 as usize);
-        assert_eq!(condition < 0xE, true);
+        assert!(COND < 0xE);
+
         let offset = (instr & 0xFF) as i8 as u32;
         // if self.should_exec(condition as u32) {
-        if CONDITION_LUT[self.regs.get_flags() as usize | condition] {
+        if CONDITION_LUT[self.regs.get_flags() as usize | COND] {
             self.instruction_prefetch::<u16>(bus, MemoryAccess::N);
             self.regs.pc = self.regs.pc.wrapping_add(offset.wrapping_mul(2));
             self.fill_thumb_instr_buffer(bus);
@@ -615,7 +578,7 @@ impl Arm7tdmi {
     fn thumb_software_interrupt(&mut self, io: &mut Sysbus, instr: u16) {
         assert_eq!(instr >> 8 & 0xFF, 0b11011111);
         self.instruction_prefetch::<u16>(io, MemoryAccess::N);
-        self.regs.change_mode(Mode::SVC);
+        self.regs.change_mode(Mode::Supervisor);
         self.regs.set_reg(Reg::R14, self.regs.pc.wrapping_sub(2));
         self.regs.set_t(false);
         self.regs.set_i(true);

@@ -1,9 +1,6 @@
+use crate::io::scheduler::Scheduler;
 use bitflags::bitflags;
 use std::ops::{Deref, DerefMut};
-
-use crate::io::scheduler::Scheduler;
-
-use super::Gpu;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum BGMode {
@@ -105,7 +102,7 @@ impl DerefMut for Dispcnt {
 
 bitflags! {
     pub struct DISPSTATFlags: u16 {
-        const VBLANK = 1 << 0;
+        const VBLANK = 1;
         const HBLANK = 1 << 1;
         const VCOUNTER = 1 << 2;
         const VBLANK_IRQ_ENABLE = 1 << 3;
@@ -166,7 +163,7 @@ impl Dispstat {
 }
 
 #[derive(Clone, Copy)]
-pub struct BGCNT {
+pub struct BgCnt {
     pub priority: u8,
     pub tile_block: u8,
     pub mosaic: bool,
@@ -176,9 +173,9 @@ pub struct BGCNT {
     pub screen_size: u8,
 }
 
-impl BGCNT {
-    pub fn new() -> BGCNT {
-        BGCNT {
+impl BgCnt {
+    pub fn new() -> Self {
+        Self {
             priority: 0,
             tile_block: 0,
             mosaic: false,
@@ -233,59 +230,59 @@ impl MosaicSize {
         }
     }
 
-    pub fn read(&self) -> u8 {
+    pub fn _read(&self) -> u8 {
         (self.v_size - 1) << 4 | (self.h_size - 1)
     }
 
-    pub fn write(&mut self, value: u8) {
+    pub fn _write(&mut self, value: u8) {
         self.h_size = (value & 0xF) + 1;
         self.v_size = (value >> 4) + 1;
     }
 }
 
-pub struct MOSAIC {
+pub struct Mosaic {
     pub bg_size: MosaicSize,
     pub obj_size: MosaicSize,
 }
 
-impl MOSAIC {
-    pub fn new() -> MOSAIC {
-        MOSAIC {
+impl Mosaic {
+    pub fn new() -> Self {
+        Self {
             bg_size: MosaicSize::new(),
             obj_size: MosaicSize::new(),
         }
     }
 
-    fn read(&self, byte: u8) -> u8 {
+    fn _read(&self, byte: u8) -> u8 {
         match byte {
-            0 => self.bg_size.read(),
-            1 => self.obj_size.read(),
+            0 => self.bg_size._read(),
+            1 => self.obj_size._read(),
             _ => unreachable!(),
         }
     }
 
-    fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+    fn _write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
         match byte {
-            0 => self.bg_size.write(value),
-            1 => self.obj_size.write(value),
+            0 => self.bg_size._write(value),
+            1 => self.obj_size._write(value),
             _ => unreachable!(),
         }
     }
 }
 
-pub struct BLDCNTTargetPixelSelection {
+pub struct BldCntTargetPixelSelection {
     pub enabled: [bool; 6],
 }
 
-impl BLDCNTTargetPixelSelection {
-    pub fn new() -> BLDCNTTargetPixelSelection {
-        BLDCNTTargetPixelSelection {
+impl BldCntTargetPixelSelection {
+    pub fn new() -> BldCntTargetPixelSelection {
+        BldCntTargetPixelSelection {
             enabled: [false; 6],
         }
     }
 
-    pub fn read(&self) -> u8 {
-        (self.enabled[0] as u8) << 0
+    pub fn _read(&self) -> u8 {
+        (self.enabled[0] as u8)
             | (self.enabled[1] as u8) << 1
             | (self.enabled[2] as u8) << 2
             | (self.enabled[3] as u8) << 3
@@ -293,8 +290,8 @@ impl BLDCNTTargetPixelSelection {
             | (self.enabled[5] as u8) << 5
     }
 
-    pub fn write(&mut self, value: u8) {
-        self.enabled[0] = value >> 0 & 0x1 != 0;
+    pub fn _write(&mut self, value: u8) {
+        self.enabled[0] = value & 0x1 != 0;
         self.enabled[1] = value >> 1 & 0x1 != 0;
         self.enabled[2] = value >> 2 & 0x1 != 0;
         self.enabled[3] = value >> 3 & 0x1 != 0;
@@ -307,53 +304,53 @@ impl BLDCNTTargetPixelSelection {
 pub enum ColorSFX {
     None = 0,
     AlphaBlend = 1,
-    BrightnessInc = 2,
-    BrightnessDec = 3,
+    _BrightnessInc = 2,
+    _BrightnessDec = 3,
 }
 
 impl ColorSFX {
-    pub fn from(value: u8) -> ColorSFX {
+    pub fn _from(value: u8) -> ColorSFX {
         use ColorSFX::*;
         match value {
             0 => None,
             1 => AlphaBlend,
-            2 => BrightnessInc,
-            3 => BrightnessDec,
+            2 => _BrightnessInc,
+            3 => _BrightnessDec,
             _ => unreachable!(),
         }
     }
 }
 
-pub struct BLDCNT {
-    pub target_pixel1: BLDCNTTargetPixelSelection,
+pub struct BldCnt {
+    pub target_pixel1: BldCntTargetPixelSelection,
     pub effect: ColorSFX,
-    pub target_pixel2: BLDCNTTargetPixelSelection,
+    pub target_pixel2: BldCntTargetPixelSelection,
 }
 
-impl BLDCNT {
-    pub fn new() -> BLDCNT {
-        BLDCNT {
-            target_pixel1: BLDCNTTargetPixelSelection::new(),
+impl BldCnt {
+    pub fn new() -> Self {
+        Self {
+            target_pixel1: BldCntTargetPixelSelection::new(),
             effect: ColorSFX::None,
-            target_pixel2: BLDCNTTargetPixelSelection::new(),
+            target_pixel2: BldCntTargetPixelSelection::new(),
         }
     }
 
-    fn read(&self, byte: u8) -> u8 {
+    fn _read(&self, byte: u8) -> u8 {
         match byte {
-            0 => (self.effect as u8) << 6 | self.target_pixel1.read(),
-            1 => self.target_pixel2.read(),
+            0 => (self.effect as u8) << 6 | self.target_pixel1._read(),
+            1 => self.target_pixel2._read(),
             _ => unreachable!(),
         }
     }
 
-    fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+    fn _write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
         match byte {
             0 => {
-                self.target_pixel1.write(value);
-                self.effect = ColorSFX::from(value >> 6);
+                self.target_pixel1._write(value);
+                self.effect = ColorSFX::_from(value >> 6);
             }
-            1 => self.target_pixel2.write(value),
+            1 => self.target_pixel2._write(value),
             _ => unreachable!(),
         }
     }
@@ -392,7 +389,7 @@ impl WindowControl {
         }
     }
 
-    fn read(&self, byte: u8) -> u8 {
+    fn _read(&self, byte: u8) -> u8 {
         match byte {
             0 => {
                 (self.color_special_enable as u8) << 5
@@ -400,13 +397,13 @@ impl WindowControl {
                     | (self.bg3_enable as u8) << 3
                     | (self.bg2_enable as u8) << 2
                     | (self.bg1_enable as u8) << 1
-                    | (self.bg0_enable as u8) << 0
+                    | (self.bg0_enable as u8)
             }
             _ => unreachable!(),
         }
     }
 
-    fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+    fn _write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
         match byte {
             0 => {
                 self.color_special_enable = value >> 5 & 0x1 != 0;
@@ -414,67 +411,67 @@ impl WindowControl {
                 self.bg3_enable = value >> 3 & 0x1 != 0;
                 self.bg2_enable = value >> 2 & 0x1 != 0;
                 self.bg1_enable = value >> 1 & 0x1 != 0;
-                self.bg0_enable = value >> 0 & 0x1 != 0;
+                self.bg0_enable = value & 0x1 != 0;
             }
             _ => unreachable!(),
         }
     }
 }
 
-pub struct BLDALPHA {
-    raw_eva: u8,
-    raw_evb: u8,
+pub struct BldAlpha {
+    _raw_eva: u8,
+    _raw_evb: u8,
     pub eva: u16,
     pub evb: u16,
 }
 
-impl BLDALPHA {
-    pub fn new() -> BLDALPHA {
-        BLDALPHA {
-            raw_eva: 0,
-            raw_evb: 0,
+impl BldAlpha {
+    pub fn new() -> Self {
+        Self {
+            _raw_eva: 0,
+            _raw_evb: 0,
             eva: 0,
             evb: 0,
         }
     }
 
-    fn read(&self, byte: u8) -> u8 {
+    fn _read(&self, byte: u8) -> u8 {
         match byte {
-            0 => self.raw_eva,
-            1 => self.raw_evb,
+            0 => self._raw_eva,
+            1 => self._raw_evb,
             _ => unreachable!(),
         }
     }
 
-    fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+    fn _write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
         match byte {
             0 => {
-                self.raw_eva = value & 0x1F;
-                self.eva = std::cmp::min(0x10, self.raw_eva as u16);
+                self._raw_eva = value & 0x1F;
+                self.eva = std::cmp::min(0x10, self._raw_eva as u16);
             }
             1 => {
-                self.raw_evb = value & 0x1F;
-                self.evb = std::cmp::min(0x10, self.raw_evb as u16);
+                self._raw_evb = value & 0x1F;
+                self.evb = std::cmp::min(0x10, self._raw_evb as u16);
             }
             _ => unreachable!(),
         }
     }
 }
 
-pub struct BLDY {
+pub struct Bldy {
     pub evy: u8,
 }
 
-impl BLDY {
-    pub fn new() -> BLDY {
-        BLDY { evy: 0 }
+impl Bldy {
+    pub fn new() -> Bldy {
+        Bldy { evy: 0 }
     }
 
-    fn read(&self, _byte: u8) -> u8 {
+    fn _read(&self, _byte: u8) -> u8 {
         0
     }
 
-    fn write(&mut self, __scheduler: &mut Scheduler, byte: u8, value: u8) {
+    fn _write(&mut self, __scheduler: &mut Scheduler, byte: u8, value: u8) {
         match byte {
             0 => self.evy = std::cmp::min(0x10, value & 0x1F),
             1 => (),
@@ -484,87 +481,84 @@ impl BLDY {
 }
 
 #[derive(Clone, Copy)]
-pub struct OFS {
-    pub offset: u16,
-}
+pub struct Ofs(pub u16);
 
-impl OFS {
-    pub fn new() -> OFS {
-        OFS { offset: 0 }
+impl Ofs {
+    pub fn new() -> Self {
+        Self(0)
     }
 
-    fn read(&self, byte: u8) -> u8 {
+    fn _read(&self, byte: u8) -> u8 {
         match byte {
-            0 => self.offset as u8,
-            1 => (self.offset >> 8) as u8,
+            0 => self.0 as u8,
+            1 => (self.0 >> 8) as u8,
             _ => unreachable!(),
         }
     }
 
-    fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+    fn _write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
         match byte {
-            0 => self.offset = self.offset & !0xFF | value as u16,
-            1 => self.offset = self.offset & !0x100 | (value as u16) << 8 & 0x100,
+            0 => self.0 = self.0 & !0xFF | value as u16,
+            1 => self.0 = self.0 & !0x100 | (value as u16) << 8 & 0x100,
             _ => unreachable!(),
         }
     }
 }
-
 
 #[derive(Clone, Copy)]
-pub struct ReferencePointCoord {
-    value: i32,
-}
+pub struct ReferencePointCoord(i32);
 
 impl ReferencePointCoord {
-    pub fn new() -> ReferencePointCoord {
-        ReferencePointCoord {
-            value: 0,
-        }
+    pub fn new() -> Self {
+        Self(0)
     }
 
-    pub fn integer(&self) -> i32 {
-        self.value >> 8
+    pub fn _integer(&self) -> i32 {
+        self.0 >> 8
     }
-	
-    fn read(&self, _byte: u8) -> u8 { 0 }
 
-    fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+    fn _read(&self, _byte: u8) -> u8 {
+        0
+    }
+
+    fn _write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
         let offset = byte * 8;
         match byte {
-            0 ..= 2 => self.value = (self.value as u32 & !(0xFF << offset) | (value as u32) << offset) as i32,
+            0..=2 => self.0 = (self.0 as u32 & !(0xFF << offset) | (value as u32) << offset) as i32,
             3 => {
-                self.value = (self.value as u32 & !(0xFF << offset) | (value as u32 & 0xF) << offset) as i32;
-                if self.value & 0x0800_0000 != 0 { self.value = ((self.value as u32) | 0xF000_0000) as i32 }
-            },
+                self.0 =
+                    (self.0 as u32 & !(0xFF << offset) | (value as u32 & 0xF) << offset) as i32;
+                if self.0 & 0x0800_0000 != 0 {
+                    self.0 = ((self.0 as u32) | 0xF000_0000) as i32
+                }
+            }
             _ => unreachable!(),
         }
     }
 }
 
-
 #[derive(Clone, Copy)]
-pub struct RotationScalingParameter {
-    value: i16,
-}
+pub struct RotationScalingParameter(i16);
 
 impl RotationScalingParameter {
-    pub fn new() -> RotationScalingParameter {
-        RotationScalingParameter {
-            value: 0,
-        }
+    pub fn new() -> Self {
+        Self(0)
     }
 
-    pub fn get_float_from_u16(value: u16) -> f64 {
-        (value >> 8) as i8 as i32 as f64 + (value >> 0) as u8 as f64 / 256.0
+    pub fn _get_float_from_u16(value: u16) -> f64 {
+        (value >> 8) as i8 as i32 as f64 + value as u8 as f64 / 256.0
     }
-	
-    fn read(&self, _byte: u8) -> u8 { return 0 }
 
-    fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+    fn _read(&self, _byte: u8) -> u8 {
+        0
+    }
+
+    fn _write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
         let offset = byte * 8;
         match byte {
-            0 | 1 => self.value = ((self.value as u32) & !(0xFF << offset) | (value as u32) << offset) as i16,
+            0 | 1 => {
+                self.0 = ((self.0 as u32) & !(0xFF << offset) | (value as u32) << offset) as i16
+            }
             _ => unreachable!(),
         }
     }

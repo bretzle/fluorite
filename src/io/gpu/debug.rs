@@ -1,6 +1,6 @@
 #[derive(Debug)]
 pub struct DebugSpecification {
-	pub reg_enable: bool,
+    pub reg_enable: bool,
     pub map_enable: bool,
     pub tiles_enable: bool,
     pub palettes_enable: bool,
@@ -12,7 +12,7 @@ pub struct DebugSpecification {
 impl DebugSpecification {
     pub fn new() -> Self {
         Self {
-			reg_enable: true,
+            reg_enable: true,
             map_enable: false,
             tiles_enable: false,
             palettes_enable: false,
