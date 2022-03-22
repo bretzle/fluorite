@@ -121,14 +121,11 @@ impl Sysbus {
             MemoryRegion::Iwram => Self::read_mem(&self.iwram, addr & Self::IWRAM_MASK),
             MemoryRegion::Io => Self::read_from_bytes(self, &Self::read_io_register, addr),
             MemoryRegion::Palette => todo!(),
-            MemoryRegion::Vram => todo!(),
-            MemoryRegion::Oam => todo!(),
+            MemoryRegion::Vram => Self::read_mem(&self.gpu.vram, Gpu::parse_vram_addr(addr)),
+            MemoryRegion::Oam => Self::read_mem(&self.gpu.oam, Gpu::parse_oam_addr(addr)),
             MemoryRegion::Rom0L => {
-                // if (0x080000C4..=0x80000C9).contains(&addr) {
-                // 	todo!()
-                // } else {
+                // TODO: Rtc takes over some of this address space
                 self.read_rom(addr)
-                // }
             }
             MemoryRegion::Rom0H => todo!(),
             MemoryRegion::Rom1L => todo!(),
@@ -227,7 +224,23 @@ impl Sysbus {
 
     pub fn handle_event(&mut self, event: EventType) {
         match event {
-            EventType::TimerOverflow(_timer) => println!("TODO: {event:?}"),
+            EventType::TimerOverflow(timer) => {
+                if self.timers.timers[timer].cnt.irq {
+                    self.interrupt_controller.request |= self.timers.timers[timer].interrupt
+                }
+                // Cascade Timers
+                if timer + 1 < self.timers.timers.len()
+                    && self.timers.timers[timer + 1].is_count_up()
+                {
+                    if self.timers.timers[timer + 1].clock() {
+                        self.handle_event(EventType::TimerOverflow(timer + 1))
+                    }
+                }
+                if !self.timers.timers[timer].is_count_up() {
+                    self.timers.timers[timer].reload();
+                    self.timers.timers[timer].create_event(&mut self.scheduler, 0);
+                }
+            }
             EventType::FrameSequencer(step) => {
                 // self.apu.clock_sequencer(step);
                 self.scheduler.add(Event {

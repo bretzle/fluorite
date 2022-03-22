@@ -57,7 +57,7 @@ impl Timer {
         }
     }
 
-    pub fn _clock(&mut self) -> bool {
+    pub fn clock(&mut self) -> bool {
         assert!(self.is_count_up());
         if self.cnt.start {
             let (new_counter, overflowed) = self.counter.overflowing_add(1);
