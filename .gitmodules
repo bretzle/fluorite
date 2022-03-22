@@ -1,3 +1,6 @@
 [submodule "roms/lemon"]
 	path = roms/lemon
 	url = https://github.com/PeterLemon/GBA
+[submodule "roms/jsmolka"]
+	path = roms/jsmolka
+	url = https://github.com/jsmolka/gba-tests
