@@ -3,13 +3,12 @@
 use crate::arm::registers::Reg;
 use crate::debug::TextureWindow;
 use crate::display::Display;
-use arm::registers::Registers;
 use gba::Gba;
 use glfw::{Key, Modifiers};
 use imgui::*;
 use std::collections::VecDeque;
 use std::thread;
-use utils::WeakPointer;
+use std::time::{Duration, Instant};
 
 mod arm;
 mod debug;
@@ -33,18 +32,23 @@ fn main() -> color_eyre::Result<()> {
         None => ROM.to_vec(),
     };
 
+    let mut emu_fps = 60.0f32;
+
     let (mut gba, debug_windows_spec_mutex) = Gba::new(BIOS.to_vec(), rom);
-    let mut registers: WeakPointer<Registers> = WeakPointer::default();
     {
-        let regs = unsafe { &mut *(&mut registers as *mut _) };
         let gba = unsafe { &mut *(&mut gba as *mut Gba) };
+        let emu_fps = unsafe { &mut *(&mut emu_fps as *mut f32) };
+        let frame_lock = Duration::from_secs_f32(1.0 / 60.0);
 
-        thread::spawn(move || {
-            *regs = WeakPointer::from(&mut gba.cpu.regs);
+        thread::spawn(move || loop {
+            let before = Instant::now();
+            gba.emulate_frame();
+            let end = before.elapsed();
 
-            loop {
-                gba.emulate_frame()
+            if end < frame_lock {
+                spin_sleep::sleep(frame_lock - end);
             }
+            *emu_fps = 1.0 / before.elapsed().as_secs_f32();
         });
     }
 
@@ -75,6 +79,7 @@ fn main() -> color_eyre::Result<()> {
 
         display.render(
             gba.get_pixels(),
+			emu_fps,
             &keypad_tx,
             &mut imgui,
             |ui, keys_pressed, modifers| {
@@ -89,26 +94,27 @@ fn main() -> color_eyre::Result<()> {
 
                 if debug_spec.reg_enable {
                     use Reg::*;
+					let regs = &gba.cpu.regs;
                     #[rustfmt::skip]
                     Window::new("Registers").resizable(false).build(ui, || {
-						ui.text(format!("R0   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R0)));
-						ui.text(format!("R1   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R1)));
-						ui.text(format!("R2   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R2)));
-						ui.text(format!("R3   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R3)));
-						ui.text(format!("R4   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R4)));
-						ui.text(format!("R5   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R5)));
-						ui.text(format!("R6   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R6)));
-						ui.text(format!("R7   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R7)));
-						ui.text(format!("R8   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R8)));
-						ui.text(format!("R9   0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R9)));
-						ui.text(format!("R10  0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R10)));
-						ui.text(format!("R11  0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R11)));
-						ui.text(format!("R12  0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R12)));
-						ui.text(format!("R13  0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R13)));
-						ui.text(format!("R14  0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R14)));
-						ui.text(format!("R15  0x{VAL:08X?}  {VAL:10?}", VAL = registers.get_reg(R15)));
-						ui.text(if registers.get_t() {"THUMB"} else {"ARM"});
-						ui.text(format!("M: {:?} N: {} Z: {} C: {} V {}", registers.get_mode(), registers.get_n()as u8, registers.get_z()as u8, registers.get_c()as u8, registers.get_v()as u8));
+						ui.text(format!("R0   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R0)));
+						ui.text(format!("R1   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R1)));
+						ui.text(format!("R2   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R2)));
+						ui.text(format!("R3   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R3)));
+						ui.text(format!("R4   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R4)));
+						ui.text(format!("R5   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R5)));
+						ui.text(format!("R6   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R6)));
+						ui.text(format!("R7   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R7)));
+						ui.text(format!("R8   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R8)));
+						ui.text(format!("R9   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R9)));
+						ui.text(format!("R10  0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R10)));
+						ui.text(format!("R11  0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R11)));
+						ui.text(format!("R12  0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R12)));
+						ui.text(format!("R13  0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R13)));
+						ui.text(format!("R14  0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R14)));
+						ui.text(format!("R15  0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R15)));
+						ui.text(if regs.get_t() {"THUMB"} else {"ARM"});
+						ui.text(format!("M: {:?} N: {} Z: {} C: {} V {}", regs.get_mode(), regs.get_n()as u8, regs.get_z()as u8, regs.get_c()as u8, regs.get_v()as u8));
 					});
                 }
 

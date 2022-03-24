@@ -490,6 +490,7 @@ impl Sysbus {
     fn write_register(&mut self, addr: u32, val: u8) {
         match addr {
             0x04000000..=0x0400005F => self.gpu.write_register(&mut self.scheduler, addr, val),
+			0x04000060..=0x040000AF => (),
             0x040000B0..=0x040000BB => {
                 self.dma.channels[0].write(&mut self.scheduler, addr as u8 - 0xB0, val)
             }

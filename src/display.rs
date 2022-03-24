@@ -186,6 +186,7 @@ impl Display {
     pub fn render<F>(
         &mut self,
         pixels: &[u16],
+		emu_fps: f32,
         keypad_tx: &Sender<(KEYINPUT, bool)>,
         imgui: &mut imgui::Context,
         imgui_draw: F,
@@ -291,7 +292,7 @@ impl Display {
         if time_passed >= 1.0 {
             let fps = self.frames_passed as f64 / time_passed;
             self.window
-                .set_title(&format!("GBA Emulator - {:.2} FPS", fps));
+                .set_title(&format!("GBA Emulator - {:.2} FPS [{emu_fps:.2}]", fps));
             self.frames_passed = 0;
             self.prev_fps_update_time = Instant::now();
         }

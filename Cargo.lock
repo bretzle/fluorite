@@ -206,6 +206,7 @@ dependencies = [
  "num",
  "priority-queue",
  "simple_logger",
+ "spin_sleep",
  "yaxpeax-arch",
  "yaxpeax-arm",
 ]
@@ -778,6 +779,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "511254be0c5bcf062b019a6c89c01a664aa359ded62f78aa72c6fc137c0590e5"
 dependencies = [
  "lock_api",
+]
+
+[[package]]
+name = "spin_sleep"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7273f3e2cded885af169b41b2099b7dc096414215b5a540ae071fddf44f386a"
+dependencies = [
+ "once_cell",
+ "winapi",
 ]
 
 [[package]]
