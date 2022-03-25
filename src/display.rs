@@ -34,7 +34,7 @@ impl Display {
         gl_attr.set_context_profile(GLProfile::Core);
 
         let width = (gba::WIDTH * gba::SCALE) as u32;
-        let height = (gba::HEIGHT * gba::SCALE) as u32;
+        let height = (gba::HEIGHT * gba::SCALE) as u32 + 19;
         let window = video
             .window("GBA Emulator", width, height)
             .allow_highdpi()
@@ -117,7 +117,7 @@ impl Display {
 
         let (width, height) = {
             let (w, h) = self.window.size();
-            (w as i32, h as i32)
+            (w as i32, h as i32 - 19)
         };
 
         const HEIGHT: i32 = gba::HEIGHT as i32;

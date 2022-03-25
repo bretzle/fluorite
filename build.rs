@@ -2,7 +2,10 @@ use std::{
     fs::File,
     io::{self, Write},
     path::Path,
+    process::{Command, Stdio},
 };
+
+use git2::Repository;
 
 fn main() {
     let out_dir = std::env::var_os("OUT_DIR").unwrap().into_string().unwrap();
@@ -11,7 +14,44 @@ fn main() {
     generate_arm_lut(format!("{out_dir}/arm_lut.rs")).expect("Failed to generate arm LUT");
     generate_thumb_lut(format!("{out_dir}/thumb_lut.rs")).expect("Failed to generate thumb LUT");
 
+    generate_consts(format!("{out_dir}/consts.rs")).expect("Failed to generate consts");
+
     println!("cargo:rerun-if-changed=build.rs")
+}
+
+fn generate_consts<P: AsRef<Path>>(path: P) -> io::Result<()> {
+    let mut file = File::create(path)?;
+
+    // let repo = Repository::open(".").unwrap();
+
+    let branch = String::from_utf8(
+        Command::new("git")
+            .args(["branch", "--show-current"])
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap()
+            .wait_with_output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap();
+
+    let rev = String::from_utf8(
+        Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap()
+            .wait_with_output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap();
+
+    writeln!(file, "pub const BRANCH: &str = \"{branch}\";")?;
+    writeln!(file, "pub const REVISION: &str = \"{rev}\";")?;
+
+    Ok(())
 }
 
 fn generate_cond_lut<P: AsRef<Path>>(path: P) -> io::Result<()> {

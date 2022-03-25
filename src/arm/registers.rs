@@ -1,3 +1,5 @@
+use std::fmt;
+
 use bitflags::bitflags;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -162,6 +164,10 @@ impl Registers {
         self.set_reg(self.get_reg_from_u32(reg), value);
     }
 
+    pub fn get_status(&self) -> StatusRegister {
+        self.cpsr
+    }
+
     pub fn get_n(&self) -> bool {
         self.cpsr.contains(StatusRegister::N)
     }
@@ -227,7 +233,7 @@ pub enum Mode {
 }
 
 bitflags! {
-    struct StatusRegister: u32 {
+    pub struct StatusRegister: u32 {
         const N =  0x80000000;
         const Z =  0x40000000;
         const C =  0x20000000;
@@ -263,5 +269,22 @@ impl StatusRegister {
 
     pub fn set_mode(&mut self, mode: Mode) {
         self.bits = (self.bits() & !0x1F) | mode as u32;
+    }
+}
+
+impl fmt::Display for StatusRegister {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "[{N}{Z}{C}{V}{I}{F}{T}] {MODE:?}",
+            N = if self.contains(Self::N) { 'N' } else { '-' },
+            Z = if self.contains(Self::Z) { 'Z' } else { '-' },
+            C = if self.contains(Self::C) { 'C' } else { '-' },
+            V = if self.contains(Self::V) { 'V' } else { '-' },
+            I = if self.contains(Self::I) { 'I' } else { '-' },
+            F = if self.contains(Self::F) { 'F' } else { '-' },
+            T = if self.contains(Self::T) { 'T' } else { '-' },
+            MODE = self.get_mode()
+        )
     }
 }

@@ -1,6 +1,7 @@
 #![doc(html_logo_url = "https://raw.githubusercontent.com/bretzle/fluorite/main/fluorite.png")]
 
 use crate::arm::registers::Reg;
+use debug::EmulatorState;
 use display::Display;
 use gba::Gba;
 use imgui::Context;
@@ -10,7 +11,8 @@ use std::{
 };
 
 mod arm;
-// // mod debug;
+mod consts;
+mod debug;
 mod display;
 mod gba;
 mod io;
@@ -51,49 +53,91 @@ fn main() -> color_eyre::Result<()> {
             let end = before.elapsed();
 
             if end < frame_lock {
+                // thread::sleep is not accurate enough on windows. Often sleeps can be off by ~16ms
+                // spin_sleep is far more accurate by sleeping for a smaller acurate period of time
+                // and then spinning for remaing duration
                 spin_sleep::sleep(frame_lock - end);
             }
             *emu_fps = 1.0 / before.elapsed().as_secs_f32();
         });
     }
 
+    let mut emu_state = EmulatorState::default();
     let mut display = Display::new(&sdl, &mut imgui);
 
     while !display.should_close() {
         display.render(gba.get_pixels(), emu_fps, &mut imgui, |ui| {
-			if paused {
-				ui.window( "Paused")
-					.no_decoration()
-					.always_auto_resize(true)
-					.build(|| {
-						ui.text("Paused");
-					});
-			}
-			
-			use Reg::*;
-			let regs = &gba.cpu.regs;
-			#[rustfmt::skip]
-			ui.window("Registers").resizable(false).build( || {
-				ui.text(format!("R0   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R0)));
-				ui.text(format!("R1   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R1)));
-				ui.text(format!("R2   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R2)));
-				ui.text(format!("R3   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R3)));
-				ui.text(format!("R4   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R4)));
-				ui.text(format!("R5   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R5)));
-				ui.text(format!("R6   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R6)));
-				ui.text(format!("R7   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R7)));
-				ui.text(format!("R8   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R8)));
-				ui.text(format!("R9   0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R9)));
-				ui.text(format!("R10  0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R10)));
-				ui.text(format!("R11  0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R11)));
-				ui.text(format!("R12  0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R12)));
-				ui.text(format!("R13  0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R13)));
-				ui.text(format!("R14  0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R14)));
-				ui.text(format!("R15  0x{VAL:08X?}  {VAL:10?}", VAL = regs.get_reg(R15)));
-				ui.text(if regs.get_t() {"THUMB"} else {"ARM"});
-				ui.text(format!("M: {:?} N: {} Z: {} C: {} V {}", regs.get_mode(), regs.get_n()as u8, regs.get_z()as u8, regs.get_c()as u8, regs.get_v()as u8));
-			});
-		});
+            if paused {
+                ui.window("Paused")
+                    .no_decoration()
+                    .always_auto_resize(true)
+                    .build(|| {
+                        ui.text("Paused");
+                    });
+            }
+
+            ui.main_menu_bar(|| {
+                ui.menu("File", || {
+                    if ui.menu_item("Open ROM") {
+                        todo!("ROMs cant be loaded without restarting yet.")
+                    }
+                    if ui.menu_item("Load BIOS") {
+                        todo!("Custom BIOS are not supported")
+                    }
+                    ui.separator();
+                    if ui.menu_item("About") {
+                        emu_state.show_about = true;
+                    }
+                    if ui.menu_item("Quit") {
+                        std::process::exit(0)
+                    }
+                });
+
+                ui.menu("Emulation", || {});
+
+                ui.menu("Debug", || {});
+            });
+
+            if emu_state.show_about {
+                ui.window("About")
+                    .collapsible(false)
+                    .resizable(false)
+                    .opened(&mut emu_state.show_about)
+                    .build(|| {
+                        ui.text(env!("CARGO_PKG_NAME"));
+                        ui.text(format!("version: {}", env!("CARGO_PKG_VERSION")));
+                        ui.text(format!("branch: {}", consts::BRANCH));
+                        ui.text(format!("revision: {}", consts::REVISION));
+                    });
+            }
+
+            if emu_state.show_registers {
+                ui.window("Registers")
+                    .opened(&mut emu_state.show_registers)
+                    .resizable(false)
+                    .build(|| {
+                        use Reg::*;
+                        let regs = &gba.cpu.regs;
+                        ui.text(format!("R0   0x{0:08X?}  {0:10?}", regs.get_reg(R0)));
+                        ui.text(format!("R1   0x{0:08X?}  {0:10?}", regs.get_reg(R1)));
+                        ui.text(format!("R2   0x{0:08X?}  {0:10?}", regs.get_reg(R2)));
+                        ui.text(format!("R3   0x{0:08X?}  {0:10?}", regs.get_reg(R3)));
+                        ui.text(format!("R4   0x{0:08X?}  {0:10?}", regs.get_reg(R4)));
+                        ui.text(format!("R5   0x{0:08X?}  {0:10?}", regs.get_reg(R5)));
+                        ui.text(format!("R6   0x{0:08X?}  {0:10?}", regs.get_reg(R6)));
+                        ui.text(format!("R7   0x{0:08X?}  {0:10?}", regs.get_reg(R7)));
+                        ui.text(format!("R8   0x{0:08X?}  {0:10?}", regs.get_reg(R8)));
+                        ui.text(format!("R9   0x{0:08X?}  {0:10?}", regs.get_reg(R9)));
+                        ui.text(format!("R10  0x{0:08X?}  {0:10?}", regs.get_reg(R10)));
+                        ui.text(format!("R11  0x{0:08X?}  {0:10?}", regs.get_reg(R11)));
+                        ui.text(format!("R12  0x{0:08X?}  {0:10?}", regs.get_reg(R12)));
+                        ui.text(format!("R13  0x{0:08X?}  {0:10?}", regs.get_reg(R13)));
+                        ui.text(format!("R14  0x{0:08X?}  {0:10?}", regs.get_reg(R14)));
+                        ui.text(format!("R15  0x{0:08X?}  {0:10?}", regs.get_reg(R15)));
+                        ui.text(format!("{}", regs.get_status()));
+                    });
+            }
+        });
     }
 
     Ok(())
