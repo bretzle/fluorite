@@ -22,8 +22,6 @@ yaxpeax-arm = { version = "0.2.3", optional = true }
 yaxpeax-arch = { version = "0.2.7", optional = true }
 spin_sleep = "1.1.0"
 
-[build-dependencies]
-git2 = "0.14.2"
 
 [features]
 default = []

@@ -5,8 +5,6 @@ use std::{
     process::{Command, Stdio},
 };
 
-use git2::Repository;
-
 fn main() {
     let out_dir = std::env::var_os("OUT_DIR").unwrap().into_string().unwrap();
 
@@ -22,16 +20,12 @@ fn main() {
 fn generate_consts<P: AsRef<Path>>(path: P) -> io::Result<()> {
     let mut file = File::create(path)?;
 
-    // let repo = Repository::open(".").unwrap();
-
     let branch = String::from_utf8(
         Command::new("git")
             .args(["branch", "--show-current"])
             .stdout(Stdio::piped())
-            .spawn()
-            .unwrap()
-            .wait_with_output()
-            .unwrap()
+            .spawn()?
+            .wait_with_output()?
             .stdout,
     )
     .unwrap();
@@ -40,10 +34,8 @@ fn generate_consts<P: AsRef<Path>>(path: P) -> io::Result<()> {
         Command::new("git")
             .args(["rev-parse", "HEAD"])
             .stdout(Stdio::piped())
-            .spawn()
-            .unwrap()
-            .wait_with_output()
-            .unwrap()
+            .spawn()?
+            .wait_with_output()?
             .stdout,
     )
     .unwrap();
