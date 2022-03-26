@@ -6,10 +6,7 @@ use self::{
     scheduler::{Event, EventType, Scheduler},
     timers::Timers,
 };
-use crate::{
-    gba::{self, DebugSpec},
-    io::interrupt_controller::InterruptRequest,
-};
+use crate::{consts::CLOCK_FREQ, gba::DebugSpec, io::interrupt_controller::InterruptRequest};
 use num::FromPrimitive;
 use std::{cell::Cell, collections::VecDeque, mem::size_of};
 
@@ -244,7 +241,7 @@ impl Sysbus {
             EventType::FrameSequencer(step) => {
                 // self.apu.clock_sequencer(step);
                 self.scheduler.add(Event {
-                    cycle: self.scheduler.cycle + (gba::CLOCK_FREQ / 512),
+                    cycle: self.scheduler.cycle + (CLOCK_FREQ / 512),
                     event_type: EventType::FrameSequencer((step + 1) % 8),
                 });
             }

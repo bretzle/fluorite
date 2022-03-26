@@ -3,7 +3,7 @@
 use config::Config;
 use counter::FrameCounter;
 use fluorite_gba::{
-    consts::{SCREEN_HEIGHT, SCREEN_WIDTH},
+    consts::{HEIGHT, WIDTH},
     gba::Gba,
 };
 use limiter::FrameRateLimiter;
@@ -122,8 +122,8 @@ impl Application {
 
     pub fn draw_frame(&mut self, state: State) {
         if state == State::Run {
-            const PIXELS_HOR: usize = SCREEN_WIDTH + 68;
-            const PIXELS_VER: usize = SCREEN_HEIGHT + 68;
+            const PIXELS_HOR: usize = WIDTH + 68;
+            const PIXELS_VER: usize = HEIGHT + 68;
             const PIXEL_CUCLES: usize = 4;
             const FRAME_CYCLES: usize = PIXEL_CUCLES * PIXELS_HOR * PIXELS_VER;
 

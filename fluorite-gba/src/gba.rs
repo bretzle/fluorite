@@ -1,14 +1,11 @@
 use crate::{
     arm::Arm7tdmi,
-    io::{gpu::debug::DebugSpecification, Sysbus},
+    io::{gpu::debug::DebugSpecification, Sysbus}, consts::CLOCKS_PER_FRAME,
 };
-use std::{sync::{Arc, Mutex}, path::Path};
-
-pub const WIDTH: usize = 240;
-pub const HEIGHT: usize = 160;
-pub const SCALE: usize = 4;
-pub const CLOCKS_PER_FRAME: usize = 280896;
-pub const CLOCK_FREQ: usize = 1 << 24;
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+};
 
 pub struct Gba {
     pub cpu: Arm7tdmi,
@@ -46,7 +43,7 @@ impl Gba {
         &self.bus.gpu.pixels
     }
 
-	pub fn load_rom<P: AsRef<Path>>(&mut self, _path: P) {
-		todo!()
-	}
+    pub fn load_rom<P: AsRef<Path>>(&mut self, _path: P) {
+        todo!()
+    }
 }

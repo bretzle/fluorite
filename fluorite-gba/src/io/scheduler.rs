@@ -1,4 +1,4 @@
-use crate::gba;
+use crate::{ consts::CLOCK_FREQ};
 use priority_queue::PriorityQueue;
 use std::cmp::Reverse;
 
@@ -10,7 +10,7 @@ pub struct Scheduler {
 impl Scheduler {
     pub fn new() -> Self {
         let mut queue = PriorityQueue::new();
-        queue.push(EventType::FrameSequencer(0), Reverse(gba::CLOCK_FREQ / 512));
+        queue.push(EventType::FrameSequencer(0), Reverse(CLOCK_FREQ / 512));
         Self {
             cycle: 0,
             event_queue: queue,

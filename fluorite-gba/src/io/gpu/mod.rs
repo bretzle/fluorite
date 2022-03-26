@@ -1,6 +1,9 @@
 use self::{debug::DebugSpecification, registers::*};
 use super::{interrupt_controller::InterruptRequest, scheduler::Scheduler};
-use crate::gba::{self, DebugSpec, Pixels, HEIGHT, WIDTH};
+use crate::{
+    consts::{HEIGHT, WIDTH},
+    gba::{DebugSpec, Pixels},
+};
 use std::sync::{Arc, Mutex};
 
 pub mod debug;
@@ -53,9 +56,9 @@ pub struct Gpu {
     // Rendering
     rendered_frame: bool,
     dot: u16,
-    bg_lines: [[u16; gba::WIDTH]; 4],
-    objs_line: [OBJPixel; gba::WIDTH],
-    windows_lines: [[bool; gba::WIDTH]; 3],
+    bg_lines: [[u16; WIDTH]; 4],
+    objs_line: [OBJPixel; WIDTH],
+    windows_lines: [[bool; WIDTH]; 3],
 
     pub pixels: Pixels,
     _debug_spec: DebugSpec,
@@ -107,9 +110,9 @@ impl Gpu {
 
             rendered_frame: false,
             dot: 0,
-            bg_lines: [[0; gba::WIDTH]; 4],
-            objs_line: [OBJPixel::none(); gba::WIDTH],
-            windows_lines: [[false; gba::WIDTH]; 3],
+            bg_lines: [[0; WIDTH]; 4],
+            objs_line: [OBJPixel::none(); WIDTH],
+            windows_lines: [[false; WIDTH]; 3],
 
             pixels,
             _debug_spec: debug.clone(),
@@ -298,10 +301,10 @@ impl Gpu {
                 } else {
                     (1, 1)
                 };
-                for dot_x in 0..gba::WIDTH {
+                for dot_x in 0..WIDTH {
                     let y = self.vcount / mosaic_y * mosaic_y;
                     let x = dot_x / mosaic_x * mosaic_x;
-                    let addr = (y as usize * gba::WIDTH + x) * 2;
+                    let addr = (y as usize * WIDTH + x) * 2;
                     self.bg_lines[2][dot_x] =
                         u16::from_le_bytes([self.vram[addr], self.vram[addr + 1]]);
                 }
@@ -322,8 +325,8 @@ impl Gpu {
                     0xA000
                 } else {
                     0
-                } + y as usize * gba::WIDTH;
-                for dot_x in 0..gba::WIDTH {
+                } + y as usize * WIDTH;
+                for dot_x in 0..WIDTH {
                     let x = dot_x / mosaic_x * mosaic_x;
                     self.bg_lines[2][dot_x] = self.bg_palettes[self.vram[start_addr + x] as usize];
                 }
@@ -334,7 +337,7 @@ impl Gpu {
     }
 
     fn process_lines(&mut self, start_line: usize, end_line: usize) {
-        let start_index = self.vcount as usize * gba::WIDTH;
+        let start_index = self.vcount as usize * WIDTH;
 
         let mut bgs: Vec<(usize, u8)> = Vec::new();
         for bg_i in start_line..=end_line {
@@ -351,7 +354,7 @@ impl Gpu {
             self.dispcnt.contains(DISPCNTFlags::DISPLAY_OBJ),
         ];
         let pixels = &mut self.pixels;
-        for dot_x in 0..gba::WIDTH {
+        for dot_x in 0..WIDTH {
             let window_control = if self.windows_lines[0][dot_x] {
                 self.win_0_cnt
             } else if self.windows_lines[1][dot_x] {
@@ -486,7 +489,7 @@ impl Gpu {
         };
 
         let dot_y = self.vcount as usize;
-        for dot_x in 0..gba::WIDTH {
+        for dot_x in 0..WIDTH {
             let x = (dot_x + x_offset) / mosaic_x * mosaic_x;
             let y = (dot_y + y_offset) / mosaic_y * mosaic_y;
             // Get Screen Entry

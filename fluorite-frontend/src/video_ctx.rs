@@ -1,4 +1,4 @@
-use fluorite_gba::gba::{self, HEIGHT, SCALE, WIDTH};
+use fluorite_gba::consts::{HEIGHT, SCALE, WIDTH};
 use glow::{HasContext, PixelUnpackData};
 use imgui::Context;
 use imgui_glow_renderer::AutoRenderer;
@@ -111,8 +111,8 @@ impl VideoCtx {
                 0,
                 0,
                 0,
-                gba::WIDTH as i32,
-                gba::HEIGHT as i32,
+                WIDTH as i32,
+                HEIGHT as i32,
                 glow::RGBA,
                 glow::UNSIGNED_SHORT_1_5_5_5_REV,
                 pixels,
@@ -120,8 +120,8 @@ impl VideoCtx {
             gl.blit_framebuffer(
                 0,
                 0,
-                gba::WIDTH as i32,
-                gba::HEIGHT as i32,
+                WIDTH as i32,
+                HEIGHT as i32,
                 x,
                 height - y,
                 width - x,
@@ -138,10 +138,7 @@ impl VideoCtx {
             (w as i32, h as i32)
         };
 
-        const HEIGHT: i32 = gba::HEIGHT as i32;
-        const WIDTH: i32 = gba::WIDTH as i32;
-
-        let (tex_x, tex_y) = match (width * HEIGHT).cmp(&(height * WIDTH)) {
+        let (tex_x, tex_y) = match (width * HEIGHT as i32).cmp(&(height * WIDTH as i32)) {
             Ordering::Greater => {
                 let scaled_width = (WIDTH as f32 / HEIGHT as f32 * height as f32) as i32;
                 ((width - scaled_width) / 2, 0)
