@@ -2,7 +2,7 @@
 
 use config::Config;
 use counter::FrameCounter;
-use fluorite::{
+use fluorite_gba::{
     consts::{SCREEN_HEIGHT, SCREEN_WIDTH},
     gba::Gba,
 };
@@ -15,8 +15,8 @@ mod counter;
 mod limiter;
 mod video_ctx;
 
-static BIOS: &[u8] = include_bytes!("../roms/gba_bios.bin");
-static ROM: &[u8] = include_bytes!("../roms/first-1.gba");
+static BIOS: &[u8] = include_bytes!("../../roms/gba_bios.bin");
+static ROM: &[u8] = include_bytes!("../../roms/first-1.gba");
 
 fn main() -> color_eyre::Result<()> {
     simple_logger::init().unwrap();
@@ -303,7 +303,7 @@ impl Application {
                     .opened(&mut self.show_registers)
                     .resizable(false)
                     .build(|| {
-                        use fluorite::arm::registers::Reg::*;
+                        use fluorite_gba::arm::registers::Reg::*;
                         let regs = &self.gba.cpu.regs;
                         ui.text(format!("R0   0x{0:08X?}  {0:10?}", regs.get_reg(R0)));
                         ui.text(format!("R1   0x{0:08X?}  {0:10?}", regs.get_reg(R1)));

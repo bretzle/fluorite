@@ -1,4 +1,4 @@
-use fluorite::gba::{self, HEIGHT, SCALE, WIDTH};
+use fluorite_gba::gba::{self, HEIGHT, SCALE, WIDTH};
 use glow::{HasContext, PixelUnpackData};
 use imgui::Context;
 use imgui_glow_renderer::AutoRenderer;
