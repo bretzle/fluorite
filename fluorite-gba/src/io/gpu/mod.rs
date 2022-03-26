@@ -350,7 +350,7 @@ impl Gpu {
             self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG3),
             self.dispcnt.contains(DISPCNTFlags::DISPLAY_OBJ),
         ];
-        let mut pixels = &mut self.pixels;
+        let pixels = &mut self.pixels;
         for dot_x in 0..gba::WIDTH {
             let window_control = if self.windows_lines[0][dot_x] {
                 self.win_0_cnt

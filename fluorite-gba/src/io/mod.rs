@@ -7,10 +7,10 @@ use self::{
     timers::Timers,
 };
 use crate::{
-    gba::{self, DebugSpec, Pixels},
+    gba::{self, DebugSpec},
     io::interrupt_controller::InterruptRequest,
 };
-use num::cast::FromPrimitive;
+use num::FromPrimitive;
 use std::{cell::Cell, collections::VecDeque, mem::size_of};
 
 pub mod dma;

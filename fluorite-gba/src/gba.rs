@@ -46,7 +46,7 @@ impl Gba {
         &self.bus.gpu.pixels
     }
 
-	pub fn load_rom<P: AsRef<Path>>(&mut self, path: P) {
+	pub fn load_rom<P: AsRef<Path>>(&mut self, _path: P) {
 		todo!()
 	}
 }

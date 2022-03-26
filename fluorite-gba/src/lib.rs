@@ -1,3 +1,5 @@
+extern crate num_traits as num;
+
 pub mod arm;
 pub mod consts;
 pub mod gba;
