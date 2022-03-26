@@ -21,7 +21,10 @@ priority-queue = "1.2.1"
 yaxpeax-arm = { version = "0.2.3", optional = true }
 yaxpeax-arch = { version = "0.2.7", optional = true }
 spin_sleep = "1.1.0"
+rfd = "0.8.1"
 
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
 
 [features]
 default = []

@@ -2,7 +2,7 @@ use crate::{
     arm::Arm7tdmi,
     io::{gpu::debug::DebugSpecification, Sysbus},
 };
-use std::sync::{Arc, Mutex};
+use std::{sync::{Arc, Mutex}, path::Path};
 
 pub const WIDTH: usize = 240;
 pub const HEIGHT: usize = 160;
@@ -45,4 +45,8 @@ impl Gba {
     pub fn get_pixels(&self) -> &[u16] {
         &self.bus.gpu.pixels
     }
+
+	pub fn load_rom<P: AsRef<Path>>(&mut self, path: P) {
+		todo!()
+	}
 }

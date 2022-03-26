@@ -14,6 +14,10 @@ fn main() {
 
     generate_consts(format!("{out_dir}/consts.rs")).expect("Failed to generate consts");
 
+    let mut res = winres::WindowsResource::new();
+    res.set_icon("fluorite.ico");
+    res.compile().unwrap();
+
     println!("cargo:rerun-if-changed=build.rs")
 }
 
