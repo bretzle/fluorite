@@ -79,7 +79,7 @@ struct Application {
 impl Application {
     pub fn init() -> Self {
         let sdl = sdl2::init().unwrap();
-        let (gba, _) = Gba::new(BIOS.to_vec(), ROM.to_vec());
+        let gba = Gba::new(BIOS.to_vec(), ROM.to_vec());
         Self {
             video: VideoCtx::init(&sdl),
             _audio: (),

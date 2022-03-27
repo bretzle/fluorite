@@ -6,7 +6,7 @@ use self::{
     scheduler::{Event, EventType, Scheduler},
     timers::Timers,
 };
-use crate::{consts::CLOCK_FREQ, gba::DebugSpec, io::interrupt_controller::InterruptRequest};
+use crate::{consts::CLOCK_FREQ, io::interrupt_controller::InterruptRequest};
 use num::FromPrimitive;
 use std::{cell::Cell, collections::VecDeque, mem::size_of};
 
@@ -74,10 +74,8 @@ impl Sysbus {
     const EWRAM_MASK: u32 = 0x3FFFF;
     const IWRAM_MASK: u32 = 0x7FFF;
 
-    pub fn new(bios: Vec<u8>, rom: Vec<u8>) -> (Self, DebugSpec) {
-        let (gpu, debug) = Gpu::new();
-
-        let bus = Self {
+    pub fn new(bios: Vec<u8>, rom: Vec<u8>) -> Self {
+        Self {
             bios: bios.into_boxed_slice(),
             rom: rom.into_boxed_slice(),
 
@@ -87,7 +85,7 @@ impl Sysbus {
             scheduler: Scheduler::new(),
             clocks_ahead: 0,
 
-            gpu,
+            gpu: Gpu::new(),
             _apu: (),
             dma: Dma::new(),
             timers: Timers::new(),
@@ -103,9 +101,7 @@ impl Sysbus {
             in_thumb: false,
             pipeline: [0; 2],
             bios_latch: Cell::new(0xE129F000),
-        };
-
-        (bus, debug)
+        }
     }
 
     pub fn read<T>(&self, addr: u32) -> T

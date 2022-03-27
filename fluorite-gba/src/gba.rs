@@ -1,11 +1,5 @@
-use crate::{
-    arm::Arm7tdmi,
-    io::{gpu::debug::DebugSpecification, Sysbus}, consts::CLOCKS_PER_FRAME,
-};
-use std::{
-    path::Path,
-    sync::{Arc, Mutex},
-};
+use crate::{arm::Arm7tdmi, consts::CLOCKS_PER_FRAME, io::Sysbus};
+use std::path::Path;
 
 pub struct Gba {
     pub cpu: Arm7tdmi,
@@ -14,19 +8,16 @@ pub struct Gba {
 }
 
 pub type Pixels = Vec<u16>;
-pub type DebugSpec = Arc<Mutex<DebugSpecification>>;
 
 impl Gba {
-    pub fn new(bios: Vec<u8>, rom: Vec<u8>) -> (Self, DebugSpec) {
-        let (mut bus, debug) = Sysbus::new(bios, rom);
+    pub fn new(bios: Vec<u8>, rom: Vec<u8>) -> Self {
+        let mut bus = Sysbus::new(bios, rom);
 
-        let gba = Self {
+        Self {
             cpu: Arm7tdmi::new(false, &mut bus),
             bus,
             next_frame_cycle: 0,
-        };
-
-        (gba, debug)
+        }
     }
 
     pub fn emulate_frame(&mut self) {

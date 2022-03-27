@@ -1,12 +1,10 @@
-use self::{debug::DebugSpecification, registers::*};
+use self::registers::*;
 use super::{interrupt_controller::InterruptRequest, scheduler::Scheduler};
 use crate::{
     consts::{HEIGHT, WIDTH},
-    gba::{DebugSpec, Pixels},
+    gba::Pixels,
 };
-use std::sync::{Arc, Mutex};
 
-pub mod debug;
 mod registers;
 
 pub struct Gpu {
@@ -61,17 +59,13 @@ pub struct Gpu {
     windows_lines: [[bool; WIDTH]; 3],
 
     pub pixels: Pixels,
-    _debug_spec: DebugSpec,
 }
 
 impl Gpu {
     const TRANSPARENT_COLOR: u16 = 0x8000;
 
-    pub fn new() -> (Self, DebugSpec) {
-        let pixels = vec![0; WIDTH * HEIGHT];
-        let debug = Arc::new(Mutex::new(DebugSpecification::new()));
-
-        let gpu = Self {
+    pub fn new() -> Self {
+        Self {
             dispcnt: Dispcnt::new(),
             green_swap: false,
             dispstat: Dispstat::new(),
@@ -114,11 +108,8 @@ impl Gpu {
             objs_line: [OBJPixel::none(); WIDTH],
             windows_lines: [[false; WIDTH]; 3],
 
-            pixels,
-            _debug_spec: debug.clone(),
-        };
-
-        (gpu, debug)
+            pixels: vec![0; WIDTH * HEIGHT],
+        }
     }
 
     pub fn read_register(&self, addr: u32) -> u8 {
