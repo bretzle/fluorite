@@ -2,6 +2,7 @@
 
 use config::Config;
 use counter::FrameCounter;
+use fluorite_common::cell::EasyCell;
 use fluorite_gba::{
     consts::{HEIGHT, WIDTH},
     gba::Gba,
@@ -18,14 +19,17 @@ mod video_ctx;
 static BIOS: &[u8] = include_bytes!("../../roms/gba_bios.bin");
 static ROM: &[u8] = include_bytes!("../../roms/first-1.gba");
 
+static LIMITER: EasyCell<FrameRateLimiter> = EasyCell::new();
+static COUNTER: EasyCell<FrameCounter> = EasyCell::new();
+
 fn main() -> color_eyre::Result<()> {
     simple_logger::init().unwrap();
     color_eyre::install()?;
 
     let mut app = Application::init();
 
-    let mut limiter = FrameRateLimiter::new();
-    let mut counter = FrameCounter::new();
+    let limiter = LIMITER.init(FrameRateLimiter::new);
+    let counter = COUNTER.init(FrameCounter::new);
 
     while app.state != State::Quit {
         limiter.run(|| {
@@ -79,7 +83,7 @@ struct Application {
 impl Application {
     pub fn init() -> Self {
         let sdl = sdl2::init().unwrap();
-        let (gba, _) = Gba::new(BIOS.to_vec(), ROM.to_vec());
+        let gba = Gba::new();
         Self {
             video: VideoCtx::init(&sdl),
             _audio: (),
@@ -164,7 +168,9 @@ impl Application {
                             .pick_file()
                             .unwrap();
 
-                        self.gba.load_rom(path)
+                        self.gba.load_rom(path);
+                        self.gba.reset();
+                        queue_reset();
                     }
 
                     if ui.menu_item_config("Open save").enabled(running).build() {
@@ -303,7 +309,7 @@ impl Application {
                     .opened(&mut self.show_registers)
                     .resizable(false)
                     .build(|| {
-                        use fluorite_gba::arm::registers::Reg::*;
+                        use fluorite_gba::Reg::*;
                         let regs = &self.gba.cpu.regs;
                         ui.text(format!("R0   0x{0:08X?}  {0:10?}", regs.get_reg(R0)));
                         ui.text(format!("R1   0x{0:08X?}  {0:10?}", regs.get_reg(R1)));
@@ -321,9 +327,14 @@ impl Application {
                         ui.text(format!("R13  0x{0:08X?}  {0:10?}", regs.get_reg(R13)));
                         ui.text(format!("R14  0x{0:08X?}  {0:10?}", regs.get_reg(R14)));
                         ui.text(format!("R15  0x{0:08X?}  {0:10?}", regs.get_reg(R15)));
-                        ui.text(format!("{}", regs.get_status()));
+                        ui.text(format!("{}", regs.cpsr));
                     });
             }
         });
     }
+}
+
+fn queue_reset() {
+    LIMITER.get_mut().queue_reset();
+    COUNTER.get_mut().queue_reset();
 }
