@@ -212,6 +212,9 @@ name = "fluorite-gba"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "fluorite-arm",
+ "fluorite-common",
+ "log",
  "num-traits",
  "priority-queue",
 ]

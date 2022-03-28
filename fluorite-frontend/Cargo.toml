@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+fluorite-common = { path = "../fluorite-common" }
 fluorite-gba = { path = "../fluorite-gba" }
 fluorite-common = { path = "../fluorite-common" }
 
