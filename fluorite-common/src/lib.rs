@@ -1,37 +1,48 @@
-pub extern crate num_traits as num;
+use once_cell::sync::OnceCell;
+use std::{
+    cell::UnsafeCell,
+    ops::{Deref, DerefMut},
+};
 
-mod ram;
-mod register;
-pub mod ptr;
-pub mod cell;
+pub struct EasyCell<T>(OnceCell<UnsafeCell<T>>);
 
-pub use ram::Ram;
-pub use register::{RegisterR, RegisterRW, RegisterW};
-
-pub struct Event {
-    when: u64,
-    callback: fn(u64),
-}
-
-impl Event {
-    #[must_use]
-    pub fn new(callback: fn(u64)) -> Self {
-        Self { when: 0, callback }
+impl<T> EasyCell<T> {
+    pub const fn new() -> Self {
+        Self(OnceCell::new())
     }
 
-    pub fn is_scheduled(&self) -> bool {
-        self.when != 0
+    pub fn init<F: Fn() -> T>(&self, f: F) {
+        self.0.set(UnsafeCell::new(f()));
+    }
+
+    pub fn init_get<F: Fn() -> T>(&self, f: F) -> &mut T {
+        self.init(f);
+        self.get_mut()
+    }
+
+    #[inline]
+    pub fn get(&self) -> &T {
+        unsafe { &*self.0.get().unwrap_unchecked().get() }
+    }
+
+    #[inline]
+    pub fn get_mut(&self) -> &mut T {
+        unsafe { &mut *self.0.get().unwrap_unchecked().get() }
     }
 }
 
-impl PartialEq for Event {
-    fn eq(&self, other: &Self) -> bool {
-        self.when == other.when
+impl<T> Deref for EasyCell<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.get()
     }
 }
 
-impl PartialOrd for Event {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.when.partial_cmp(&other.when)
+impl<T> DerefMut for EasyCell<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.get_mut()
     }
 }
+
+unsafe impl<T> Sync for EasyCell<T> {}

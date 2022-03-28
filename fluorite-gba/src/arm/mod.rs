@@ -23,7 +23,7 @@ pub struct Arm7tdmi {
 }
 
 impl Arm7tdmi {
-    pub fn new(bios: bool, bus: &mut Sysbus) -> Self {
+    pub fn new(skip_bios: bool, bus: &mut Sysbus) -> Self {
         let mut arm = Self {
             regs: Registers::new(),
             pipeline: [0; 2],
@@ -34,12 +34,23 @@ impl Arm7tdmi {
             decode_log: std::fs::File::create("decode.log").unwrap(),
         };
 
-        if !bios {
+        if skip_bios {
             arm.regs.skip_bios();
         }
 
         arm.fill_arm_instr_buffer(bus);
         arm
+    }
+
+    pub fn reset(&mut self, skip_bios: bool, bus: &mut Sysbus) {
+        self.regs = Registers::new();
+        self.pipeline = [0; 2];
+        self.next_access = MemoryAccess::N;
+        self.internal = false;
+        if skip_bios {
+            self.regs.skip_bios();
+        }
+        self.fill_arm_instr_buffer(bus);
     }
 
     pub fn emulate_instr(&mut self, bus: &mut Sysbus) {

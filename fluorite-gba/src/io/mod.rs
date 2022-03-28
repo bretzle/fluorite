@@ -6,7 +6,7 @@ use self::{
     scheduler::{Event, EventType, Scheduler},
     timers::Timers,
 };
-use crate::{consts::CLOCK_FREQ, gba::DebugSpec, io::interrupt_controller::InterruptRequest};
+use crate::{consts::CLOCK_FREQ, io::interrupt_controller::InterruptRequest};
 use num::FromPrimitive;
 use std::{cell::Cell, collections::VecDeque, mem::size_of};
 
@@ -41,7 +41,7 @@ impl From<MemoryAccess> for Cycle {
 
 pub struct Sysbus {
     bios: Box<[u8]>,
-    rom: Box<[u8]>,
+    pub rom: Box<[u8]>,
 
     ewram: Box<[u8]>,
     iwram: Box<[u8]>,
@@ -74,10 +74,8 @@ impl Sysbus {
     const EWRAM_MASK: u32 = 0x3FFFF;
     const IWRAM_MASK: u32 = 0x7FFF;
 
-    pub fn new(bios: Vec<u8>, rom: Vec<u8>) -> (Self, DebugSpec) {
-        let (gpu, debug) = Gpu::new();
-
-        let bus = Self {
+    pub fn new(bios: Vec<u8>, rom: Vec<u8>) -> Self {
+        Self {
             bios: bios.into_boxed_slice(),
             rom: rom.into_boxed_slice(),
 
@@ -87,7 +85,7 @@ impl Sysbus {
             scheduler: Scheduler::new(),
             clocks_ahead: 0,
 
-            gpu,
+            gpu: Gpu::new(),
             _apu: (),
             dma: Dma::new(),
             timers: Timers::new(),
@@ -103,10 +101,29 @@ impl Sysbus {
             in_thumb: false,
             pipeline: [0; 2],
             bios_latch: Cell::new(0xE129F000),
-        };
-
-        (bus, debug)
+        }
     }
+
+	pub fn reset(&mut self) {
+		self.ewram.fill(0);
+		self.iwram.fill(0);
+		self.scheduler = Scheduler::new();
+		self.clocks_ahead = 0;
+		self.gpu = Gpu::new();
+		self._apu = ();
+		self.dma = Dma::new();
+		self.timers = Timers::new();
+		self._keypad = ();
+		self.interrupt_controller = InterruptController::new();
+		self._rtc = ();
+		self._backup = ();
+		self.haltcnt = 0;
+		self.waitcnt = WaitStateControl::new();
+		self.pc = 0;
+		self.in_thumb = false;
+		self.pipeline = [0;2];
+		self.bios_latch.set(0xE129F000);
+	}
 
     pub fn read<T>(&self, addr: u32) -> T
     where

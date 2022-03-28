@@ -2,7 +2,6 @@
 members = [
 	"fluorite-frontend",
 	"fluorite-common",
-	"fluorite-arm",
 	"fluorite-gba"
 ]
 

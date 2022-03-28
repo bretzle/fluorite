@@ -1,4 +1,4 @@
-use crate::{ consts::CLOCK_FREQ};
+use crate::consts::CLOCK_FREQ;
 use priority_queue::PriorityQueue;
 use std::cmp::Reverse;
 

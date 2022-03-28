@@ -201,17 +201,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "fluorite-arm"
-version = "0.1.0"
-dependencies = [
- "fluorite-common",
-]
-
-[[package]]
 name = "fluorite-common"
 version = "0.1.0"
 dependencies = [
- "num-traits",
  "once_cell",
 ]
 
