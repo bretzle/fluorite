@@ -12,38 +12,7 @@ fn main() {
     generate_arm_lut(format!("{out_dir}/arm_lut.rs")).expect("Failed to generate arm LUT");
     generate_thumb_lut(format!("{out_dir}/thumb_lut.rs")).expect("Failed to generate thumb LUT");
 
-    generate_consts(format!("{out_dir}/consts.rs")).expect("Failed to generate consts");
-
     println!("cargo:rerun-if-changed=build.rs")
-}
-
-fn generate_consts<P: AsRef<Path>>(path: P) -> io::Result<()> {
-    let mut file = File::create(path)?;
-
-    let branch = String::from_utf8(
-        Command::new("git")
-            .args(["branch", "--show-current"])
-            .stdout(Stdio::piped())
-            .spawn()?
-            .wait_with_output()?
-            .stdout,
-    )
-    .unwrap();
-
-    let rev = String::from_utf8(
-        Command::new("git")
-            .args(["rev-parse", "HEAD"])
-            .stdout(Stdio::piped())
-            .spawn()?
-            .wait_with_output()?
-            .stdout,
-    )
-    .unwrap();
-
-    writeln!(file, "pub const BRANCH: &str = \"{branch}\";")?;
-    writeln!(file, "pub const REVISION: &str = \"{rev}\";")?;
-
-    Ok(())
 }
 
 fn generate_cond_lut<P: AsRef<Path>>(path: P) -> io::Result<()> {

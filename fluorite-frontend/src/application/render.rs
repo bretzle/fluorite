@@ -22,9 +22,9 @@ impl Application {
                             .pick_file()
                         {
                             self.gba.load_rom(path);
-							self.gba.reset();
-							self.state = State::Run;
-							Application::queue_reset();
+                            self.gba.reset();
+                            self.state = State::Run;
+                            Application::queue_reset();
                         }
                     }
 

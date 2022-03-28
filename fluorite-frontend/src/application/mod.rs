@@ -97,8 +97,8 @@ impl Application {
         self.video.render(self.gba.get_pixels(), self.show_ui);
     }
 
-	pub fn queue_reset() {
-		crate::LIMITER.get_mut().queue_reset();
-		crate::COUNTER.get_mut().queue_reset();
-	}
+    pub fn queue_reset() {
+        crate::LIMITER.get_mut().queue_reset();
+        crate::COUNTER.get_mut().queue_reset();
+    }
 }

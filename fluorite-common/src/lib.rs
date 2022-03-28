@@ -1,3 +1,5 @@
+#![allow(clippy::mut_from_ref)]
+
 use once_cell::sync::OnceCell;
 use std::{
     cell::UnsafeCell,
@@ -12,7 +14,9 @@ impl<T> EasyCell<T> {
     }
 
     pub fn init<F: Fn() -> T>(&self, f: F) {
-        self.0.set(UnsafeCell::new(f()));
+        self.0
+            .set(UnsafeCell::new(f()))
+            .expect("Failed to init OnceCell");
     }
 
     pub fn init_get<F: Fn() -> T>(&self, f: F) -> &mut T {
