@@ -1,6 +1,7 @@
 [workspace]
 members = [
 	"fluorite-frontend",
+	"fluorite-common",
 	"fluorite-gba"
 ]
 

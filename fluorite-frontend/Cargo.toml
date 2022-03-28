@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 fluorite-gba = { path = "../fluorite-gba" }
+fluorite-common = { path = "../fluorite-common" }
 
 color-eyre = "0.6.1"
 simple_logger="2.1.0"

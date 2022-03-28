@@ -1,4 +1,4 @@
-use crate::{arm::Arm7tdmi, consts::CLOCKS_PER_FRAME, io::Sysbus};
+use crate::{arm::Arm7tdmi, io::Sysbus};
 use std::path::Path;
 
 pub struct Gba {
@@ -14,15 +14,21 @@ impl Gba {
         let mut bus = Sysbus::new(bios, rom);
 
         Self {
-            cpu: Arm7tdmi::new(false, &mut bus),
+            cpu: Arm7tdmi::new(true, &mut bus),
             bus,
             next_frame_cycle: 0,
         }
     }
 
-    pub fn emulate_frame(&mut self) {
-        self.bus.poll_keypad_updates();
-        self.next_frame_cycle += CLOCKS_PER_FRAME;
+    pub fn reset(&mut self) {
+        self.bus.reset();
+        self.cpu.reset(true, &mut self.bus);
+        self.next_frame_cycle = 0;
+    }
+
+    pub fn run(&mut self, cycles: usize) {
+        self.next_frame_cycle += cycles;
+
         while self.bus.get_cycle() < self.next_frame_cycle {
             self.bus.run_dma();
             self.cpu.handle_irq(&mut self.bus);
@@ -34,7 +40,7 @@ impl Gba {
         &self.bus.gpu.pixels
     }
 
-    pub fn load_rom<P: AsRef<Path>>(&mut self, _path: P) {
-        todo!()
+    pub fn load_rom<P: AsRef<Path>>(&mut self, path: P) {
+        self.bus.rom = std::fs::read(path).unwrap().into_boxed_slice();
     }
 }
