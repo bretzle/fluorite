@@ -34,12 +34,12 @@ impl DMASound {
         }
     }
 
-    pub fn read_cnt(&self) -> u8 {
-        self.timer_select << 2 | self.enable_left << 1 | self.enable_right
-    }
+    // pub fn read_cnt(&self) -> u8 {
+    //     self.timer_select << 2 | self.enable_left << 1 | self.enable_right
+    // }
 
     pub fn write_cnt(&mut self, value: u8) {
-        self.enable_right = value >> 0 & 0x1;
+        self.enable_right = value & 0x1;
         self.enable_left = value >> 1 & 0x1;
         self.timer_select = value >> 2 & 0x1;
         if value >> 3 & 0x1 != 0 {

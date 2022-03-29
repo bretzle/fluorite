@@ -2,7 +2,6 @@ use std::{
     fs::File,
     io::{self, Write},
     path::Path,
-    process::{Command, Stdio},
 };
 
 fn main() {

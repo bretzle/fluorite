@@ -21,11 +21,11 @@ impl Application {
                             .set_directory(&std::env::current_dir().unwrap())
                             .pick_file()
                         {
-							self.audio.pause();
+                            self.audio.pause();
                             self.gba.load_rom(path);
                             self.gba.reset();
                             self.state = State::Run;
-							self.audio.resume();
+                            self.audio.resume();
                             Application::queue_reset();
                         }
                     }

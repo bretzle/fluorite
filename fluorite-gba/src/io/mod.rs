@@ -247,10 +247,9 @@ impl Sysbus {
                 // Cascade Timers
                 if timer + 1 < self.timers.timers.len()
                     && self.timers.timers[timer + 1].is_count_up()
+                    && self.timers.timers[timer + 1].clock()
                 {
-                    if self.timers.timers[timer + 1].clock() {
-                        self.handle_event(EventType::TimerOverflow(timer + 1))
-                    }
+                    self.handle_event(EventType::TimerOverflow(timer + 1))
                 }
                 if !self.timers.timers[timer].is_count_up() {
                     self.timers.timers[timer].reload();

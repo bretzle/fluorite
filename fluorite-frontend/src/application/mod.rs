@@ -10,7 +10,7 @@ use sdl2::{event::Event, EventPump, Sdl};
 
 mod render;
 
-#[derive(PartialEq, Clone, Copy, Debug)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum State {
     Quit,
     Menu,
@@ -53,7 +53,7 @@ impl Application {
 
     pub fn init(&mut self) {
         self.audio.init();
-		Gba::load_audio(&mut self.audio as *mut _)
+        Gba::load_audio(&mut self.audio as *mut _)
     }
 
     pub fn is_running(&self) -> bool {
@@ -65,11 +65,12 @@ impl Application {
             .window
             .set_title(&match fps {
                 Some(fps) => format!("GBA Emulator - {fps:.1} FPS"),
-                None => format!("GBA Emulator"),
+                None => "GBA Emulator".to_string(),
             })
             .unwrap()
     }
 
+    #[allow(clippy::single_match)]
     pub fn do_events(&mut self) {
         for event in self.events.poll_iter() {
             self.video.handle_event(&event);

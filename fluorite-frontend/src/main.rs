@@ -1,4 +1,5 @@
 #![doc(html_logo_url = "https://raw.githubusercontent.com/bretzle/fluorite/main/fluorite.png")]
+#![allow(clippy::new_without_default)]
 
 use application::{Application, State};
 use counter::FrameCounter;
@@ -6,11 +7,11 @@ use fluorite_common::EasyCell;
 use limiter::FrameRateLimiter;
 
 mod application;
+mod audio_ctx;
 mod config;
 mod counter;
 mod limiter;
 mod video_ctx;
-mod audio_ctx;
 
 static BIOS: &[u8] = include_bytes!("../../roms/gba_bios.bin");
 static ROM: &[u8] = include_bytes!("../../roms/first-1.gba");
@@ -24,7 +25,7 @@ fn main() -> color_eyre::Result<()> {
 
     let mut app = Application::new();
 
-	app.init();
+    app.init();
 
     let limiter = LIMITER.init_get(FrameRateLimiter::new);
     let counter = COUNTER.init_get(FrameCounter::new);

@@ -1,3 +1,5 @@
+#![allow(clippy::new_without_default)]
+
 extern crate num_traits as num;
 
 pub mod arm;

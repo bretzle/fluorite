@@ -4,7 +4,7 @@ use super::Channel;
 pub struct Tone {
     // Registers
     pub sweep: Sweep,
-    length_reload: u8,
+    _length_reload: u8,
     duty: u8,
     pub envelope: Envelope,
     use_length: bool,
@@ -27,7 +27,7 @@ impl Tone {
     pub fn new() -> Self {
         Self {
             sweep: Sweep::new(),
-            length_reload: 0,
+            _length_reload: 0,
             duty: 0,
             envelope: Envelope::new(),
             use_length: false,
@@ -47,45 +47,45 @@ impl Tone {
         }
     }
 
-    fn read(&self, byte: u8) -> u8 {
-        match byte {
-            0 => self.sweep.read(),
-            1 => 0,
-            2 => self.duty << 6,
-            3 => self.envelope.read(),
-            4 => 0,
-            5 => (self.use_length as u8) << 6,
-            6 | 7 => 0,
-            _ => unreachable!(),
-        }
-    }
+    // fn read(&self, byte: u8) -> u8 {
+    //     match byte {
+    //         0 => self.sweep.read(),
+    //         1 => 0,
+    //         2 => self.duty << 6,
+    //         3 => self.envelope.read(),
+    //         4 => 0,
+    //         5 => (self.use_length as u8) << 6,
+    //         6 | 7 => 0,
+    //         _ => unreachable!(),
+    //     }
+    // }
 
-    fn write(&mut self, byte: u8, value: u8) {
-        match byte {
-            0 => self.sweep.write(value),
-            1 => (),
-            2 => {
-                self.duty = value >> 6 & 0x3;
-                self.length_reload = value & 0x3F;
-            }
-            3 => self.envelope.write(value),
-            4 => self.sweep.freq = self.sweep.freq & !0xFF | value as u16,
-            5 => {
-                self.sweep.freq = self.sweep.freq & !0x700 | ((value & 0x7) as u16) << 8;
-                self.use_length = value >> 6 & 0x1 != 0;
-                if value & 0x80 != 0 {
-                    self.sweep.reload();
-                    self.duty_pos = 0;
-                    self.timer.reload(self.calc_reload());
-                    self.envelope.reset();
-                    self.length_counter
-                        .reload_length(64 - self.length_reload as u16);
-                }
-            }
-            6 | 7 => (),
-            _ => unreachable!(),
-        }
-    }
+    // fn write(&mut self, byte: u8, value: u8) {
+    //     match byte {
+    //         0 => self.sweep.write(value),
+    //         1 => (),
+    //         2 => {
+    //             self.duty = value >> 6 & 0x3;
+    //             self._length_reload = value & 0x3F;
+    //         }
+    //         3 => self.envelope.write(value),
+    //         4 => self.sweep.freq = self.sweep.freq & !0xFF | value as u16,
+    //         5 => {
+    //             self.sweep.freq = self.sweep.freq & !0x700 | ((value & 0x7) as u16) << 8;
+    //             self.use_length = value >> 6 & 0x1 != 0;
+    //             if value & 0x80 != 0 {
+    //                 self.sweep.reload();
+    //                 self.duty_pos = 0;
+    //                 self.timer.reload(self.calc_reload());
+    //                 self.envelope.reset();
+    //                 self.length_counter
+    //                     .reload_length(64 - self._length_reload as u16);
+    //             }
+    //         }
+    //         6 | 7 => (),
+    //         _ => unreachable!(),
+    //     }
+    // }
 }
 
 impl Channel for Tone {

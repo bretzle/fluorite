@@ -1,8 +1,8 @@
+mod components;
 mod dma_sound;
 mod noise;
 mod tone;
 mod wave;
-mod components;
 
 pub use components::Timer;
 pub use dma_sound::DMASound;
