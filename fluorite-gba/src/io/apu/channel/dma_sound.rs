@@ -1,29 +1,22 @@
-use std::collections::VecDeque;
 use super::Channel;
+use std::collections::VecDeque;
 
 pub struct DMASound {
-    // Registers
     pub enable_right: u8,
     pub enable_left: u8,
     timer_select: u8,
     fifo: VecDeque<i8>,
-    // Sound Generation
+
     sample: i16,
 }
 
 impl DMASound {
-    // DMA Sound is twice as loud as PSG channels
-    // 8 is 100% so that wave ram volume can be more easily changed
-    pub const VOLUME_FACTORS: [i16; 2] = [2 * 4, 2 * 8];
-
     pub fn new() -> Self {
         Self {
-            // Register
             enable_right: 0,
             enable_left: 0,
             timer_select: 0,
             fifo: VecDeque::new(),
-            // Sound Generation
             sample: 0,
         }
     }

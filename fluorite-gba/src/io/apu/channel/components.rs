@@ -16,11 +16,9 @@ pub struct Sweep {
 impl Sweep {
     pub fn new() -> Self {
         Self {
-            // Registers
             shift: 0,
             negate: false,
             period: 0,
-            // Sound Generation
             enabled: false,
             timer: Timer::new(1),
             freq: 0,

@@ -7,7 +7,7 @@ use self::{
     scheduler::{Event, EventType, Scheduler},
     timers::Timers,
 };
-use crate::{consts::CLOCK_FREQ, gba::AUDIO_DEVICE, io::interrupt_controller::InterruptRequest};
+use crate::{consts::CLOCK_FREQ, io::interrupt_controller::InterruptRequest};
 use num::FromPrimitive;
 use std::{cell::Cell, collections::VecDeque, mem::size_of};
 
@@ -256,7 +256,7 @@ impl Sysbus {
                     self.timers.timers[timer].reload();
                     self.timers.timers[timer].create_event(&mut self.scheduler, 0);
                 }
-				self.apu.on_timer_overflowed(timer);
+                self.apu.on_timer_overflowed(timer);
             }
             EventType::FrameSequencer(step) => {
                 self.apu.clock_sequencer(step);

@@ -26,14 +26,11 @@ impl Tone {
 
     pub fn new() -> Self {
         Self {
-            // Registers
             sweep: Sweep::new(),
             length_reload: 0,
             duty: 0,
             envelope: Envelope::new(),
             use_length: false,
-
-            // Sound Generation
             length_counter: LengthCounter::new(),
             timer: Timer::new(16 * 2048),
             duty_pos: 0,

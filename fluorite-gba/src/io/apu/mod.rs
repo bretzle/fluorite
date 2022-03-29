@@ -114,41 +114,39 @@ impl Apu {
     fn generate_sample(&mut self) {
         self.sample_clock -= 1;
         if self.sample_clock == 0 {
+            let mut samples = [0, 0];
+
             let channel1_sample = self.tone1.generate_sample();
             let channel2_sample = self.tone2.generate_sample();
             let channel3_sample = self.wave.generate_sample();
             let channel4_sample = self.noise.generate_sample();
-            let (mut psg_l, mut psg_r) = (0, 0);
 
-            psg_l += self.cnt.psg_enable_l.channel1 as i16 * channel1_sample;
-            psg_l += self.cnt.psg_enable_l.channel2 as i16 * channel2_sample;
-            psg_l += self.cnt.psg_enable_l.channel3 as i16 * channel3_sample;
-            psg_l += self.cnt.psg_enable_l.channel4 as i16 * channel4_sample;
-            psg_r += self.cnt.psg_enable_r.channel1 as i16 * channel1_sample;
-            psg_r += self.cnt.psg_enable_r.channel2 as i16 * channel2_sample;
-            psg_r += self.cnt.psg_enable_r.channel3 as i16 * channel3_sample;
-            psg_r += self.cnt.psg_enable_r.channel4 as i16 * channel4_sample;
+            samples[0] += self.cnt.psg_enable_l.channel1 as i16 * channel1_sample;
+            samples[0] += self.cnt.psg_enable_l.channel2 as i16 * channel2_sample;
+            samples[0] += self.cnt.psg_enable_l.channel3 as i16 * channel3_sample;
+            samples[0] += self.cnt.psg_enable_l.channel4 as i16 * channel4_sample;
+            samples[1] += self.cnt.psg_enable_r.channel1 as i16 * channel1_sample;
+            samples[1] += self.cnt.psg_enable_r.channel2 as i16 * channel2_sample;
+            samples[1] += self.cnt.psg_enable_r.channel3 as i16 * channel3_sample;
+            samples[1] += self.cnt.psg_enable_r.channel4 as i16 * channel4_sample;
 
-            psg_l *= 1 + self.cnt.psg_master_volume_l as i16;
-            psg_r *= 1 + self.cnt.psg_master_volume_r as i16;
+            samples[0] *= self.cnt.psg_master_volume_l as i16 + 1;
+            samples[1] *= self.cnt.psg_master_volume_r as i16 + 1;
+            samples[0] <<= 1;
+            samples[1] <<= 1;
+            samples[0] >>= 3 - self.cnt.psg_volume as i16;
+            samples[1] >>= 3 - self.cnt.psg_volume as i16;
 
-            let sound_a_sample = DMASound::VOLUME_FACTORS[self.cnt.dma_sound_a_vol as usize]
-                * self.sound_a.generate_sample();
-            let sound_b_sample = DMASound::VOLUME_FACTORS[self.cnt.dma_sound_b_vol as usize]
-                * self.sound_b.generate_sample();
-            let (mut dma_l, mut dma_r) = (0, 0);
+            let sound_a_sample = self.sound_a.generate_sample();
+            let sound_b_sample = self.sound_b.generate_sample();
 
-            dma_l += self.sound_a.enable_left as i16 * sound_a_sample;
-            dma_l += self.sound_b.enable_left as i16 * sound_b_sample;
-            dma_r += self.sound_a.enable_right as i16 * sound_a_sample;
-            dma_r += self.sound_b.enable_right as i16 * sound_b_sample;
+            samples[0] += self.sound_a.enable_left as i16 * sound_a_sample;
+            samples[0] += self.sound_b.enable_left as i16 * sound_b_sample;
+            samples[1] += self.sound_a.enable_right as i16 * sound_a_sample;
+            samples[1] += self.sound_b.enable_right as i16 * sound_b_sample;
 
-            let mut samples = [psg_l + dma_l, psg_r + dma_r];
-            for sample in samples.iter_mut() {
-                *sample = *sample + self.bias.bias_level as i16;
-                *sample = num::clamp(*sample, 0, 0x3FF);
-                *sample -= 0x200;
-            }
+            samples[0] = num::clamp(samples[0] + self.bias.bias_level as i16, -0x400, 0x3FF) << 5;
+            samples[1] = num::clamp(samples[1] + self.bias.bias_level as i16, -0x400, 0x3FF) << 5;
 
             AUDIO_DEVICE.get_mut().write(samples);
             self.sample_clock = Self::CLOCKS_PER_SAMPLE;

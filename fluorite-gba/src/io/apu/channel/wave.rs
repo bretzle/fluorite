@@ -23,7 +23,6 @@ impl Wave {
 
     pub fn new() -> Self {
         Self {
-            // Registers
             use_two_banks: false,
             wave_ram_bank: 0,
             enabled: false,
@@ -32,7 +31,6 @@ impl Wave {
             force_volume: false,
             sample_rate: 0,
             use_length: false,
-            // Sound Generation
             length_counter: LengthCounter::new(),
             wave_ram: [[0; 16]; 2],
             wave_ram_i: 0,

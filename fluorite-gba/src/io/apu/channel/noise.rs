@@ -18,14 +18,12 @@ pub struct Noise {
 impl Noise {
     pub fn new() -> Self {
         Self {
-            // Registers
             length_reload: 0,
             envelope: Envelope::new(),
             ratio: 0,
             counter_width: false,
             shift: 0,
             use_length: false,
-            // Sound Generation
             length_counter: LengthCounter::new(),
             timer: Timer::new(8),
             lfsr: 0x7FFF,
