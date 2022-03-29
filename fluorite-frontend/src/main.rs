@@ -10,6 +10,7 @@ mod config;
 mod counter;
 mod limiter;
 mod video_ctx;
+mod audio_ctx;
 
 static BIOS: &[u8] = include_bytes!("../../roms/gba_bios.bin");
 static ROM: &[u8] = include_bytes!("../../roms/first-1.gba");
@@ -21,7 +22,9 @@ fn main() -> color_eyre::Result<()> {
     simple_logger::init().unwrap();
     color_eyre::install()?;
 
-    let mut app = Application::init();
+    let mut app = Application::new();
+
+	app.init();
 
     let limiter = LIMITER.init_get(FrameRateLimiter::new);
     let counter = COUNTER.init_get(FrameCounter::new);

@@ -1,4 +1,5 @@
 use self::{
+    apu::Apu,
     dma::Dma,
     gpu::Gpu,
     interrupt_controller::InterruptController,
@@ -6,10 +7,11 @@ use self::{
     scheduler::{Event, EventType, Scheduler},
     timers::Timers,
 };
-use crate::{consts::CLOCK_FREQ, io::interrupt_controller::InterruptRequest};
+use crate::{consts::CLOCK_FREQ, gba::AUDIO_DEVICE, io::interrupt_controller::InterruptRequest};
 use num::FromPrimitive;
 use std::{cell::Cell, collections::VecDeque, mem::size_of};
 
+pub mod apu;
 pub mod dma;
 pub mod gpu;
 pub mod interrupt_controller;
@@ -51,7 +53,7 @@ pub struct Sysbus {
 
     // Devices
     pub gpu: Gpu,
-    _apu: (),
+    apu: Apu,
     dma: Dma,
     timers: Timers,
     _keypad: (),
@@ -86,7 +88,7 @@ impl Sysbus {
             clocks_ahead: 0,
 
             gpu: Gpu::new(),
-            _apu: (),
+            apu: Apu::new(),
             dma: Dma::new(),
             timers: Timers::new(),
             _keypad: (),
@@ -110,7 +112,7 @@ impl Sysbus {
         self.scheduler = Scheduler::new();
         self.clocks_ahead = 0;
         self.gpu = Gpu::new();
-        self._apu = ();
+        self.apu = Apu::new();
         self.dma = Dma::new();
         self.timers = Timers::new();
         self._keypad = ();
@@ -220,7 +222,7 @@ impl Sysbus {
         for _ in 0..clocks_inc {
             self.handle_events();
             // TODO: self.rtc.clock();
-            // TODO: self.apu.clock();
+            self.apu.clock();
         }
         self.clocks_ahead += clocks_inc;
         while self.clocks_ahead >= 4 {
@@ -254,9 +256,10 @@ impl Sysbus {
                     self.timers.timers[timer].reload();
                     self.timers.timers[timer].create_event(&mut self.scheduler, 0);
                 }
+				self.apu.on_timer_overflowed(timer);
             }
             EventType::FrameSequencer(step) => {
-                // self.apu.clock_sequencer(step);
+                self.apu.clock_sequencer(step);
                 self.scheduler.add(Event {
                     cycle: self.scheduler.cycle + (CLOCK_FREQ / 512),
                     event_type: EventType::FrameSequencer((step + 1) % 8),
@@ -287,8 +290,7 @@ impl Sysbus {
         let dma_channel = self.dma.get_channel_running(
             self.gpu.hblank_called(),
             self.gpu.vblank_called(),
-            // [self.apu.fifo_a_req(), self.apu.fifo_b_req()],
-            [false; 2],
+            [self.apu.fifo_a_req(), self.apu.fifo_b_req()],
         );
         if dma_channel < 4 {
             self.dma.in_dma = true;
@@ -310,14 +312,14 @@ impl Sysbus {
             };
             let irq = channel.cnt.irq;
             channel.cnt.enable = channel.cnt.start_timing != 0 && channel.cnt.repeat;
-            println!(
-                "Running DMA{}: Writing {} values to {:08X} from {:08X}, size: {}",
-                dma_channel,
-                count,
-                dest_addr,
-                src_addr,
-                if transfer_32 { 32 } else { 16 }
-            );
+            // println!(
+            //     "Running DMA{}: Writing {} values to {:08X} from {:08X}, size: {}",
+            //     dma_channel,
+            //     count,
+            //     dest_addr,
+            //     src_addr,
+            //     if transfer_32 { 32 } else { 16 }
+            // );
 
             // TODO:
             // if MemoryRegion::get_region(dest_addr) == MemoryRegion::ROM2H
@@ -504,7 +506,7 @@ impl Sysbus {
     fn write_register(&mut self, addr: u32, val: u8) {
         match addr {
             0x04000000..=0x0400005F => self.gpu.write_register(&mut self.scheduler, addr, val),
-            0x04000060..=0x040000AF => (),
+            0x04000060..=0x040000AF => self.apu.write_register(&mut self.scheduler, addr, val),
             0x040000B0..=0x040000BB => {
                 self.dma.channels[0].write(&mut self.scheduler, addr as u8 - 0xB0, val)
             }

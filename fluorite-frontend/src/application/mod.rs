@@ -1,3 +1,4 @@
+use crate::audio_ctx::AudioCtx;
 use crate::video_ctx::VideoCtx;
 use crate::ROM;
 use crate::{config::Config, BIOS};
@@ -20,7 +21,7 @@ pub enum State {
 pub struct Application {
     _sdl: Sdl,
     video: VideoCtx,
-    _audio: (),
+    audio: AudioCtx,
     _input: (),
     events: EventPump,
     config: Config,
@@ -32,12 +33,12 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn init() -> Self {
+    pub fn new() -> Self {
         let sdl = sdl2::init().unwrap();
         let gba = Gba::new(BIOS.to_vec(), ROM.to_vec());
         Self {
             video: VideoCtx::init(&sdl),
-            _audio: (),
+            audio: AudioCtx::new(&sdl),
             _input: (),
             events: sdl.event_pump().unwrap(),
             _sdl: sdl,
@@ -48,6 +49,11 @@ impl Application {
             show_ui: true,
             show_registers: true,
         }
+    }
+
+    pub fn init(&mut self) {
+        self.audio.init();
+		Gba::load_audio(&mut self.audio as *mut _)
     }
 
     pub fn is_running(&self) -> bool {

@@ -1,4 +1,6 @@
-use crate::{arm::Arm7tdmi, io::Sysbus};
+use fluorite_common::EasyCell;
+
+use crate::{arm::Arm7tdmi, io::Sysbus, AudioInterface};
 use std::path::Path;
 
 pub struct Gba {
@@ -9,6 +11,8 @@ pub struct Gba {
 
 pub type Pixels = Vec<u16>;
 
+pub static AUDIO_DEVICE: EasyCell<&mut dyn AudioInterface> = EasyCell::new();
+
 impl Gba {
     pub fn new(bios: Vec<u8>, rom: Vec<u8>) -> Self {
         let mut bus = Sysbus::new(bios, rom);
@@ -18,6 +22,10 @@ impl Gba {
             bus,
             next_frame_cycle: 0,
         }
+    }
+
+    pub fn load_audio(device: *mut dyn AudioInterface) {
+        AUDIO_DEVICE.init(|| unsafe { &mut *device });
     }
 
     pub fn reset(&mut self) {
