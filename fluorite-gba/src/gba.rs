@@ -14,8 +14,8 @@ pub type Pixels = Vec<u16>;
 pub static AUDIO_DEVICE: EasyCell<&mut dyn AudioInterface> = EasyCell::new();
 
 impl Gba {
-    pub fn new(bios: Vec<u8>, rom: Vec<u8>) -> Self {
-        let mut bus = Sysbus::new(bios, rom);
+    pub fn new() -> Self {
+        let mut bus = Sysbus::new();
 
         Self {
             cpu: Arm7tdmi::new(true, &mut bus),

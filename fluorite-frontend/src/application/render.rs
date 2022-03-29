@@ -1,26 +1,23 @@
+use crate::LIMITER;
+
 use super::{Application, State};
 
 impl Application {
     pub(super) fn draw_imgui(&mut self) {
-        if !self.show_ui {
-            return;
-        }
-
         let running = self.is_running();
-        let is_fast_forward = false; // TODO: link this with the limiter
+        let is_fast_forward = LIMITER.is_fast_forward();
 
         self.video.draw(&self.events, |ui| {
             ui.main_menu_bar(|| {
                 ui.menu("File", || {
                     if ui.menu_item_config("Open ROM").shortcut("Ctrl+O").build() {
-                        // TODO: pause the audio
-                        //       update recent rom list
-
                         if let Some(path) = rfd::FileDialog::new()
                             .add_filter("roms", &["gba"])
                             .set_directory(&std::env::current_dir().unwrap())
                             .pick_file()
                         {
+                            // TODO: update recent rom list
+
                             self.audio.pause();
                             self.gba.load_rom(path);
                             self.gba.reset();
@@ -66,7 +63,8 @@ impl Application {
                         .shortcut("Ctrl+R")
                         .build()
                     {
-                        todo!()
+                        self.gba.reset();
+                        Application::queue_reset();
                     }
 
                     if ui
@@ -76,7 +74,17 @@ impl Application {
                         .enabled(running)
                         .build()
                     {
-                        todo!()
+                        self.state = match self.state {
+                            State::Run => {
+                                self.audio.pause();
+                                State::Pause
+                            }
+                            State::Pause => {
+                                self.audio.resume();
+                                State::Run
+                            }
+                            state => state,
+                        }
                     }
 
                     ui.separator();
@@ -87,7 +95,11 @@ impl Application {
                         .selected(is_fast_forward)
                         .build()
                     {
-                        todo!()
+                        LIMITER.get_mut().set_fast_forward(if is_fast_forward {
+                            1.0
+                        } else {
+                            self.config.fast_forward as f64
+                        });
                     }
 
                     ui.menu("Fast forward speed", || {

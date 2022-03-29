@@ -7,6 +7,8 @@ pub mod consts;
 pub mod gba;
 pub mod io;
 
+pub(crate) static BIOS: &[u8] = include_bytes!("../../roms/gba_bios.bin");
+
 pub trait AudioInterface {
     fn write(&mut self, samples: [i16; 2]);
 }

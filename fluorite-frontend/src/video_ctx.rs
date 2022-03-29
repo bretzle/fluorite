@@ -132,10 +132,10 @@ impl VideoCtx {
         };
     }
 
-    pub fn render(&mut self, pixels: &[u16], draw_imgui: bool) {
+    pub fn render(&mut self, pixels: &[u16]) {
         let (width, height) = {
             let (w, h) = self.window.size();
-            (w as i32, h as i32)
+            (w as i32, h as i32 - 19)
         };
 
         let (tex_x, tex_y) = match (width * HEIGHT as i32).cmp(&(height * WIDTH as i32)) {
@@ -164,10 +164,7 @@ impl VideoCtx {
             }),
         );
 
-        if draw_imgui {
-            self.renderer.render(self.imgui.render()).unwrap();
-        }
-
+        self.renderer.render(self.imgui.render()).unwrap();
         self.window.gl_swap_window();
     }
 

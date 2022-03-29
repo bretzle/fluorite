@@ -7,7 +7,7 @@ use self::{
     scheduler::{Event, EventType, Scheduler},
     timers::Timers,
 };
-use crate::{consts::CLOCK_FREQ, io::interrupt_controller::InterruptRequest};
+use crate::{consts::CLOCK_FREQ, io::interrupt_controller::InterruptRequest, BIOS};
 use num::FromPrimitive;
 use std::{cell::Cell, collections::VecDeque, mem::size_of};
 
@@ -42,7 +42,6 @@ impl From<MemoryAccess> for Cycle {
 }
 
 pub struct Sysbus {
-    bios: Box<[u8]>,
     pub rom: Box<[u8]>,
 
     ewram: Box<[u8]>,
@@ -76,10 +75,9 @@ impl Sysbus {
     const EWRAM_MASK: u32 = 0x3FFFF;
     const IWRAM_MASK: u32 = 0x7FFF;
 
-    pub fn new(bios: Vec<u8>, rom: Vec<u8>) -> Self {
+    pub fn new() -> Self {
         Self {
-            bios: bios.into_boxed_slice(),
-            rom: rom.into_boxed_slice(),
+            rom: Box::new([]),
 
             ewram: vec![0; 0x40000].into_boxed_slice(),
             iwram: vec![0; 0x8000].into_boxed_slice(),
@@ -422,8 +420,8 @@ impl Sysbus {
         T: MemoryValue,
     {
         if self.pc < 0x4000 {
-            self.bios_latch.set(Self::read_mem(&self.bios, addr)); // Always 32 bit read
-            Self::read_mem(&self.bios, addr)
+            self.bios_latch.set(Self::read_mem(&BIOS, addr)); // Always 32 bit read
+            Self::read_mem(&BIOS, addr)
         } else {
             let mask = match size_of::<T>() {
                 1 => 0xFF,

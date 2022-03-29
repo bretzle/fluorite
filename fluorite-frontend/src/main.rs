@@ -13,9 +13,6 @@ mod counter;
 mod limiter;
 mod video_ctx;
 
-static BIOS: &[u8] = include_bytes!("../../roms/gba_bios.bin");
-static ROM: &[u8] = include_bytes!("../../roms/first-1.gba");
-
 pub static LIMITER: EasyCell<FrameRateLimiter> = EasyCell::new();
 pub static COUNTER: EasyCell<FrameCounter> = EasyCell::new();
 
