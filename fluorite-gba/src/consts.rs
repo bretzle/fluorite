@@ -1,5 +1,3 @@
-include!(concat!(env!("OUT_DIR"), "/consts.rs"));
-
 pub const WIDTH: usize = 240;
 pub const HEIGHT: usize = 160;
 pub const SCALE: usize = 4;
