@@ -1,5 +1,7 @@
 #![allow(clippy::new_without_default)]
 
+#[macro_use]
+extern crate log;
 extern crate num_traits as num;
 
 pub mod arm;

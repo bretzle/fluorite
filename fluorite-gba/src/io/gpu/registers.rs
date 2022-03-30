@@ -496,7 +496,7 @@ impl Ofs {
         }
     }
 
-    fn _write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
         match byte {
             0 => self.0 = self.0 & !0xFF | value as u16,
             1 => self.0 = self.0 & !0x100 | (value as u16) << 8 & 0x100,

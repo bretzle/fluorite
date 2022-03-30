@@ -1,6 +1,7 @@
 use self::{
     apu::Apu,
     dma::Dma,
+    gamepak::Gamepak,
     gpu::Gpu,
     interrupt_controller::InterruptController,
     memory::{MemoryRegion, MemoryValue},
@@ -13,6 +14,7 @@ use std::{cell::Cell, collections::VecDeque, mem::size_of};
 
 pub mod apu;
 pub mod dma;
+pub mod gamepak;
 pub mod gpu;
 pub mod interrupt_controller;
 pub mod keypad;
@@ -42,7 +44,8 @@ impl From<MemoryAccess> for Cycle {
 }
 
 pub struct Sysbus {
-    pub rom: Box<[u8]>,
+    // pub rom: Box<[u8]>,
+    pub gamepak: Gamepak,
 
     ewram: Box<[u8]>,
     iwram: Box<[u8]>,
@@ -69,6 +72,8 @@ pub struct Sysbus {
     in_thumb: bool,
     pipeline: [u32; 2],
     bios_latch: Cell<u32>,
+
+    mgba_test_suite: mgba_test_suite::MGBATestSuite,
 }
 
 impl Sysbus {
@@ -77,7 +82,7 @@ impl Sysbus {
 
     pub fn new() -> Self {
         Self {
-            rom: Box::new([]),
+            gamepak: Gamepak::new(),
 
             ewram: vec![0; 0x40000].into_boxed_slice(),
             iwram: vec![0; 0x8000].into_boxed_slice(),
@@ -101,6 +106,8 @@ impl Sysbus {
             in_thumb: false,
             pipeline: [0; 2],
             bios_latch: Cell::new(0xE129F000),
+
+            mgba_test_suite: mgba_test_suite::MGBATestSuite::new(),
         }
     }
 
@@ -169,7 +176,7 @@ impl Sysbus {
             MemoryRegion::Rom1H => todo!(),
             MemoryRegion::Rom2L => todo!(),
             MemoryRegion::Rom2H => todo!(),
-            MemoryRegion::Sram => todo!(),
+            MemoryRegion::Sram => self.write_sram(addr, value),
             MemoryRegion::Unused => todo!(),
         }
     }
@@ -438,8 +445,8 @@ impl Sysbus {
         T: MemoryValue,
     {
         let addr = addr - 0x08000000;
-        if (addr as usize) < self.rom.len() {
-            Self::read_mem(&self.rom, addr)
+        if (addr as usize) < self.gamepak.rom.len() {
+            Self::read_mem(self.gamepak.rom.as_ref(), addr)
         } else {
             num::zero()
         }
@@ -452,7 +459,16 @@ impl Sysbus {
             0x04000104..=0x04000107 => self.timers.timers[1].read(&self.scheduler, addr as u8 % 4),
             0x04000108..=0x0400010B => self.timers.timers[2].read(&self.scheduler, addr as u8 % 4),
             0x0400010C..=0x0400010F => self.timers.timers[3].read(&self.scheduler, addr as u8 % 4),
-            _ => panic!("Reading Unimplemented IO Register at {addr:08X}"),
+            0x04000200 => self.interrupt_controller.enable.read(0),
+            0x04000201 => self.interrupt_controller.enable.read(1),
+            0x04000202 => self.interrupt_controller.request.read(0),
+            0x04000203 => self.interrupt_controller.request.read(1),
+            0x04000208 => self.interrupt_controller.master_enable.read(0),
+            0x04000209 => self.interrupt_controller.master_enable.read(1),
+            0x0400020A..=0x040002FF => 0, // TODO: Verify that this is correct. is there mirroring?
+            0x04FFF780..=0x04FFF781 => self.mgba_test_suite.read_register(addr),
+            0x04000000..=0x04700000 => panic!("Reading Unimplemented IO Register at {addr:08X}"),
+            _ => 0,
         }
     }
 
@@ -564,6 +580,8 @@ impl Sysbus {
             0x0400020A..=0x040002FF => (), // Unused IO Register
             0x04000300 => self.haltcnt = (self.haltcnt & !0x00FF) | val as u16,
             0x04000301 => self.haltcnt = (self.haltcnt & !0xFF00) | (val as u16) << 8,
+            0x04FFF600..=0x04FFF701 => self.mgba_test_suite.write_register(addr, val),
+            0x04FFF780..=0x04FFF781 => self.mgba_test_suite.write_enable(addr, val),
             _ => panic!("Writng Unimplemented IO Register at {addr:08X} = {val:02X}",),
         }
     }
@@ -602,6 +620,23 @@ impl Sysbus {
         if size_of::<T>() != 1 {
             Self::write_mem(&mut self.gpu.oam, addr, val)
         }
+    }
+
+    fn write_sram<T>(&mut self, addr: u32, val: T)
+    where
+        T: MemoryValue,
+    {
+        // TODO: this should do nothing if eeprom exists
+        let addr = addr & 0x0EFFFFFF;
+        let mask = FromPrimitive::from_u8(0xFF).unwrap();
+        self.write_cart_backup(
+            addr - 0x0E000000,
+            num::cast::<T, u8>(val.rotate_right(addr * 8) & mask).unwrap(),
+        );
+    }
+
+    fn write_cart_backup(&mut self, addr: u32, val: u8) {
+        self.gamepak.write_save(addr, val)
     }
 }
 
@@ -746,6 +781,134 @@ impl WaitStateControl {
                 // Type Flag is read only
             }
             _ => unreachable!(),
+        }
+    }
+}
+
+mod mgba_test_suite {
+    enum MGBALogLevel {
+        Fatal,
+        Error,
+        Warn,
+        Info,
+        Debug,
+    }
+
+    impl MGBALogLevel {
+        pub fn new(val: u16) -> Self {
+            use MGBALogLevel::*;
+            match val {
+                0 => Fatal,
+                1 => Error,
+                2 => Warn,
+                3 => Info,
+                4 => Debug,
+                _ => panic!("Invalid mGBA Log Level!"),
+            }
+        }
+    }
+
+    pub struct MGBATestSuite {
+        buffer: [char; 0x100],
+        // Registers
+        enable: u16,
+        flags: u16,
+    }
+
+    impl MGBATestSuite {
+        pub fn new() -> MGBATestSuite {
+            MGBATestSuite {
+                buffer: ['\0'; 0x100],
+                enable: 0,
+                flags: 0,
+            }
+        }
+
+        pub fn enabled(&self) -> bool {
+            self.enable == 0xC0DE
+        }
+
+        pub fn write_enable(&mut self, addr: u32, value: u8) {
+            match addr {
+                0x4FFF780 => self.enable = self.enable & !0x00FF | (value as u16) << 0 & 0x00FF,
+                0x4FFF781 => self.enable = self.enable & !0xFF00 | (value as u16) << 8 & 0xFF00,
+                _ => (),
+            }
+        }
+
+        pub fn read_register(&self, addr: u32) -> u8 {
+            match addr {
+                0x4FFF780 => {
+                    if self.enabled() {
+                        0xEA
+                    } else {
+                        0
+                    }
+                }
+                0x4FFF781 => {
+                    if self.enabled() {
+                        0x1D
+                    } else {
+                        0
+                    }
+                }
+                _ => 0,
+            }
+        }
+
+        pub fn write_register(&mut self, addr: u32, value: u8) {
+            if !self.enabled() {
+                return;
+            }
+            match addr {
+                0x4FFF600..=0x4FFF6FF => self.buffer[(addr - 0x4FFF600) as usize] = value as char,
+                0x4FFF700 => self.flags = self.flags & !0x00FF | (value as u16) << 0 & 0x00FF,
+                0x4FFF701 => {
+                    self.flags = self.flags & !0xFF00 | (value as u16) << 8 & 0xFF00;
+                    if self.flags & 0x100 != 0 {
+                        use MGBALogLevel::*;
+                        let null_byte_pos = self
+                            .buffer
+                            .iter()
+                            .position(|&c| c == '\0')
+                            .unwrap_or(self.buffer.len());
+                        let message: String = self.buffer.iter().take(null_byte_pos).collect();
+
+                        if message.contains("PASS") {
+                            return;
+                        }
+                        let show_info = message.contains("FAIL")
+                            && !message
+                                .split(' ')
+                                .skip(1)
+                                .take(1)
+                                .collect::<String>()
+                                .contains("P");
+                        let show_debug = !message
+                            .split(' ')
+                            .rev()
+                            .take(1)
+                            .collect::<String>()
+                            .contains("P");
+                        match MGBALogLevel::new(self.flags & 0x7) {
+                            Fatal => error!("{message}"),
+                            Error => error!("{message}"),
+                            Warn => warn!("{message}"),
+                            Info => {
+                                if show_info {
+                                    info!("{message}")
+                                }
+                            }
+                            Debug => {
+                                if show_debug {
+                                    debug!("{message}")
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => (),
+            }
         }
     }
 }

@@ -12,31 +12,38 @@ pub struct Rom {
 
 impl Rom {
     pub fn load(&mut self, path: &Path) -> io::Result<()> {
-        let mut data = std::fs::read(path)?;
-        let size = data.len();
+        println!("Loading rom: {path:?}");
+        let data = std::fs::read(path)?;
+        let size = dbg!(data.len());
 
-        unsafe { data.set_len(data.capacity()) };
+        // unsafe { data.set_len(data.capacity()) };
 
         if size <= size_of::<Header>() || size > MAX_SIZE {
             panic!("Invalid ROM size: {size} bytes");
         }
 
-        for addr in size..data.capacity() {
-            self.data[addr] = (((addr >> 1) >> (8 * (addr & 0x1))) & 0xFF) as u8
-        }
+        // for addr in size..data.capacity() {
+        //     self.data[addr] = (((addr >> 1) >> (8 * (addr & 0x1))) & 0xFF) as u8
+        // }
 
         let header = Header::new(&data);
 
         if header.fixed_96h == 0x96 && header.complement == header.calc_complement() {
-            self.title = String::from_utf8(header.game_title.to_vec()).unwrap();
+			self.title = String::from_utf8(header.game_title.to_vec()).unwrap();
             self.code = String::from_utf8(header.game_code.to_vec()).unwrap();
         }
+		
+		self.data = data;
 
         Ok(())
     }
 
     pub fn read<T: Copy>(&self, addr: u32) -> T {
         unsafe { *(&self.data[addr as usize] as *const u8 as *const T) }
+    }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
     }
 }
 
@@ -69,5 +76,11 @@ impl Header {
         let val = slice.iter().fold(0u8, |acc, x| acc.wrapping_add(*x)) + 0x19;
         let val = -(val as i8);
         val as u8
+    }
+}
+
+impl AsRef<[u8]> for Rom {
+    fn as_ref(&self) -> &[u8] {
+        self.data.as_ref()
     }
 }

@@ -49,6 +49,7 @@ impl Gba {
     }
 
     pub fn load_rom<P: AsRef<Path>>(&mut self, path: P) {
-        self.bus.rom = std::fs::read(path).unwrap().into_boxed_slice();
+        // self.bus.rom = std::fs::read(path).unwrap().into_boxed_slice();
+        self.bus.gamepak.load(Some(path.as_ref()), None)
     }
 }
