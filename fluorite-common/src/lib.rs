@@ -6,6 +6,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+pub extern crate flume;
+
 pub struct EasyCell<T>(OnceCell<UnsafeCell<T>>);
 
 impl<T> EasyCell<T> {

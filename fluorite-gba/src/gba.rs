@@ -1,6 +1,6 @@
-use fluorite_common::EasyCell;
+use fluorite_common::{EasyCell, flume::Receiver};
 
-use crate::{arm::Arm7tdmi, io::Sysbus, AudioInterface};
+use crate::{arm::Arm7tdmi, io::{Sysbus, keypad::KEYINPUT}, AudioInterface};
 use std::path::Path;
 
 pub struct Gba {
@@ -14,8 +14,8 @@ pub type Pixels = Vec<u16>;
 pub static AUDIO_DEVICE: EasyCell<&mut dyn AudioInterface> = EasyCell::new();
 
 impl Gba {
-    pub fn new() -> Self {
-        let mut bus = Sysbus::new();
+    pub fn new(rx: Receiver<(KEYINPUT, bool)>) -> Self {
+        let mut bus = Sysbus::new(rx);
 
         Self {
             cpu: Arm7tdmi::new(true, &mut bus),
@@ -36,7 +36,7 @@ impl Gba {
 
     pub fn run(&mut self, cycles: usize) {
         self.next_frame_cycle += cycles;
-
+		self.bus.poll_keypad_updates();
         while self.bus.get_cycle() < self.next_frame_cycle {
             self.bus.run_dma();
             self.cpu.handle_irq(&mut self.bus);

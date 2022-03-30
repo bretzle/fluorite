@@ -6,9 +6,10 @@ use self::{
     interrupt_controller::InterruptController,
     memory::{MemoryRegion, MemoryValue},
     scheduler::{Event, EventType, Scheduler},
-    timers::Timers,
+    timers::Timers, keypad::{Keypad, KEYINPUT},
 };
 use crate::{consts::CLOCK_FREQ, io::interrupt_controller::InterruptRequest, BIOS};
+use fluorite_common::flume::Receiver;
 use num::FromPrimitive;
 use std::{cell::Cell, collections::VecDeque, mem::size_of};
 
@@ -58,7 +59,7 @@ pub struct Sysbus {
     apu: Apu,
     dma: Dma,
     timers: Timers,
-    _keypad: (),
+    keypad: Keypad,
     interrupt_controller: InterruptController,
     _rtc: (),
     _backup: (),
@@ -80,7 +81,7 @@ impl Sysbus {
     const EWRAM_MASK: u32 = 0x3FFFF;
     const IWRAM_MASK: u32 = 0x7FFF;
 
-    pub fn new() -> Self {
+    pub fn new(rx: Receiver<(KEYINPUT, bool)>) -> Self {
         Self {
             gamepak: Gamepak::new(),
 
@@ -94,7 +95,7 @@ impl Sysbus {
             apu: Apu::new(),
             dma: Dma::new(),
             timers: Timers::new(),
-            _keypad: (),
+            keypad: Keypad::new(rx),
             interrupt_controller: InterruptController::new(),
             _rtc: (),
             _backup: (),
@@ -120,7 +121,7 @@ impl Sysbus {
         self.apu = Apu::new();
         self.dma = Dma::new();
         self.timers = Timers::new();
-        self._keypad = ();
+        self.keypad.reset();
         self.interrupt_controller = InterruptController::new();
         self._rtc = ();
         self._backup = ();
@@ -287,7 +288,10 @@ impl Sysbus {
     }
 
     pub fn poll_keypad_updates(&mut self) {
-        // TODO
+        if self.gpu.rendered_frame() {
+            // TODO: write save to file
+            self.keypad.poll();
+        }
     }
 
     pub fn run_dma(&mut self) {
@@ -459,6 +463,10 @@ impl Sysbus {
             0x04000104..=0x04000107 => self.timers.timers[1].read(&self.scheduler, addr as u8 % 4),
             0x04000108..=0x0400010B => self.timers.timers[2].read(&self.scheduler, addr as u8 % 4),
             0x0400010C..=0x0400010F => self.timers.timers[3].read(&self.scheduler, addr as u8 % 4),
+            0x04000130 => self.keypad.keyinput.read(0),
+            0x04000131 => self.keypad.keyinput.read(1),
+            0x04000132 => self.keypad.keycnt.read(0),
+            0x04000133 => self.keypad.keycnt.read(1),
             0x04000200 => self.interrupt_controller.enable.read(0),
             0x04000201 => self.interrupt_controller.enable.read(1),
             0x04000202 => self.interrupt_controller.request.read(0),

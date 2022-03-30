@@ -191,6 +191,12 @@ impl Gpu {
         addr & 0x3FF
     }
 
+	pub fn rendered_frame(&mut self) -> bool {
+		let rendered_frame = self.rendered_frame;
+        self.rendered_frame = false;
+        rendered_frame
+	}
+
     pub fn hblank_called(&mut self) -> bool {
         let hblank_called = self.hblank_called;
         self.hblank_called = false;

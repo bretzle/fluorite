@@ -1,11 +1,13 @@
 use crate::audio_ctx::AudioCtx;
 use crate::config::Config;
 use crate::video_ctx::VideoCtx;
+use fluorite_common::flume::Sender;
 use fluorite_gba::{
     consts::{HEIGHT, WIDTH},
     gba::Gba,
+    io::keypad::KEYINPUT,
 };
-use sdl2::{event::Event, EventPump, Sdl};
+use sdl2::{event::Event, keyboard::Scancode, EventPump, Sdl};
 
 mod render;
 
@@ -26,14 +28,15 @@ pub struct Application {
     config: Config,
     gba: Gba,
     pub state: State,
-
+    key_tx: Sender<(KEYINPUT, bool)>,
     show_registers: bool,
 }
 
 impl Application {
     pub fn new() -> Self {
         let sdl = sdl2::init().unwrap();
-        let gba = Gba::new();
+        let (tx, rx) = fluorite_common::flume::bounded(8);
+        let gba = Gba::new(rx);
         Self {
             video: VideoCtx::init(&sdl),
             audio: AudioCtx::new(&sdl),
@@ -43,7 +46,7 @@ impl Application {
             config: Config::new(),
             gba,
             state: State::Menu,
-
+            key_tx: tx,
             show_registers: true,
         }
     }
@@ -92,6 +95,48 @@ impl Application {
                     self.state = State::Run;
                     self.audio.resume();
                     Application::queue_reset();
+                }
+                Event::KeyDown {
+                    scancode: Some(code),
+                    ..
+                } => {
+                    let key = match code {
+                        Scancode::A => KEYINPUT::A,
+                        Scancode::B => KEYINPUT::B,
+                        Scancode::E => KEYINPUT::SELECT,
+                        Scancode::T => KEYINPUT::START,
+                        Scancode::Right => KEYINPUT::RIGHT,
+                        Scancode::Left => KEYINPUT::LEFT,
+                        Scancode::Up => KEYINPUT::UP,
+                        Scancode::Down => KEYINPUT::DOWN,
+                        Scancode::R => KEYINPUT::R,
+                        Scancode::L => KEYINPUT::L,
+                        _ => continue,
+                    };
+                    self.key_tx
+                        .send((key, true))
+                        .expect("Failed to send keypress")
+                }
+                Event::KeyUp {
+                    scancode: Some(code),
+                    ..
+                } => {
+                    let key = match code {
+                        Scancode::A => KEYINPUT::A,
+                        Scancode::B => KEYINPUT::B,
+                        Scancode::E => KEYINPUT::SELECT,
+                        Scancode::T => KEYINPUT::START,
+                        Scancode::Right => KEYINPUT::RIGHT,
+                        Scancode::Left => KEYINPUT::LEFT,
+                        Scancode::Up => KEYINPUT::UP,
+                        Scancode::Down => KEYINPUT::DOWN,
+                        Scancode::R => KEYINPUT::R,
+                        Scancode::L => KEYINPUT::L,
+                        _ => continue,
+                    };
+                    self.key_tx
+                        .send((key, false))
+                        .expect("Failed to send keypress")
                 }
                 _ => {}
             }
