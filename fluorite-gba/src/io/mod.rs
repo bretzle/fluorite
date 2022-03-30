@@ -1,12 +1,16 @@
 use self::{
     apu::Apu,
     dma::Dma,
-    gamepak::Gamepak,
+    gamepak::{
+        gpio::{Gpio, GpioDevice},
+        Gamepak,
+    },
     gpu::Gpu,
     interrupt_controller::InterruptController,
+    keypad::{Keypad, KEYINPUT},
     memory::{MemoryRegion, MemoryValue},
     scheduler::{Event, EventType, Scheduler},
-    timers::Timers, keypad::{Keypad, KEYINPUT},
+    timers::Timers,
 };
 use crate::{consts::CLOCK_FREQ, io::interrupt_controller::InterruptRequest, BIOS};
 use fluorite_common::flume::Receiver;
@@ -146,8 +150,18 @@ impl Sysbus {
             MemoryRegion::Vram => Self::read_mem(&self.gpu.vram, Gpu::parse_vram_addr(addr)),
             MemoryRegion::Oam => Self::read_mem(&self.gpu.oam, Gpu::parse_oam_addr(addr)),
             MemoryRegion::Rom0L => {
-                // TODO: Rtc takes over some of this address space
-                self.read_rom(addr)
+                if (0x080000C4..=0x80000C9).contains(&addr)
+                    && self.gamepak.is_rtc_used()
+                    && !self.gamepak.gpio.write_only()
+                {
+                    Self::read_from_bytes(
+                        &self.gamepak.gpio,
+                        &Gpio::read_register,
+                        addr - 0x080000C4,
+                    )
+                } else {
+                    self.read_rom(addr)
+                }
             }
             MemoryRegion::Rom0H => todo!(),
             MemoryRegion::Rom1L => todo!(),
@@ -171,14 +185,23 @@ impl Sysbus {
             MemoryRegion::Palette => self.write_palette_ram(addr, value),
             MemoryRegion::Vram => self.write_vram(Gpu::parse_vram_addr(addr), value),
             MemoryRegion::Oam => self.write_oam(Gpu::parse_oam_addr(addr), value),
-            MemoryRegion::Rom0L => todo!(),
+            MemoryRegion::Rom0L => {
+                if (0x080000C4..=0x80000C9).contains(&addr) && self.gamepak.is_rtc_used() {
+                    Self::write_from_bytes(
+                        &mut self.gamepak.gpio,
+                        &Gpio::write_register,
+                        addr - 0x080000C4,
+                        value,
+                    )
+                }
+            }
             MemoryRegion::Rom0H => todo!(),
             MemoryRegion::Rom1L => todo!(),
             MemoryRegion::Rom1H => todo!(),
             MemoryRegion::Rom2L => todo!(),
             MemoryRegion::Rom2H => todo!(),
             MemoryRegion::Sram => self.write_sram(addr, value),
-            MemoryRegion::Unused => todo!(),
+            MemoryRegion::Unused => {}
         }
     }
 
@@ -227,7 +250,7 @@ impl Sysbus {
 
         for _ in 0..clocks_inc {
             self.handle_events();
-            // TODO: self.rtc.clock();
+            self.gamepak.gpio.clock();
             self.apu.clock();
         }
         self.clocks_ahead += clocks_inc;

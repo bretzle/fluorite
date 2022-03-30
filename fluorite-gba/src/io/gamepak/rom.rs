@@ -32,6 +32,9 @@ impl Rom {
 			self.title = String::from_utf8(header.game_title.to_vec()).unwrap();
             self.code = String::from_utf8(header.game_code.to_vec()).unwrap();
         }
+
+		println!("Title: {}", self.title);
+		println!("Code: {}", self.code);
 		
 		self.data = data;
 
