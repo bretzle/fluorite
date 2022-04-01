@@ -13,7 +13,7 @@ impl Address {
         }
     }
 
-    pub fn _read(&self, _byte: u8) -> u8 {
+    pub fn read(&self, _byte: u8) -> u8 {
         0
     }
 
@@ -44,7 +44,7 @@ impl WordCount {
         self.max as u32
     }
 
-    pub fn _read(&self, _byte: u8) -> u8 {
+    pub fn read(&self, _byte: u8) -> u8 {
         0
     }
 
@@ -86,7 +86,7 @@ impl DmaCnt {
         }
     }
 
-    pub fn _read(&self, byte: u8) -> u8 {
+    pub fn read(&self, byte: u8) -> u8 {
         match byte {
             0 => (self.src_addr_ctrl & 0x1) << 7 | self.dest_addr_ctrl << 5,
             1 => {

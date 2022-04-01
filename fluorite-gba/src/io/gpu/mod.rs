@@ -18,10 +18,10 @@ pub struct Gpu {
     bgcnts: [BgCnt; 4],
     hofs: [Ofs; 4],
     vofs: [Ofs; 4],
-    _dxs: [RotationScalingParameter; 2],
-    _dmxs: [RotationScalingParameter; 2],
-    _dys: [RotationScalingParameter; 2],
-    _dmys: [RotationScalingParameter; 2],
+    dxs: [RotationScalingParameter; 2],
+    dmxs: [RotationScalingParameter; 2],
+    dys: [RotationScalingParameter; 2],
+    dmys: [RotationScalingParameter; 2],
     bgxs: [ReferencePointCoord; 2],
     bgys: [ReferencePointCoord; 2],
     bgxs_latch: [ReferencePointCoord; 2],
@@ -29,6 +29,8 @@ pub struct Gpu {
     mosaic: Mosaic,
 
     // Windows
+    winhs: [WindowDimensions; 2],
+    winvs: [WindowDimensions; 2],
     win_0_cnt: WindowControl,
     win_1_cnt: WindowControl,
     win_out_cnt: WindowControl,
@@ -63,6 +65,12 @@ pub struct Gpu {
 
 impl Gpu {
     const TRANSPARENT_COLOR: u16 = 0x8000;
+    const OBJ_SIZES: [[(i16, u16); 3]; 4] = [
+        [(8, 8), (16, 8), (8, 16)],
+        [(16, 16), (32, 8), (8, 32)],
+        [(32, 32), (32, 16), (16, 32)],
+        [(64, 64), (64, 32), (32, 64)],
+    ];
 
     pub fn new() -> Self {
         Self {
@@ -74,10 +82,10 @@ impl Gpu {
             bgcnts: [BgCnt::new(); 4],
             hofs: [Ofs::new(); 4],
             vofs: [Ofs::new(); 4],
-            _dxs: [RotationScalingParameter::new(); 2],
-            _dmxs: [RotationScalingParameter::new(); 2],
-            _dys: [RotationScalingParameter::new(); 2],
-            _dmys: [RotationScalingParameter::new(); 2],
+            dxs: [RotationScalingParameter::new(); 2],
+            dmxs: [RotationScalingParameter::new(); 2],
+            dys: [RotationScalingParameter::new(); 2],
+            dmys: [RotationScalingParameter::new(); 2],
             bgxs: [ReferencePointCoord::new(); 2],
             bgys: [ReferencePointCoord::new(); 2],
             bgxs_latch: [ReferencePointCoord::new(); 2],
@@ -88,6 +96,8 @@ impl Gpu {
             bldalpha: BldAlpha::new(),
             bldy: Bldy::new(),
 
+            winhs: [WindowDimensions::new(); 2],
+            winvs: [WindowDimensions::new(); 2],
             win_0_cnt: WindowControl::new(),
             win_1_cnt: WindowControl::new(),
             win_out_cnt: WindowControl::new(),
@@ -172,6 +182,85 @@ impl Gpu {
             0x01D => self.hofs[3].write(scheduler, 1, val),
             0x01E => self.vofs[3].write(scheduler, 0, val),
             0x01F => self.vofs[3].write(scheduler, 1, val),
+            0x020 => self.dxs[0].write(scheduler, 0, val),
+            0x021 => self.dxs[0].write(scheduler, 1, val),
+            0x022 => self.dmxs[0].write(scheduler, 0, val),
+            0x023 => self.dmxs[0].write(scheduler, 1, val),
+            0x024 => self.dys[0].write(scheduler, 0, val),
+            0x025 => self.dys[0].write(scheduler, 1, val),
+            0x026 => self.dmys[0].write(scheduler, 0, val),
+            0x027 => self.dmys[0].write(scheduler, 1, val),
+            0x028 => {
+                self.bgxs[0].write(scheduler, 0, val);
+                self.bgxs_latch[0] = self.bgxs[0].clone()
+            }
+            0x029 => {
+                self.bgxs[0].write(scheduler, 1, val);
+                self.bgxs_latch[0] = self.bgxs[0].clone()
+            }
+            0x02A => {
+                self.bgxs[0].write(scheduler, 2, val);
+                self.bgxs_latch[0] = self.bgxs[0].clone()
+            }
+            0x02B => {
+                self.bgxs[0].write(scheduler, 3, val);
+                self.bgxs_latch[0] = self.bgxs[0].clone()
+            }
+            0x02C => {
+                self.bgys[0].write(scheduler, 0, val);
+                self.bgys_latch[0] = self.bgys[0].clone()
+            }
+            0x02D => {
+                self.bgys[0].write(scheduler, 1, val);
+                self.bgys_latch[0] = self.bgys[0].clone()
+            }
+            0x02E => {
+                self.bgys[0].write(scheduler, 2, val);
+                self.bgys_latch[0] = self.bgys[0].clone()
+            }
+            0x02F => {
+                self.bgys[0].write(scheduler, 3, val);
+                self.bgys_latch[0] = self.bgys[0].clone()
+            }
+            0x030 => self.dxs[1].write(scheduler, 0, val),
+            0x031 => self.dxs[1].write(scheduler, 1, val),
+            0x032 => self.dmxs[1].write(scheduler, 0, val),
+            0x033 => self.dmxs[1].write(scheduler, 1, val),
+            0x034 => self.dys[1].write(scheduler, 0, val),
+            0x035 => self.dys[1].write(scheduler, 1, val),
+            0x036 => self.dmys[1].write(scheduler, 0, val),
+            0x037 => self.dmys[1].write(scheduler, 1, val),
+            0x038 => self.bgxs[1].write(scheduler, 0, val),
+            0x039 => self.bgxs[1].write(scheduler, 1, val),
+            0x03A => self.bgxs[1].write(scheduler, 2, val),
+            0x03B => self.bgxs[1].write(scheduler, 3, val),
+            0x03C => self.bgys[1].write(scheduler, 0, val),
+            0x03D => self.bgys[1].write(scheduler, 1, val),
+            0x03E => self.bgys[1].write(scheduler, 2, val),
+            0x03F => self.bgys[1].write(scheduler, 3, val),
+            0x040 => self.winhs[0].write(scheduler, 0, val),
+            0x041 => self.winhs[0].write(scheduler, 1, val),
+            0x042 => self.winhs[1].write(scheduler, 0, val),
+            0x043 => self.winhs[1].write(scheduler, 1, val),
+            0x044 => self.winvs[0].write(scheduler, 0, val),
+            0x045 => self.winvs[0].write(scheduler, 1, val),
+            0x046 => self.winvs[1].write(scheduler, 0, val),
+            0x047 => self.winvs[1].write(scheduler, 1, val),
+            0x048 => self.win_0_cnt.write(scheduler, 0, val),
+            0x049 => self.win_1_cnt.write(scheduler, 0, val),
+            0x04A => self.win_out_cnt.write(scheduler, 0, val),
+            0x04B => self.win_obj_cnt.write(scheduler, 0, val),
+            0x04C => self.mosaic.write(scheduler, 0, val),
+            0x04D => self.mosaic.write(scheduler, 1, val),
+            0x04E => (),
+            0x04F => (),
+            0x050 => self.bldcnt.write(scheduler, 0, val),
+            0x051 => self.bldcnt.write(scheduler, 1, val),
+            0x052 => self.bldalpha.write(scheduler, 0, val),
+            0x053 => self.bldalpha.write(scheduler, 1, val),
+            0x054 => self.bldy.write(scheduler, 0, val),
+            0x055 => self.bldy.write(scheduler, 1, val),
+            0x056..=0x05F => (),
             _ => panic!("Ignoring GPU Write 0x{addr:08X} = 0x{val:02X}"),
         }
     }
@@ -191,11 +280,11 @@ impl Gpu {
         addr & 0x3FF
     }
 
-	pub fn rendered_frame(&mut self) -> bool {
-		let rendered_frame = self.rendered_frame;
+    pub fn rendered_frame(&mut self) -> bool {
+        let rendered_frame = self.rendered_frame;
         self.rendered_frame = false;
         rendered_frame
-	}
+    }
 
     pub fn hblank_called(&mut self) -> bool {
         let hblank_called = self.hblank_called;
@@ -303,7 +392,27 @@ impl Gpu {
                 bgs.into_iter().for_each(|bg_i| self.render_text_line(bg_i));
                 self.process_lines(0, 3);
             }
-            BGMode::Mode1 => todo!(),
+            BGMode::Mode1 => {
+                let mut bgs: Vec<usize> = Vec::new();
+                if self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG0) {
+                    bgs.push(0)
+                }
+                if self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG1) {
+                    bgs.push(1)
+                }
+                if self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG2) {
+                    bgs.push(2)
+                }
+
+                bgs.iter().for_each(|bg_i| {
+                    if *bg_i != 2 {
+                        self.render_text_line(*bg_i)
+                    } else {
+                        self.render_affine_line(*bg_i)
+                    }
+                });
+                self.process_lines(0, 2);
+            }
             BGMode::Mode2 => todo!(),
             BGMode::Mode3 => {
                 let (mosaic_x, mosaic_y) = if self.bgcnts[2].mosaic {
@@ -477,12 +586,269 @@ impl Gpu {
         }
     }
 
-    fn render_window(&mut self, _window_i: usize) {
-        todo!()
+    fn render_window(&mut self, window_i: usize) {
+        let y1 = self.winvs[window_i].coord1;
+        let y2 = self.winvs[window_i].coord2;
+        let y_in_window = if y1 > y2 {
+            self.vcount < y1 && self.vcount >= y2
+        } else {
+            !(y1..y2).contains(&self.vcount)
+        };
+        if y_in_window {
+            for dot_x in 0..WIDTH as u8 {
+                self.windows_lines[window_i][dot_x as usize] = false;
+            }
+            return;
+        }
+
+        let x1 = self.winhs[window_i].coord1;
+        let x2 = self.winhs[window_i].coord2;
+        if x1 > x2 {
+            for dot_x in 0..WIDTH as u8 {
+                self.windows_lines[window_i][dot_x as usize] = dot_x >= x1 || dot_x < x2;
+            }
+        } else {
+            for dot_x in 0..WIDTH as u8 {
+                self.windows_lines[window_i][dot_x as usize] = (x1..x2).contains(&dot_x);
+            }
+        }
     }
 
     fn render_objs_line(&mut self) {
-        todo!()
+        let mut oam_parsed = [[0u16; 3]; 0x80];
+        let mut affine_params = [[0u16; 4]; 0x20];
+        self.oam
+            .chunks(8)
+            .enumerate() // 1 OAM Entry, 1 Affine Parameter
+            .for_each(|(i, chunk)| {
+                oam_parsed[i][0] = u16::from_le_bytes([chunk[0], chunk[1]]);
+                oam_parsed[i][1] = u16::from_le_bytes([chunk[2], chunk[3]]);
+                oam_parsed[i][2] = u16::from_le_bytes([chunk[4], chunk[5]]);
+                affine_params[i / 4][i % 4] = u16::from_le_bytes([chunk[6], chunk[7]]);
+            });
+        let mut objs = oam_parsed
+            .iter()
+            .filter(|obj| {
+                let obj_shape = (obj[0] >> 14 & 0x3) as usize;
+                let obj_size = (obj[1] >> 14 & 0x3) as usize;
+                let (_, obj_height) = Self::OBJ_SIZES[obj_size][obj_shape];
+                let affine = obj[0] >> 8 & 0x1 != 0;
+                let double_size_or_disable = obj[0] >> 9 & 0x1 != 0;
+                if !affine && double_size_or_disable {
+                    return false;
+                }
+                let obj_y_bounds = if double_size_or_disable {
+                    obj_height * 2
+                } else {
+                    obj_height
+                };
+
+                let obj_y = (obj[0] as u16) & 0xFF;
+                let y_end = obj_y + obj_y_bounds;
+                let y = self.vcount as u16 + if y_end > 256 { 256 } else { 0 };
+                (obj_y..y_end).contains(&y)
+            })
+            .collect::<Vec<_>>();
+        objs.sort_by_key(|a| (*a)[2] >> 10 & 0x3);
+        let obj_window_enabled = self
+            .dispcnt
+            .flags
+            .contains(DISPCNTFlags::DISPLAY_OBJ_WINDOW);
+
+        for dot_x in 0..WIDTH {
+            self.objs_line[dot_x] = OBJPixel::none();
+            self.windows_lines[2][dot_x] = false;
+            let mut set_color = false;
+            for obj in objs.iter() {
+                let obj_shape = (obj[0] >> 14 & 0x3) as usize;
+                let obj_size = (obj[1] >> 14 & 0x3) as usize;
+                let affine = obj[0] >> 8 & 0x1 != 0;
+                let (obj_width, obj_height) = Self::OBJ_SIZES[obj_size][obj_shape];
+                let dot_x_signed = (dot_x as i16) / self.mosaic.obj_size.h_size as i16
+                    * self.mosaic.obj_size.h_size as i16;
+                let obj_x = (obj[1] & 0x1FF) as u16;
+                let obj_x = if obj_x & 0x100 != 0 {
+                    0xFE00 | obj_x
+                } else {
+                    obj_x
+                } as i16;
+                let obj_y = (obj[0] & 0xFF) as u16;
+                let double_size = obj[0] >> 9 & 0x1 != 0;
+                let obj_x_bounds = if double_size {
+                    obj_width * 2
+                } else {
+                    obj_width
+                };
+                if !(obj_x..obj_x + obj_x_bounds).contains(&dot_x_signed) {
+                    continue;
+                }
+
+                let base_tile_num = (obj[2] & 0x3FF) as usize;
+                let x_diff = dot_x_signed - obj_x;
+                let y = self.vcount / self.mosaic.obj_size.v_size * self.mosaic.obj_size.v_size;
+                let y_diff = (y as u16).wrapping_sub(obj_y) & 0xFF;
+                let (x_diff, y_diff) = if affine {
+                    let (x_diff, y_diff) = if double_size {
+                        (
+                            x_diff - obj_width / 2,
+                            y_diff as i16 - obj_height as i16 / 2,
+                        )
+                    } else {
+                        (x_diff, y_diff as i16)
+                    };
+                    let aff_param = obj[1] >> 9 & 0x1F;
+                    let params = affine_params[aff_param as usize];
+                    let (pa, pb, pc, pd) = (
+                        RotationScalingParameter::get_float_from_u16(params[0]),
+                        RotationScalingParameter::get_float_from_u16(params[1]),
+                        RotationScalingParameter::get_float_from_u16(params[2]),
+                        RotationScalingParameter::get_float_from_u16(params[3]),
+                    );
+                    let (x_offset, y_offset) = (obj_width as f64 / 2.0, obj_height as f64 / 2.0);
+                    let (x_raw, y_raw) = (
+                        pa * (x_diff as f64 - x_offset)
+                            + pb * (y_diff as f64 - y_offset)
+                            + x_offset,
+                        pc * (x_diff as f64 - x_offset)
+                            + pd * (y_diff as f64 - y_offset)
+                            + y_offset,
+                    );
+                    if x_raw < 0.0
+                        || y_raw < 0.0
+                        || x_raw >= obj_width as f64
+                        || y_raw >= obj_height as f64
+                    {
+                        continue;
+                    }
+                    (x_raw as u16 as i16, y_raw as u16)
+                } else {
+                    let flip_x = obj[1] >> 12 & 0x1 != 0;
+                    let flip_y = obj[1] >> 13 & 0x1 != 0;
+                    (
+                        if flip_x {
+                            obj_width - 1 - x_diff
+                        } else {
+                            x_diff
+                        },
+                        if flip_y {
+                            obj_height - 1 - y_diff
+                        } else {
+                            y_diff
+                        },
+                    )
+                };
+                let bit_depth = if obj[0] >> 13 & 0x1 != 0 { 8 } else { 4 };
+                let base_tile_num = if bit_depth == 8 {
+                    base_tile_num / 2
+                } else {
+                    base_tile_num
+                };
+                let tile_num = base_tile_num
+                    + if self.dispcnt.contains(DISPCNTFlags::OBJ_TILES1D) {
+                        (y_diff as i16 / 8 * obj_width + x_diff) / 8
+                    } else {
+                        y_diff as i16 / 8 * 0x80 / (bit_depth as i16) + x_diff / 8
+                    } as usize;
+                let tile_x = x_diff % 8;
+                let tile_y = y_diff % 8;
+                let palette_num = (obj[2] >> 12 & 0xF) as usize;
+                // Flipped at tile level, so no need to flip again
+                let (palette_num, color_num) = self.get_color_from_tile(
+                    0x10000,
+                    tile_num,
+                    false,
+                    false,
+                    bit_depth,
+                    tile_x as usize,
+                    tile_y as usize,
+                    palette_num,
+                );
+                if color_num == 0 {
+                    continue;
+                }
+                let mode = obj[0] >> 10 & 0x3;
+                if mode == 2 {
+                    self.windows_lines[2][dot_x] = obj_window_enabled;
+                    if set_color {
+                        break;
+                    } // Continue to look for color pixels
+                } else if !set_color {
+                    self.objs_line[dot_x] = OBJPixel {
+                        color: self.obj_palettes[palette_num * 16 + color_num],
+                        priority: (obj[2] >> 10 & 0x3) as u8,
+                        semitransparent: mode == 1,
+                    };
+                    set_color = true;
+                    // Continue to look for OBJ window pixels if not yet found and window is enabled
+                    if self.windows_lines[2][dot_x] || !obj_window_enabled {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    fn render_affine_line(&mut self, bg_i: usize) {
+        let mut base_x = self.bgxs_latch[bg_i - 2];
+        let mut base_y = self.bgys_latch[bg_i - 2];
+        self.bgxs_latch[bg_i - 2] += self.dmxs[bg_i - 2];
+        self.bgys_latch[bg_i - 2] += self.dmys[bg_i - 2];
+        let dx = self.dxs[bg_i - 2];
+        let dy = self.dys[bg_i - 2];
+        let bgcnt = self.bgcnts[bg_i];
+        let tile_start_addr = bgcnt.tile_block as usize * 0x4000;
+        let map_start_addr = bgcnt.map_block as usize * 0x800;
+        let map_size = 128 << bgcnt.screen_size; // In Pixels
+        let (mosaic_x, mosaic_y) = if bgcnt.mosaic {
+            (
+                self.mosaic.bg_size.h_size as usize,
+                self.mosaic.bg_size.v_size as usize,
+            )
+        } else {
+            (1, 1)
+        };
+
+        for dot_x in 0..WIDTH {
+            let (x_raw, y_raw) = (base_x.integer(), base_y.integer());
+            base_x += dx;
+            base_y += dy;
+            let (x, y) =
+                if x_raw < 0 || x_raw > map_size as i32 || y_raw < 0 || y_raw > map_size as i32 {
+                    if bgcnt.wrap {
+                        (
+                            (x_raw % map_size as i32) as usize,
+                            (y_raw % map_size as i32) as usize,
+                        )
+                    } else {
+                        self.bg_lines[bg_i][dot_x] = Self::TRANSPARENT_COLOR;
+                        continue;
+                    }
+                } else {
+                    (x_raw as usize, y_raw as usize)
+                };
+            // Get Screen Entry
+            let map_x = (x / mosaic_x * mosaic_x / 8) % (map_size / 8);
+            let map_y = (y / mosaic_y * mosaic_y / 8) % (map_size / 8);
+            let addr = map_start_addr + map_y * map_size / 8 + map_x;
+            let tile_num = self.vram[addr] as usize;
+
+            // Convert from tile to pixels
+            let (_, color_num) = self.get_color_from_tile(
+                tile_start_addr,
+                tile_num,
+                false,
+                false,
+                8,
+                x % 8,
+                y % 8,
+                0,
+            );
+            self.bg_lines[bg_i][dot_x] = if color_num == 0 {
+                Self::TRANSPARENT_COLOR
+            } else {
+                self.bg_palettes[color_num]
+            };
+        }
     }
 
     fn render_text_line(&mut self, bg_i: usize) {

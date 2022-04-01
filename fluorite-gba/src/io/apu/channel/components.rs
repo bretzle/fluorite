@@ -45,27 +45,27 @@ impl Sweep {
         !self.freq_overflowed
     }
 
-    // pub fn reload(&mut self) {
-    //     self.freq_overflowed = false;
-    //     self.freq_shadow = self.freq;
-    //     if self.period != 0 {
-    //         self.timer.reload(self.period)
-    //     }
-    //     self.enabled = self.period != 0 || self.shift != 0;
-    //     if self.shift != 0 {
-    //         self.overflowed(self.calc_new_freq());
-    //     }
-    // }
+    pub fn reload(&mut self) {
+        self.freq_overflowed = false;
+        self.freq_shadow = self.freq;
+        if self.period != 0 {
+            self.timer.reload(self.period)
+        }
+        self.enabled = self.period != 0 || self.shift != 0;
+        if self.shift != 0 {
+            self.overflowed(self.calc_new_freq());
+        }
+    }
 
-    // pub fn read(&self) -> u8 {
-    //     self.period << 4 | (self.negate as u8) << 3 | self.shift
-    // }
+    pub fn read(&self) -> u8 {
+        self.period << 4 | (self.negate as u8) << 3 | self.shift
+    }
 
-    // pub fn write(&mut self, value: u8) {
-    //     self.shift = value & 0x7;
-    //     self.negate = value >> 3 & 0x1 != 0;
-    //     self.period = value >> 4 & 0x7;
-    // }
+    pub fn write(&mut self, value: u8) {
+        self.shift = value & 0x7;
+        self.negate = value >> 3 & 0x1 != 0;
+        self.period = value >> 4 & 0x7;
+    }
 
     fn calc_new_freq(&self) -> u16 {
         let operand = self.freq_shadow >> self.shift;
@@ -103,9 +103,9 @@ impl LengthCounter {
         }
     }
 
-    // pub fn reload_length(&mut self, length: u16) {
-    //     self.length = length;
-    // }
+    pub fn reload_length(&mut self, length: u16) {
+        self.length = length;
+    }
 
     pub fn should_play(&self) -> bool {
         self.length != 0
@@ -116,7 +116,7 @@ pub struct Envelope {
     // Registers
     step_period: u8,
     inc: bool,
-    _initial_volume: u8,
+    initial_volume: u8,
     // Sound Generation
     cur_volume: u8,
     timer: Timer<u8>,
@@ -128,7 +128,7 @@ impl Envelope {
         Self {
             step_period: 0,
             inc: false,
-            _initial_volume: 0,
+            initial_volume: 0,
             cur_volume: 0,
             timer: Timer::new(1),
             active: false,
@@ -159,24 +159,24 @@ impl Envelope {
         self.cur_volume as i16
     }
 
-    // pub fn reset(&mut self) {
-    //     self.cur_volume = self.initial_volume;
-    //     if self.step_period != 0 {
-    //         self.timer.reload(self.step_period)
-    //     }
-    //     self.active = true;
-    // }
+    pub fn reset(&mut self) {
+        self.cur_volume = self.initial_volume;
+        if self.step_period != 0 {
+            self.timer.reload(self.step_period)
+        }
+        self.active = true;
+    }
 
-    // pub fn read(&self) -> u8 {
-    //     (self.initial_volume << 4) | (self.inc as u8) << 3 | self.step_period
-    // }
+    pub fn read(&self) -> u8 {
+        (self.initial_volume << 4) | (self.inc as u8) << 3 | self.step_period
+    }
 
-    // pub fn write(&mut self, value: u8) {
-    //     self.initial_volume = value >> 4;
-    //     self.cur_volume = self.initial_volume;
-    //     self.inc = value >> 3 & 0x1 != 0;
-    //     self.step_period = value & 0x7;
-    // }
+    pub fn write(&mut self, value: u8) {
+        self.initial_volume = value >> 4;
+        self.cur_volume = self.initial_volume;
+        self.inc = value >> 3 & 0x1 != 0;
+        self.step_period = value & 0x7;
+    }
 }
 
 pub struct Timer<T: NumAssign + Unsigned + Copy> {
@@ -199,8 +199,8 @@ impl<T: NumAssign + Unsigned + Copy> Timer<T> {
         }
     }
 
-    // pub fn reload(&mut self, reload: T) {
-    //     assert!(reload != num::zero());
-    //     self.counter = reload;
-    // }
+    pub fn reload(&mut self, reload: T) {
+        assert!(reload != num::zero());
+        self.counter = reload;
+    }
 }

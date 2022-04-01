@@ -60,4 +60,11 @@ impl Gamepak {
 
         false
     }
+
+    pub fn is_eeprom(&self) -> bool {
+        match self.save {
+            Saves::Sram(_) => false,
+            Saves::Flash(_) => false,
+        }
+    }
 }

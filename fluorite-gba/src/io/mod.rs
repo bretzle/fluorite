@@ -168,7 +168,7 @@ impl Sysbus {
             MemoryRegion::Rom1H => todo!(),
             MemoryRegion::Rom2L => todo!(),
             MemoryRegion::Rom2H => todo!(),
-            MemoryRegion::Sram => todo!(),
+            MemoryRegion::Sram => self.read_sram(addr),
             MemoryRegion::Unused => self.read_openbus(addr),
         }
     }
@@ -178,7 +178,7 @@ impl Sysbus {
         T: MemoryValue,
     {
         match MemoryRegion::get_region(addr) {
-            MemoryRegion::Bios => todo!(),
+            MemoryRegion::Bios => (),
             MemoryRegion::Ewram => Self::write_mem(&mut self.ewram, addr & Self::EWRAM_MASK, value),
             MemoryRegion::Iwram => Self::write_mem(&mut self.iwram, addr & Self::IWRAM_MASK, value),
             MemoryRegion::Io => Self::write_from_bytes(self, &Self::write_register, addr, value),
@@ -479,13 +479,48 @@ impl Sysbus {
         }
     }
 
+    fn read_sram<T>(&self, addr: u32) -> T
+    where
+        T: MemoryValue,
+    {
+        if self.gamepak.is_eeprom() {
+            return match size_of::<T>() {
+                1 => FromPrimitive::from_u8(0xFF).unwrap(),
+                2 => FromPrimitive::from_u16(0xFFFF).unwrap(),
+                4 => FromPrimitive::from_u32(0xFFFF_FFFF).unwrap(),
+                _ => unreachable!(),
+            };
+        }
+        let addr = addr & 0x0EFFFFFF;
+        let byte = FromPrimitive::from_u8(self.read_cart_backup(addr - 0x0E000000)).unwrap();
+        match size_of::<T>() {
+            1 => byte,
+            2 => byte * FromPrimitive::from_u16(0x0101).unwrap(),
+            4 => byte * FromPrimitive::from_u32(0x01010101).unwrap(),
+            _ => unreachable!(),
+        }
+    }
+
+    fn read_cart_backup(&self, addr: u32) -> u8 {
+        self.gamepak.read_save(addr)
+    }
+
     fn read_io_register(&self, addr: u32) -> u8 {
         match addr {
             0x04000000..=0x0400005F => self.gpu.read_register(addr),
+            0x04000060..=0x040000AF => self.apu.read_register(addr),
+            0x040000B0..=0x040000BB => self.dma.channels[0].read(addr as u8 - 0xB0),
+            0x040000BC..=0x040000C7 => self.dma.channels[1].read(addr as u8 - 0xBC),
+            0x040000C8..=0x040000D3 => self.dma.channels[2].read(addr as u8 - 0xC8),
+            0x040000D4..=0x040000DF => self.dma.channels[3].read(addr as u8 - 0xD4),
             0x04000100..=0x04000103 => self.timers.timers[0].read(&self.scheduler, addr as u8 % 4),
             0x04000104..=0x04000107 => self.timers.timers[1].read(&self.scheduler, addr as u8 % 4),
             0x04000108..=0x0400010B => self.timers.timers[2].read(&self.scheduler, addr as u8 % 4),
             0x0400010C..=0x0400010F => self.timers.timers[3].read(&self.scheduler, addr as u8 % 4),
+            0x04000120..=0x0400012F => {
+                println!("Read from SerialCom(1)");
+                0
+            }
             0x04000130 => self.keypad.keyinput.read(0),
             0x04000131 => self.keypad.keyinput.read(1),
             0x04000132 => self.keypad.keycnt.read(0),
@@ -494,9 +529,14 @@ impl Sysbus {
             0x04000201 => self.interrupt_controller.enable.read(1),
             0x04000202 => self.interrupt_controller.request.read(0),
             0x04000203 => self.interrupt_controller.request.read(1),
+            0x04000204 => self.waitcnt.read(0),
+            0x04000205 => self.waitcnt.read(1),
+            0x04000206..=0x04000207 => 0, // Unused IO Register
             0x04000208 => self.interrupt_controller.master_enable.read(0),
             0x04000209 => self.interrupt_controller.master_enable.read(1),
-            0x0400020A..=0x040002FF => 0, // TODO: Verify that this is correct. is there mirroring?
+            0x0400020A..=0x040002FF => 0, // Unused IO Register
+            0x04000300 => self.haltcnt as u8,
+            0x04000301 => (self.haltcnt >> 8) as u8,
             0x04FFF780..=0x04FFF781 => self.mgba_test_suite.read_register(addr),
             0x04000000..=0x04700000 => panic!("Reading Unimplemented IO Register at {addr:08X}"),
             _ => 0,
@@ -563,6 +603,7 @@ impl Sysbus {
             0x040000D4..=0x040000DF => {
                 self.dma.channels[3].write(&mut self.scheduler, addr as u8 - 0xD4, val)
             }
+            0x040000E0..=0x040000FF => (),
             0x04000100..=0x04000103 => {
                 self.timers.timers[0].write(&mut self.scheduler, addr as u8 % 4, val)
             }
@@ -575,10 +616,12 @@ impl Sysbus {
             0x0400010C..=0x0400010F => {
                 self.timers.timers[3].write(&mut self.scheduler, addr as u8 % 4, val)
             }
-            0x04000110..=0x0400011F => (), // unused. TODO: verify this
-            0x04000120..=0x0400012A => println!("Writng SerialCom(1) at {addr:08X} = {val:02X}",), // TODO: serial communication(1)
-            0x04000130..=0x04000132 => println!("Writng Keypad at {addr:08X} = {val:02X}",), // TODO: Keypad Input
-            0x04000134..=0x04000158 => println!("Writng SerialCom(2) at {addr:08X} = {val:02X}",), // TODO: serial communication(2)
+            0x04000110..=0x0400011F => (),
+            0x04000120..=0x0400012B => println!("Writng SerialCom(1) at {addr:08X} = {val:02X}",), // TODO: serial communication(1)
+            0x0400012C..=0x0400012F => (),
+            0x04000130..=0x04000133 => println!("Writng Keypad at {addr:08X} = {val:02X}",), // TODO: Keypad Input
+            0x04000134..=0x04000159 => println!("Writng SerialCom(2) at {addr:08X} = {val:02X}",), // TODO: serial communication(2)
+            0x0400015A..=0x040001FF => (),
             0x04000200 => self
                 .interrupt_controller
                 .enable
@@ -611,9 +654,10 @@ impl Sysbus {
             0x0400020A..=0x040002FF => (), // Unused IO Register
             0x04000300 => self.haltcnt = (self.haltcnt & !0x00FF) | val as u16,
             0x04000301 => self.haltcnt = (self.haltcnt & !0xFF00) | (val as u16) << 8,
+            0x04000410 => (), // Undocumented
             0x04FFF600..=0x04FFF701 => self.mgba_test_suite.write_register(addr, val),
             0x04FFF780..=0x04FFF781 => self.mgba_test_suite.write_enable(addr, val),
-            _ => panic!("Writng Unimplemented IO Register at {addr:08X} = {val:02X}",),
+            _ => unreachable!("Writng Unimplemented IO Register at {addr:08X} = {val:02X}",),
         }
     }
 
@@ -773,7 +817,7 @@ impl WaitStateControl {
         1 + WaitStateControl::SRAM_ACCESS_TIMINGS[self.sram_setting]
     }
 
-    fn _read(&self, byte: u8) -> u8 {
+    pub fn read(&self, byte: u8) -> u8 {
         match byte {
             0 => {
                 (self.s_wait_state_settings[1] << 7

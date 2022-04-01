@@ -15,9 +15,9 @@ impl SoundEnableFlags {
         }
     }
 
-    // pub fn read(&self) -> u8 {
-    //     self.channel4 << 3 | self.channel3 << 2 | self.channel2 << 1 | self.channel1 << 0
-    // }
+    fn read(&self) -> u8 {
+        self.channel4 << 3 | self.channel3 << 2 | self.channel2 << 1 | self.channel1 << 0
+    }
 
     pub fn write(&mut self, value: u8) {
         self.channel1 = value & 0x1;
@@ -50,14 +50,14 @@ impl SoundCnt {
         }
     }
 
-    // fn read(&self, byte: u8) -> u8 {
-    //     match byte {
-    //         0 => self.psg_master_volume_l << 4 | self.psg_master_volume_r,
-    //         1 => self.psg_enable_l.read() << 4 | self.psg_enable_r.read(),
-    //         2 => self.dma_sound_b_vol << 3 | self.dma_sound_a_vol << 2 | (self.psg_volume),
-    //         _ => unreachable!(),
-    //     }
-    // }
+    pub fn read(&self, byte: u8) -> u8 {
+        match byte {
+            0 => self.psg_master_volume_l << 4 | self.psg_master_volume_r,
+            1 => self.psg_enable_l.read() << 4 | self.psg_enable_r.read(),
+            2 => self.dma_sound_b_vol << 3 | self.dma_sound_a_vol << 2 | (self.psg_volume),
+            _ => unreachable!(),
+        }
+    }
 
     pub fn write(&mut self, byte: u8, value: u8) {
         match byte {
@@ -81,33 +81,33 @@ impl SoundCnt {
 
 pub struct SoundBias {
     pub bias_level: u16,
-    _amplitude_res: u8,
+    amplitude_res: u8,
 }
 
 impl SoundBias {
     pub fn new() -> Self {
         Self {
             bias_level: 0x200,
-            _amplitude_res: 0,
+            amplitude_res: 0,
         }
     }
 
-    // fn read(&self, byte: u8) -> u8 {
-    //     match byte {
-    //         0 => self.bias_level as u8,
-    //         1 => self.amplitude_res << 6 | (self.bias_level >> 8) as u8,
-    //         _ => unreachable!(),
-    //     }
-    // }
+    pub fn read(&self, byte: u8) -> u8 {
+        match byte {
+            0 => self.bias_level as u8,
+            1 => self.amplitude_res << 6 | (self.bias_level >> 8) as u8,
+            _ => unreachable!(),
+        }
+    }
 
-    // fn write(&mut self, byte: u8, value: u8) {
-    //     match byte {
-    //         0 => self.bias_level = self.bias_level & !0xFF | value as u16 & !0x1,
-    //         1 => {
-    //             self.bias_level = self.bias_level & !0x300 | ((value as u16) & 0x3) << 8;
-    //             self.amplitude_res = (value >> 6) & 0x3;
-    //         }
-    //         _ => unreachable!(),
-    //     }
-    // }
+    pub fn write(&mut self, byte: u8, value: u8) {
+        match byte {
+            0 => self.bias_level = self.bias_level & !0xFF | value as u16 & !0x1,
+            1 => {
+                self.bias_level = self.bias_level & !0x300 | ((value as u16) & 0x3) << 8;
+                self.amplitude_res = (value >> 6) & 0x3;
+            }
+            _ => unreachable!(),
+        }
+    }
 }

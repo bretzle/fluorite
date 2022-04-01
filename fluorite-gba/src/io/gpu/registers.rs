@@ -261,7 +261,7 @@ impl Mosaic {
         }
     }
 
-    fn _write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
         match byte {
             0 => self.bg_size._write(value),
             1 => self.obj_size._write(value),
@@ -344,7 +344,7 @@ impl BldCnt {
         }
     }
 
-    fn _write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
         match byte {
             0 => {
                 self.target_pixel1._write(value);
@@ -403,7 +403,7 @@ impl WindowControl {
         }
     }
 
-    fn _write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
         match byte {
             0 => {
                 self.color_special_enable = value >> 5 & 0x1 != 0;
@@ -443,7 +443,7 @@ impl BldAlpha {
         }
     }
 
-    fn _write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
         match byte {
             0 => {
                 self._raw_eva = value & 0x1F;
@@ -471,7 +471,7 @@ impl Bldy {
         0
     }
 
-    fn _write(&mut self, __scheduler: &mut Scheduler, byte: u8, value: u8) {
+    pub fn write(&mut self, __scheduler: &mut Scheduler, byte: u8, value: u8) {
         match byte {
             0 => self.evy = std::cmp::min(0x10, value & 0x1F),
             1 => (),
@@ -513,7 +513,7 @@ impl ReferencePointCoord {
         Self(0)
     }
 
-    pub fn _integer(&self) -> i32 {
+    pub fn integer(&self) -> i32 {
         self.0 >> 8
     }
 
@@ -521,7 +521,7 @@ impl ReferencePointCoord {
         0
     }
 
-    fn _write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
         let offset = byte * 8;
         match byte {
             0..=2 => self.0 = (self.0 as u32 & !(0xFF << offset) | (value as u32) << offset) as i32,
@@ -537,6 +537,13 @@ impl ReferencePointCoord {
     }
 }
 
+impl std::ops::AddAssign<RotationScalingParameter> for ReferencePointCoord {
+    fn add_assign(&mut self, rhs: RotationScalingParameter) {
+        // *self = Self(self.value.wrapping_add(rhs.value as i32))
+        self.0 = self.0.wrapping_add(rhs.0 as i32)
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct RotationScalingParameter(i16);
 
@@ -545,7 +552,7 @@ impl RotationScalingParameter {
         Self(0)
     }
 
-    pub fn _get_float_from_u16(value: u16) -> f64 {
+    pub fn get_float_from_u16(value: u16) -> f64 {
         (value >> 8) as i8 as i32 as f64 + value as u8 as f64 / 256.0
     }
 
@@ -553,12 +560,43 @@ impl RotationScalingParameter {
         0
     }
 
-    fn _write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
         let offset = byte * 8;
         match byte {
             0 | 1 => {
                 self.0 = ((self.0 as u32) & !(0xFF << offset) | (value as u32) << offset) as i16
             }
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct WindowDimensions {
+    pub coord2: u8,
+    pub coord1: u8,
+}
+
+impl WindowDimensions {
+    pub fn new() -> Self {
+        Self {
+            coord2: 0,
+            coord1: 0,
+        }
+    }
+
+    fn read(&self, byte: u8) -> u8 {
+        match byte {
+            0 => self.coord2,
+            1 => self.coord1,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
+        match byte {
+            0 => self.coord2 = value,
+            1 => self.coord1 = value,
             _ => unreachable!(),
         }
     }
