@@ -2,8 +2,10 @@ use std::{fs, path::PathBuf};
 
 use enum_dispatch::enum_dispatch;
 
+use self::flash::Flash;
 use self::sram::Sram;
 
+mod flash;
 mod sram;
 
 enum SaveType {
@@ -41,6 +43,7 @@ pub trait SaveDevice {
 #[enum_dispatch]
 pub enum Saves {
     Sram,
+    Flash,
 }
 
 impl Default for Saves {
@@ -67,9 +70,9 @@ impl Saves {
             match save_type {
                 SaveType::Eeprom => todo!(),
                 SaveType::Sram => Sram::new(save_file).into(),
-                SaveType::Flash => todo!(),
-                SaveType::Flash512 => todo!(),
-                SaveType::Flash1M => todo!(),
+                SaveType::Flash => Flash::new(save_file, 0x10000).into(),
+                SaveType::Flash512 => Flash::new(save_file, 0x10000).into(),
+                SaveType::Flash1M => Flash::new(save_file, 0x20000).into(),
             }
         } else {
             println!("Unable to detect Gamepak save type. Defaulting to SRAM");
