@@ -146,7 +146,7 @@ impl Sysbus {
             MemoryRegion::Ewram => Self::read_mem(&self.ewram, addr & Self::EWRAM_MASK),
             MemoryRegion::Iwram => Self::read_mem(&self.iwram, addr & Self::IWRAM_MASK),
             MemoryRegion::Io => Self::read_from_bytes(self, &Self::read_io_register, addr),
-            MemoryRegion::Palette => todo!(),
+            MemoryRegion::Palette => Self::read_from_bytes(&self.gpu, &Gpu::read_palette_ram, addr),
             MemoryRegion::Vram => Self::read_mem(&self.gpu.vram, Gpu::parse_vram_addr(addr)),
             MemoryRegion::Oam => Self::read_mem(&self.gpu.oam, Gpu::parse_oam_addr(addr)),
             MemoryRegion::Rom0L => {
@@ -163,10 +163,10 @@ impl Sysbus {
                     self.read_rom(addr)
                 }
             }
-            MemoryRegion::Rom0H => todo!(),
-            MemoryRegion::Rom1L => todo!(),
-            MemoryRegion::Rom1H => todo!(),
-            MemoryRegion::Rom2L => todo!(),
+            MemoryRegion::Rom0H => self.read_rom(addr),
+            MemoryRegion::Rom1L => self.read_rom(addr),
+            MemoryRegion::Rom1H => self.read_rom(addr),
+            MemoryRegion::Rom2L => self.read_rom(addr),
             MemoryRegion::Rom2H => todo!(),
             MemoryRegion::Sram => self.read_sram(addr),
             MemoryRegion::Unused => self.read_openbus(addr),
@@ -513,7 +513,8 @@ impl Sysbus {
             0x040000BC..=0x040000C7 => self.dma.channels[1].read(addr as u8 - 0xBC),
             0x040000C8..=0x040000D3 => self.dma.channels[2].read(addr as u8 - 0xC8),
             0x040000D4..=0x040000DF => self.dma.channels[3].read(addr as u8 - 0xD4),
-            0x04000100..=0x04000103 => self.timers.timers[0].read(&self.scheduler, addr as u8 % 4),
+            0x040000E0..=0x040000FF => 0,
+			0x04000100..=0x04000103 => self.timers.timers[0].read(&self.scheduler, addr as u8 % 4),
             0x04000104..=0x04000107 => self.timers.timers[1].read(&self.scheduler, addr as u8 % 4),
             0x04000108..=0x0400010B => self.timers.timers[2].read(&self.scheduler, addr as u8 % 4),
             0x0400010C..=0x0400010F => self.timers.timers[3].read(&self.scheduler, addr as u8 % 4),
@@ -525,6 +526,8 @@ impl Sysbus {
             0x04000131 => self.keypad.keyinput.read(1),
             0x04000132 => self.keypad.keycnt.read(0),
             0x04000133 => self.keypad.keycnt.read(1),
+			0x04000134..=0x04000159 => todo!(),
+			0x0400015A..=0x040001FF => 0,
             0x04000200 => self.interrupt_controller.enable.read(0),
             0x04000201 => self.interrupt_controller.enable.read(1),
             0x04000202 => self.interrupt_controller.request.read(0),
@@ -538,7 +541,7 @@ impl Sysbus {
             0x04000300 => self.haltcnt as u8,
             0x04000301 => (self.haltcnt >> 8) as u8,
             0x04FFF780..=0x04FFF781 => self.mgba_test_suite.read_register(addr),
-            0x04000000..=0x04700000 => panic!("Reading Unimplemented IO Register at {addr:08X}"),
+            // 0x04000000..=0x04700000 => panic!("Reading Unimplemented IO Register at {addr:08X}"),
             _ => 0,
         }
     }
@@ -657,7 +660,7 @@ impl Sysbus {
             0x04000410 => (), // Undocumented
             0x04FFF600..=0x04FFF701 => self.mgba_test_suite.write_register(addr, val),
             0x04FFF780..=0x04FFF781 => self.mgba_test_suite.write_enable(addr, val),
-            _ => unreachable!("Writng Unimplemented IO Register at {addr:08X} = {val:02X}",),
+            _ => (), //unreachable!("Writng Unimplemented IO Register at {addr:08X} = {val:02X}",),
         }
     }
 

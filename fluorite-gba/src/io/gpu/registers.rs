@@ -230,11 +230,11 @@ impl MosaicSize {
         }
     }
 
-    pub fn _read(&self) -> u8 {
+    pub fn read(&self) -> u8 {
         (self.v_size - 1) << 4 | (self.h_size - 1)
     }
 
-    pub fn _write(&mut self, value: u8) {
+    pub fn write(&mut self, value: u8) {
         self.h_size = (value & 0xF) + 1;
         self.v_size = (value >> 4) + 1;
     }
@@ -253,18 +253,18 @@ impl Mosaic {
         }
     }
 
-    fn _read(&self, byte: u8) -> u8 {
+    pub fn read(&self, byte: u8) -> u8 {
         match byte {
-            0 => self.bg_size._read(),
-            1 => self.obj_size._read(),
+            0 => self.bg_size.read(),
+            1 => self.obj_size.read(),
             _ => unreachable!(),
         }
     }
 
     pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
         match byte {
-            0 => self.bg_size._write(value),
-            1 => self.obj_size._write(value),
+            0 => self.bg_size.write(value),
+            1 => self.obj_size.write(value),
             _ => unreachable!(),
         }
     }
@@ -281,7 +281,7 @@ impl BldCntTargetPixelSelection {
         }
     }
 
-    pub fn _read(&self) -> u8 {
+    pub fn read(&self) -> u8 {
         (self.enabled[0] as u8)
             | (self.enabled[1] as u8) << 1
             | (self.enabled[2] as u8) << 2
@@ -336,10 +336,10 @@ impl BldCnt {
         }
     }
 
-    fn _read(&self, byte: u8) -> u8 {
+    pub fn read(&self, byte: u8) -> u8 {
         match byte {
-            0 => (self.effect as u8) << 6 | self.target_pixel1._read(),
-            1 => self.target_pixel2._read(),
+            0 => (self.effect as u8) << 6 | self.target_pixel1.read(),
+            1 => self.target_pixel2.read(),
             _ => unreachable!(),
         }
     }
@@ -389,7 +389,7 @@ impl WindowControl {
         }
     }
 
-    fn _read(&self, byte: u8) -> u8 {
+    pub fn read(&self, byte: u8) -> u8 {
         match byte {
             0 => {
                 (self.color_special_enable as u8) << 5
@@ -435,7 +435,7 @@ impl BldAlpha {
         }
     }
 
-    fn _read(&self, byte: u8) -> u8 {
+    pub fn read(&self, byte: u8) -> u8 {
         match byte {
             0 => self._raw_eva,
             1 => self._raw_evb,
@@ -467,7 +467,7 @@ impl Bldy {
         Bldy { evy: 0 }
     }
 
-    fn _read(&self, _byte: u8) -> u8 {
+    pub fn read(&self, _byte: u8) -> u8 {
         0
     }
 
@@ -488,7 +488,7 @@ impl Ofs {
         Self(0)
     }
 
-    fn _read(&self, byte: u8) -> u8 {
+    pub fn read(&self, byte: u8) -> u8 {
         match byte {
             0 => self.0 as u8,
             1 => (self.0 >> 8) as u8,
@@ -517,7 +517,7 @@ impl ReferencePointCoord {
         self.0 >> 8
     }
 
-    fn _read(&self, _byte: u8) -> u8 {
+    pub fn read(&self, _byte: u8) -> u8 {
         0
     }
 
@@ -556,7 +556,7 @@ impl RotationScalingParameter {
         (value >> 8) as i8 as i32 as f64 + value as u8 as f64 / 256.0
     }
 
-    fn _read(&self, _byte: u8) -> u8 {
+    pub fn read(&self, _byte: u8) -> u8 {
         0
     }
 
@@ -585,7 +585,7 @@ impl WindowDimensions {
         }
     }
 
-    fn read(&self, byte: u8) -> u8 {
+    pub fn read(&self, byte: u8) -> u8 {
         match byte {
             0 => self.coord2,
             1 => self.coord1,

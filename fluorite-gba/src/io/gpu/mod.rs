@@ -142,6 +142,77 @@ impl Gpu {
             0x00D => self.bgcnts[2].read(1),
             0x00E => self.bgcnts[3].read(0),
             0x00F => self.bgcnts[3].read(1),
+            0x010 => self.hofs[0].read(0),
+            0x011 => self.hofs[0].read(1),
+            0x012 => self.vofs[0].read(0),
+            0x013 => self.vofs[0].read(1),
+            0x014 => self.hofs[1].read(0),
+            0x015 => self.hofs[1].read(1),
+            0x016 => self.vofs[1].read(0),
+            0x017 => self.vofs[1].read(1),
+            0x018 => self.hofs[2].read(0),
+            0x019 => self.hofs[2].read(1),
+            0x01A => self.vofs[2].read(0),
+            0x01B => self.vofs[2].read(1),
+            0x01C => self.hofs[3].read(0),
+            0x01D => self.hofs[3].read(1),
+            0x01E => self.vofs[3].read(0),
+            0x01F => self.vofs[3].read(1),
+            0x020 => self.dxs[0].read(0),
+            0x021 => self.dxs[0].read(1),
+            0x022 => self.dmxs[0].read(0),
+            0x023 => self.dmxs[0].read(1),
+            0x024 => self.dys[0].read(0),
+            0x025 => self.dys[0].read(1),
+            0x026 => self.dmys[0].read(0),
+            0x027 => self.dmys[0].read(1),
+            0x028 => self.bgxs[0].read(0),
+            0x029 => self.bgxs[0].read(1),
+            0x02A => self.bgxs[0].read(2),
+            0x02B => self.bgxs[0].read(3),
+            0x02C => self.bgys[0].read(0),
+            0x02D => self.bgys[0].read(1),
+            0x02E => self.bgys[0].read(2),
+            0x02F => self.bgys[0].read(3),
+            0x030 => self.dxs[1].read(0),
+            0x031 => self.dxs[1].read(1),
+            0x032 => self.dmxs[1].read(0),
+            0x033 => self.dmxs[1].read(1),
+            0x034 => self.dys[1].read(0),
+            0x035 => self.dys[1].read(1),
+            0x036 => self.dmys[1].read(0),
+            0x037 => self.dmys[1].read(1),
+            0x038 => self.bgxs[1].read(0),
+            0x039 => self.bgxs[1].read(1),
+            0x03A => self.bgxs[1].read(2),
+            0x03B => self.bgxs[1].read(3),
+            0x03C => self.bgys[1].read(0),
+            0x03D => self.bgys[1].read(1),
+            0x03E => self.bgys[1].read(2),
+            0x03F => self.bgys[1].read(3),
+            0x040 => self.winhs[0].read(0),
+            0x041 => self.winhs[0].read(1),
+            0x042 => self.winhs[1].read(0),
+            0x043 => self.winhs[1].read(1),
+            0x044 => self.winvs[0].read(0),
+            0x045 => self.winvs[0].read(1),
+            0x046 => self.winvs[1].read(0),
+            0x047 => self.winvs[1].read(1),
+            0x048 => self.win_0_cnt.read(0),
+            0x049 => self.win_1_cnt.read(0),
+            0x04A => self.win_out_cnt.read(0),
+            0x04B => self.win_obj_cnt.read(0),
+            0x04C => self.mosaic.read(0),
+            0x04D => self.mosaic.read(1),
+            0x04E => 0,
+            0x04F => 0,
+            0x050 => self.bldcnt.read(0),
+            0x051 => self.bldcnt.read(1),
+            0x052 => self.bldalpha.read(0),
+            0x053 => self.bldalpha.read(1),
+            0x054 => self.bldy.read(0),
+            0x055 => self.bldy.read(1),
+            0x056..=0x05F => 0,
             _ => panic!("Ignoring GPU Read at 0x{:08X}", addr),
         }
     }
@@ -957,6 +1028,21 @@ impl Gpu {
             (0, tile)
         } else {
             (palette_num, ((tile >> (4 * (tile_x % 2))) & 0xF))
+        }
+    }
+
+    pub fn read_palette_ram(&self, addr: u32) -> u8 {
+        let addr = (addr & 0x3FF) as usize;
+        let palettes = if addr < 0x200 {
+            &self.bg_palettes
+        } else {
+            &self.obj_palettes
+        };
+        let index = (addr & 0x1FF) / 2;
+        if addr % 2 == 0 {
+            (palettes[index] >> 0) as u8
+        } else {
+            (palettes[index] >> 8) as u8
         }
     }
 

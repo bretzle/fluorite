@@ -206,6 +206,7 @@ impl Apu {
             0x090..=0x09F => self.wave.read_wave_ram(addr - 0x04000090),
             0x0A0..=0x0A3 => 0,
             0x0A4..=0x0A7 => 0,
+			0x0A8..=0x0AF => 0,
             _ => unreachable!("Unimplemented APU Read at 0x{:08X}", addr),
         }
     }
