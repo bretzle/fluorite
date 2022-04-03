@@ -29,14 +29,14 @@ impl Rom {
         let header = Header::new(&data);
 
         if header.fixed_96h == 0x96 && header.complement == header.calc_complement() {
-			self.title = String::from_utf8(header.game_title.to_vec()).unwrap();
+            self.title = String::from_utf8(header.game_title.to_vec()).unwrap();
             self.code = String::from_utf8(header.game_code.to_vec()).unwrap();
         }
 
-		println!("Title: {}", self.title);
-		println!("Code: {}", self.code);
-		
-		self.data = data;
+        println!("Title: {}", self.title);
+        println!("Code: {}", self.code);
+
+        self.data = data;
 
         Ok(())
     }

@@ -16,7 +16,7 @@ impl FrameCounter {
     }
 
     pub fn inc(&mut self) {
-        self.count += 1
+        self.count += 1;
     }
 
     pub fn reset(&mut self) {

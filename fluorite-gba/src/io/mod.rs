@@ -454,8 +454,8 @@ impl Sysbus {
         T: MemoryValue,
     {
         if self.pc < 0x4000 {
-            self.bios_latch.set(Self::read_mem(&BIOS, addr)); // Always 32 bit read
-            Self::read_mem(&BIOS, addr)
+            self.bios_latch.set(Self::read_mem(BIOS, addr)); // Always 32 bit read
+            Self::read_mem(BIOS, addr)
         } else {
             let mask = match size_of::<T>() {
                 1 => 0xFF,
@@ -514,7 +514,7 @@ impl Sysbus {
             0x040000C8..=0x040000D3 => self.dma.channels[2].read(addr as u8 - 0xC8),
             0x040000D4..=0x040000DF => self.dma.channels[3].read(addr as u8 - 0xD4),
             0x040000E0..=0x040000FF => 0,
-			0x04000100..=0x04000103 => self.timers.timers[0].read(&self.scheduler, addr as u8 % 4),
+            0x04000100..=0x04000103 => self.timers.timers[0].read(&self.scheduler, addr as u8 % 4),
             0x04000104..=0x04000107 => self.timers.timers[1].read(&self.scheduler, addr as u8 % 4),
             0x04000108..=0x0400010B => self.timers.timers[2].read(&self.scheduler, addr as u8 % 4),
             0x0400010C..=0x0400010F => self.timers.timers[3].read(&self.scheduler, addr as u8 % 4),
@@ -526,8 +526,8 @@ impl Sysbus {
             0x04000131 => self.keypad.keyinput.read(1),
             0x04000132 => self.keypad.keycnt.read(0),
             0x04000133 => self.keypad.keycnt.read(1),
-			0x04000134..=0x04000159 => todo!(),
-			0x0400015A..=0x040001FF => 0,
+            0x04000134..=0x04000159 => todo!(),
+            0x0400015A..=0x040001FF => 0,
             0x04000200 => self.interrupt_controller.enable.read(0),
             0x04000201 => self.interrupt_controller.enable.read(1),
             0x04000202 => self.interrupt_controller.request.read(0),
@@ -908,7 +908,7 @@ mod mgba_test_suite {
 
         pub fn write_enable(&mut self, addr: u32, value: u8) {
             match addr {
-                0x4FFF780 => self.enable = self.enable & !0x00FF | (value as u16) << 0 & 0x00FF,
+                0x4FFF780 => self.enable = self.enable & !0x00FF | (value as u16) & 0x00FF,
                 0x4FFF781 => self.enable = self.enable & !0xFF00 | (value as u16) << 8 & 0xFF00,
                 _ => (),
             }
@@ -940,7 +940,7 @@ mod mgba_test_suite {
             }
             match addr {
                 0x4FFF600..=0x4FFF6FF => self.buffer[(addr - 0x4FFF600) as usize] = value as char,
-                0x4FFF700 => self.flags = self.flags & !0x00FF | (value as u16) << 0 & 0x00FF,
+                0x4FFF700 => self.flags = self.flags & !0x00FF | (value as u16) & 0x00FF,
                 0x4FFF701 => {
                     self.flags = self.flags & !0xFF00 | (value as u16) << 8 & 0xFF00;
                     if self.flags & 0x100 != 0 {
@@ -961,13 +961,13 @@ mod mgba_test_suite {
                                 .skip(1)
                                 .take(1)
                                 .collect::<String>()
-                                .contains("P");
+                                .contains('P');
                         let show_debug = !message
                             .split(' ')
                             .rev()
                             .take(1)
                             .collect::<String>()
-                            .contains("P");
+                            .contains('P');
                         match MGBALogLevel::new(self.flags & 0x7) {
                             Fatal => error!("{message}"),
                             Error => error!("{message}"),

@@ -263,35 +263,35 @@ impl Gpu {
             0x027 => self.dmys[0].write(scheduler, 1, val),
             0x028 => {
                 self.bgxs[0].write(scheduler, 0, val);
-                self.bgxs_latch[0] = self.bgxs[0].clone()
+                self.bgxs_latch[0] = self.bgxs[0]
             }
             0x029 => {
                 self.bgxs[0].write(scheduler, 1, val);
-                self.bgxs_latch[0] = self.bgxs[0].clone()
+                self.bgxs_latch[0] = self.bgxs[0]
             }
             0x02A => {
                 self.bgxs[0].write(scheduler, 2, val);
-                self.bgxs_latch[0] = self.bgxs[0].clone()
+                self.bgxs_latch[0] = self.bgxs[0]
             }
             0x02B => {
                 self.bgxs[0].write(scheduler, 3, val);
-                self.bgxs_latch[0] = self.bgxs[0].clone()
+                self.bgxs_latch[0] = self.bgxs[0]
             }
             0x02C => {
                 self.bgys[0].write(scheduler, 0, val);
-                self.bgys_latch[0] = self.bgys[0].clone()
+                self.bgys_latch[0] = self.bgys[0]
             }
             0x02D => {
                 self.bgys[0].write(scheduler, 1, val);
-                self.bgys_latch[0] = self.bgys[0].clone()
+                self.bgys_latch[0] = self.bgys[0]
             }
             0x02E => {
                 self.bgys[0].write(scheduler, 2, val);
-                self.bgys_latch[0] = self.bgys[0].clone()
+                self.bgys_latch[0] = self.bgys[0]
             }
             0x02F => {
                 self.bgys[0].write(scheduler, 3, val);
-                self.bgys_latch[0] = self.bgys[0].clone()
+                self.bgys_latch[0] = self.bgys[0]
             }
             0x030 => self.dxs[1].write(scheduler, 0, val),
             0x031 => self.dxs[1].write(scheduler, 1, val),
@@ -1040,7 +1040,7 @@ impl Gpu {
         };
         let index = (addr & 0x1FF) / 2;
         if addr % 2 == 0 {
-            (palettes[index] >> 0) as u8
+            palettes[index] as u8
         } else {
             (palettes[index] >> 8) as u8
         }

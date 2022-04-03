@@ -16,7 +16,7 @@ impl SoundEnableFlags {
     }
 
     fn read(&self) -> u8 {
-        self.channel4 << 3 | self.channel3 << 2 | self.channel2 << 1 | self.channel1 << 0
+        self.channel4 << 3 | self.channel3 << 2 | self.channel2 << 1 | self.channel1
     }
 
     pub fn write(&mut self, value: u8) {

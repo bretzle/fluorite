@@ -164,8 +164,8 @@ impl Apu {
             0x065 => self.tone1.read(5),
             0x066 => self.tone1.read(6),
             0x067 => self.tone1.read(7),
-            0x068 => self.tone2.read(0 + 2),
-            0x069 => self.tone2.read(1 + 2),
+            0x068 => self.tone2.read(2),
+            0x069 => self.tone2.read(3),
             0x06A => 0,
             0x06B => 0,
             0x06C => self.tone2.read(4),
@@ -197,7 +197,7 @@ impl Apu {
                     | (self.noise.is_on() as u8) << 3
                     | (self.wave.is_on() as u8) << 2
                     | (self.tone2.is_on() as u8) << 1
-                    | (self.tone1.is_on() as u8) << 0
+                    | (self.tone1.is_on() as u8)
             }
             0x085..=0x087 => 0,
             0x088 => self.bias.read(0),
@@ -206,7 +206,7 @@ impl Apu {
             0x090..=0x09F => self.wave.read_wave_ram(addr - 0x04000090),
             0x0A0..=0x0A3 => 0,
             0x0A4..=0x0A7 => 0,
-			0x0A8..=0x0AF => 0,
+            0x0A8..=0x0AF => 0,
             _ => unreachable!("Unimplemented APU Read at 0x{:08X}", addr),
         }
     }
@@ -223,8 +223,8 @@ impl Apu {
             0x065 => self.tone1.write(5, val),
             0x066 => self.tone1.write(6, val),
             0x067 => self.tone1.write(7, val),
-            0x068 => self.tone2.write(0 + 2, val),
-            0x069 => self.tone2.write(1 + 2, val),
+            0x068 => self.tone2.write(2, val),
+            0x069 => self.tone2.write(3, val),
             0x06A => (),
             0x06B => (),
             0x06C => self.tone2.write(4, val),
@@ -273,7 +273,7 @@ impl Apu {
             0x090..=0x09F => self.wave.write_wave_ram(addr - 0x04000090, val),
             0x0A0..=0x0A3 => self.sound_a.write_fifo(val),
             0x0A4..=0x0A7 => self.sound_b.write_fifo(val),
-			0x0A8..=0x0AF => (),
+            0x0A8..=0x0AF => (),
             _ => panic!("Unimplemented APU Write 0x{addr:08X} = {val:02X}"),
         }
     }

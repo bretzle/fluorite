@@ -1,6 +1,6 @@
 pub trait BitRange<T> {
     fn bit_range<const START: usize, const END: usize>(self) -> T;
-	#[must_use]
+    #[must_use]
     fn set_bit_range<const START: usize, const END: usize>(self, value: T) -> Self;
 }
 
@@ -50,7 +50,7 @@ impl_bitrange!(
 
 pub trait Bit {
     fn bit<const BIT: usize>(self) -> bool;
-	#[must_use]
+    #[must_use]
     fn set_bit<const BIT: usize>(self, value: bool) -> Self;
 }
 

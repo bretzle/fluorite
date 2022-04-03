@@ -1,5 +1,29 @@
 #![doc(html_logo_url = "https://raw.githubusercontent.com/bretzle/fluorite/main/fluorite.png")]
-#![allow(clippy::new_without_default)]
+#![warn(clippy::pedantic)]
+#![allow(
+    clippy::cast_lossless,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap,
+    clippy::cast_possible_truncation,
+    clippy::struct_excessive_bools,
+    clippy::used_underscore_binding,
+    clippy::too_many_lines,
+    clippy::missing_panics_doc,
+    clippy::cast_ptr_alignment,
+    clippy::ptr_as_ptr,
+    clippy::option_if_let_else,
+    clippy::module_name_repetitions,
+    clippy::verbose_bit_mask,
+    clippy::wildcard_imports,
+    clippy::must_use_candidate,
+    clippy::unused_self,
+    clippy::missing_errors_doc,
+    clippy::if_same_then_else,
+    clippy::new_without_default,
+    clippy::enum_glob_use,
+    clippy::unreadable_literal
+)]
 
 use application::{Application, State};
 use counter::FrameCounter;
@@ -34,7 +58,7 @@ fn main() -> color_eyre::Result<()> {
             match app.state {
                 State::Run | State::Pause => app.draw_frame(app.state),
                 State::Menu => app.draw_menu(),
-                _ => {}
+                State::Quit => {}
             }
         });
 
@@ -47,7 +71,7 @@ fn main() -> color_eyre::Result<()> {
                     app.update_title(Some(fps));
                 }
             }
-            _ => {}
+            State::Quit => {}
         }
     }
 

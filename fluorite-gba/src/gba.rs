@@ -1,6 +1,10 @@
-use fluorite_common::{EasyCell, flume::Receiver};
+use fluorite_common::{flume::Receiver, EasyCell};
 
-use crate::{arm::Arm7tdmi, io::{Sysbus, keypad::KEYINPUT}, AudioInterface};
+use crate::{
+    arm::Arm7tdmi,
+    io::{keypad::KEYINPUT, Sysbus},
+    AudioInterface,
+};
 use std::path::Path;
 
 pub struct Gba {
@@ -36,7 +40,7 @@ impl Gba {
 
     pub fn run(&mut self, cycles: usize) {
         self.next_frame_cycle += cycles;
-		self.bus.poll_keypad_updates();
+        self.bus.poll_keypad_updates();
         while self.bus.get_cycle() < self.next_frame_cycle {
             self.bus.run_dma();
             self.cpu.handle_irq(&mut self.bus);

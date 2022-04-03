@@ -40,7 +40,7 @@ impl Rtc {
             write_only: true,
             write_mask: 0b111,
             // RTC Specific
-            mode: Mode::StartCommand { done: false },
+            mode: Mode::Start { done: false },
             counter: CLOCK_FREQ,
             last_byte: false,
             date_time: DateTime::new(),
@@ -66,7 +66,7 @@ impl Rtc {
                 self.last_byte = true;
                 (0, Parameter::Reset)
             }
-            Parameter::IRQ => {
+            Parameter::Irq => {
                 todo!("RTC IRQ");
                 // self.last_byte = true;
                 // (0, Parameter::IRQ)
@@ -97,10 +97,10 @@ impl Rtc {
                 self.last_byte = false;
                 Parameter::Reset
             }
-            Parameter::IRQ => {
+            Parameter::Irq => {
                 // TODO: RTC Interrupts
                 self.last_byte = false;
-                Parameter::IRQ
+                Parameter::Irq
             }
         }
     }
@@ -113,17 +113,14 @@ impl GpioDevice for Rtc {
         }
         if self.counter == 0 {
             self.counter = CLOCK_FREQ;
-            if self.date_time.second.inc() {
-                if self.date_time.minute.inc() {
-                    if self.date_time.hour.inc() {
-                        self.date_time.day_of_week.inc();
-                        // TODO: Use actual number of days in month
-                        if self.date_time.day.inc_with_max(30) {
-                            if self.date_time.month.inc() {
-                                self.date_time.year.inc();
-                            }
-                        }
-                    }
+            if self.date_time.second.inc()
+                && self.date_time.minute.inc()
+                && self.date_time.hour.inc()
+            {
+                self.date_time.day_of_week.inc();
+                // TODO: Use actual number of days in month
+                if self.date_time.day.inc_with_max(30) && self.date_time.month.inc() {
+                    self.date_time.year.inc();
                 }
             }
         } else {
@@ -133,14 +130,14 @@ impl GpioDevice for Rtc {
 
     fn process_write(&mut self) {
         self.mode = match self.mode {
-            Mode::StartCommand { done: false } => {
+            Mode::Start { done: false } => {
                 assert!(!self.cs && self.sck);
-                Mode::StartCommand { done: true }
+                Mode::Start { done: true }
             }
-            Mode::StartCommand { done: true } if self.cs && self.sck => Mode::SetCommand(0, 0),
-            Mode::StartCommand { done: true } => self.mode,
+            Mode::Start { done: true } if self.cs && self.sck => Mode::Set(0, 0),
+            Mode::Start { done: true } => self.mode,
 
-            Mode::SetCommand(command, 7) if self.prev_sck && !self.sck => {
+            Mode::Set(command, 7) if self.prev_sck && !self.sck => {
                 let command = command | (self.sio as u8) << 7;
                 let command = if command & 0xF == Rtc::COMMAND_CODE {
                     command >> 4
@@ -156,61 +153,53 @@ impl GpioDevice for Rtc {
                 } else {
                     (parameter, AccessType::Write(0, 0))
                 };
-                if parameter == Parameter::Reset || parameter == Parameter::IRQ {
-                    Mode::EndCommand
+                if parameter == Parameter::Reset || parameter == Parameter::Irq {
+                    Mode::End
                 } else {
-                    Mode::ExecCommand(parameter, access_type)
+                    Mode::Exec(parameter, access_type)
                 }
             }
-            Mode::SetCommand(command, bit) if self.prev_sck && !self.sck => {
+            Mode::Set(command, bit) if self.prev_sck && !self.sck => {
                 assert!(self.cs);
-                Mode::SetCommand(command | (self.sio as u8) << bit, bit + 1)
+                Mode::Set(command | (self.sio as u8) << bit, bit + 1)
             }
-            Mode::SetCommand(_command, _bit) => self.mode,
+            Mode::Set(_command, _bit) => self.mode,
 
-            Mode::ExecCommand(parameter, AccessType::Read(byte, 7))
-                if self.prev_sck && !self.sck =>
-            {
+            Mode::Exec(parameter, AccessType::Read(byte, 7)) if self.prev_sck && !self.sck => {
                 let done = self.last_byte;
                 self.sio = byte & 0x1 != 0;
                 if done {
-                    Mode::EndCommand
+                    Mode::End
                 } else {
                     let (parameter_byte, next_parameter) = self.read_parameter(parameter);
-                    Mode::ExecCommand(next_parameter, AccessType::Read(parameter_byte, 0))
+                    Mode::Exec(next_parameter, AccessType::Read(parameter_byte, 0))
                 }
             }
-            Mode::ExecCommand(parameter, AccessType::Read(byte, bit))
-                if self.prev_sck && !self.sck =>
-            {
+            Mode::Exec(parameter, AccessType::Read(byte, bit)) if self.prev_sck && !self.sck => {
                 self.sio = byte & 0x1 != 0;
-                Mode::ExecCommand(parameter, AccessType::Read(byte >> 1, bit + 1))
+                Mode::Exec(parameter, AccessType::Read(byte >> 1, bit + 1))
             }
-            Mode::ExecCommand(_parameter, AccessType::Read(_byte, _bit)) => self.mode,
+            Mode::Exec(_parameter, AccessType::Read(_byte, _bit)) => self.mode,
 
-            Mode::ExecCommand(parameter, AccessType::Write(byte, 7))
-                if self.prev_sck && !self.sck =>
-            {
+            Mode::Exec(parameter, AccessType::Write(byte, 7)) if self.prev_sck && !self.sck => {
                 let done = self.last_byte;
                 self.write_parameter(parameter, byte | (self.sio as u8) << 7);
                 if done {
-                    Mode::EndCommand
+                    Mode::End
                 } else {
-                    Mode::ExecCommand(parameter, AccessType::Write(byte + 1, 0))
+                    Mode::Exec(parameter, AccessType::Write(byte + 1, 0))
                 }
             }
-            Mode::ExecCommand(parameter, AccessType::Write(byte, bit))
-                if self.prev_sck && !self.sck =>
-            {
-                Mode::ExecCommand(
+            Mode::Exec(parameter, AccessType::Write(byte, bit)) if self.prev_sck && !self.sck => {
+                Mode::Exec(
                     parameter,
                     AccessType::Write(byte | (self.sio as u8) << bit, bit + 1),
                 )
             }
-            Mode::ExecCommand(_parameter, AccessType::Write(_byte, _bit)) => self.mode,
+            Mode::Exec(_parameter, AccessType::Write(_byte, _bit)) => self.mode,
 
-            Mode::EndCommand if !self.cs && self.sck => Mode::StartCommand { done: false },
-            Mode::EndCommand => Mode::EndCommand,
+            Mode::End if !self.cs && self.sck => Mode::Start { done: false },
+            Mode::End => Mode::End,
         };
     }
 
@@ -218,25 +207,17 @@ impl GpioDevice for Rtc {
     fn read(&self, byte: u8) -> u8 {
         match byte {
             0 => {
-                let value =
-                    0 | if !self.can_write(0) {
-                        (self.data0() as u8) << 0
-                    } else {
-                        0
-                    } | if !self.can_write(1) {
-                        (self.data1() as u8) << 1
-                    } else {
-                        0
-                    } | if !self.can_write(2) {
-                        (self.data2() as u8) << 2
-                    } else {
-                        0
-                    } | if !self.can_write(3) {
-                        (self.data3() as u8) << 3
-                    } else {
-                        0
-                    };
-                value
+                let mut val = 0;
+                if !self.can_write(0) {
+                    val |= self.sck as u8;
+                }
+                if !self.can_write(1) {
+                    val |= (self.sio as u8) << 1;
+                }
+                if !self.can_write(2) {
+                    val |= (self.cs as u8) << 2;
+                }
+                val
             }
             1 => 0,
             2 => self.write_mask(),
@@ -251,16 +232,17 @@ impl GpioDevice for Rtc {
         match byte {
             0 => {
                 if self.can_write(0) {
-                    self.set_data0(value >> 0 & 0x1 != 0)
+                    assert_eq!(self.write_mask & 0x1, 1);
+                    self.prev_sck = self.sck;
+                    self.sck = value & 0x1 != 0;
                 }
                 if self.can_write(1) {
-                    self.set_data1(value >> 1 & 0x1 != 0)
+                    assert_eq!(self.write_mask >> 1 & 0x1, 1);
+                    self.sio = value >> 1 & 0x1 != 0;
                 }
                 if self.can_write(2) {
-                    self.set_data2(value >> 2 & 0x1 != 0)
-                }
-                if self.can_write(3) {
-                    self.set_data3(value >> 3 & 0x1 != 0)
+                    assert_eq!(self.write_mask >> 2 & 0x1, 1);
+                    self.cs = value >> 2 & 0x1 != 0;
                 }
                 self.process_write();
             }
@@ -273,29 +255,29 @@ impl GpioDevice for Rtc {
         }
     }
 
-    fn set_data0(&mut self, value: bool) {
-        assert_eq!(self.write_mask >> 0 & 0x1, 1);
-        self.prev_sck = self.sck;
-        self.sck = value;
-    }
-    fn set_data1(&mut self, value: bool) {
-        assert_eq!(self.write_mask >> 1 & 0x1, 1);
-        self.sio = value;
-    }
-    fn set_data2(&mut self, value: bool) {
-        assert_eq!(self.write_mask >> 2 & 0x1, 1);
-        self.cs = value;
-    }
+    // fn set_data0(&mut self, value: bool) {
+    //     assert_eq!(self.write_mask & 0x1, 1);
+    //     self.prev_sck = self.sck;
+    //     self.sck = value;
+    // }
+    // fn set_data1(&mut self, value: bool) {
+    //     assert_eq!(self.write_mask >> 1 & 0x1, 1);
+    //     self.sio = value;
+    // }
+    // fn set_data2(&mut self, value: bool) {
+    //     assert_eq!(self.write_mask >> 2 & 0x1, 1);
+    //     self.cs = value;
+    // }
 
-    fn data0(&self) -> bool {
-        self.sck
-    }
-    fn data1(&self) -> bool {
-        self.sio
-    }
-    fn data2(&self) -> bool {
-        self.cs
-    }
+    // fn data0(&self) -> bool {
+    //     self.sck
+    // }
+    // fn data1(&self) -> bool {
+    //     self.sio
+    // }
+    // fn data2(&self) -> bool {
+    //     self.cs
+    // }
 
     fn is_used(&self) -> bool {
         self.is_used
@@ -316,20 +298,20 @@ impl GpioDevice for Rtc {
         self.write_only = value
     }
 
-    fn set_data3(&mut self, _value: bool) {
-        assert_eq!(self.write_mask >> 3 & 0x1, 0)
-    }
-    fn data3(&self) -> bool {
-        false
-    }
+    // fn set_data3(&mut self, _value: bool) {
+    //     assert_eq!(self.write_mask >> 3 & 0x1, 0)
+    // }
+    // fn data3(&self) -> bool {
+    //     false
+    // }
 }
 
 #[derive(Clone, Copy, Debug)]
 enum Mode {
-    StartCommand { done: bool },
-    SetCommand(u8, usize),
-    ExecCommand(Parameter, AccessType),
-    EndCommand,
+    Start { done: bool },
+    Set(u8, usize),
+    Exec(Parameter, AccessType),
+    End,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -344,7 +326,7 @@ enum Parameter {
     DateTime(u8),
     Time(u8),
     Reset,
-    IRQ,
+    Irq,
 }
 
 impl Parameter {
@@ -354,7 +336,7 @@ impl Parameter {
             2 => Parameter::DateTime(0),
             6 => Parameter::Time(0),
             0 => Parameter::Reset,
-            3 => Parameter::IRQ,
+            3 => Parameter::Irq,
             _ => panic!("Invalid RTC Command Parameter"),
         }
     }
@@ -386,15 +368,15 @@ impl Control {
 struct DateTime {
     control: Control,
     // Date
-    year: BCD,
-    month: BCD,
-    day: BCD,
-    day_of_week: BCD,
+    year: Bcd,
+    month: Bcd,
+    day: Bcd,
+    day_of_week: Bcd,
     // Time
     is_pm: bool,
-    hour: BCD,
-    minute: BCD,
-    second: BCD,
+    hour: Bcd,
+    minute: Bcd,
+    second: Bcd,
 }
 
 impl DateTime {
@@ -418,15 +400,15 @@ impl DateTime {
         DateTime {
             control: Control::new(),
             // Date
-            year: BCD::new(year, 0x99),
-            month: BCD::new(month, 0x12),
-            day: BCD::new(day, 0x30),
-            day_of_week: BCD::new(day_of_week, 0x07),
+            year: Bcd::new(year, 0x99),
+            month: Bcd::new(month, 0x12),
+            day: Bcd::new(day, 0x30),
+            day_of_week: Bcd::new(day_of_week, 0x07),
             // Time
             is_pm,
-            hour: BCD::new(hour, 0x23),
-            minute: BCD::new(minute, 0x59),
-            second: BCD::new(second, 0x59),
+            hour: Bcd::new(hour, 0x23),
+            minute: Bcd::new(minute, 0x59),
+            second: Bcd::new(second, 0x59),
         }
     }
 
@@ -470,15 +452,15 @@ impl DateTime {
     }
 }
 
-struct BCD {
+struct Bcd {
     initial: u8,
     value: u8,
     max: u8,
 }
 
-impl BCD {
-    pub fn new(initial: u8, max: u8) -> BCD {
-        BCD {
+impl Bcd {
+    pub fn new(initial: u8, max: u8) -> Self {
+        Self {
             initial,
             value: initial,
             max,

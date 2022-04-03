@@ -35,6 +35,7 @@ pub trait SaveDevice {
     fn read(&self, addr: u32) -> u8;
     fn write(&mut self, addr: u32, value: u8);
 
+    #[allow(clippy::wrong_self_convention)]
     fn is_dirty(&mut self) -> bool;
     fn get_save_file(&self) -> &PathBuf;
     fn get_mem(&self) -> &[u8];

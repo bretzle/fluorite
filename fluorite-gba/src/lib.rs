@@ -1,4 +1,4 @@
-#![allow(clippy::new_without_default)]
+#![allow(clippy::new_without_default, clippy::only_used_in_recursion)]
 
 #[macro_use]
 extern crate log;

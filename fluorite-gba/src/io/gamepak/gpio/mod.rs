@@ -10,15 +10,15 @@ pub trait GpioDevice {
     fn read(&self, byte: u8) -> u8;
     fn write(&mut self, byte: u8, value: u8);
 
-    fn set_data0(&mut self, value: bool);
-    fn set_data1(&mut self, value: bool);
-    fn set_data2(&mut self, value: bool);
-    fn set_data3(&mut self, value: bool);
+    // fn set_data0(&mut self, value: bool);
+    // fn set_data1(&mut self, value: bool);
+    // fn set_data2(&mut self, value: bool);
+    // fn set_data3(&mut self, value: bool);
 
-    fn data0(&self) -> bool;
-    fn data1(&self) -> bool;
-    fn data2(&self) -> bool;
-    fn data3(&self) -> bool;
+    // fn data0(&self) -> bool;
+    // fn data1(&self) -> bool;
+    // fn data2(&self) -> bool;
+    // fn data3(&self) -> bool;
 
     fn is_used(&self) -> bool;
     fn write_mask(&self) -> u8;

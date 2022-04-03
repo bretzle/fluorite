@@ -18,7 +18,7 @@ impl Config {
             fast_forward: 1000000,
             frame_size: 4,
             volume: 0.5,
-            mute: false,
+            mute: true,
         }
     }
 }

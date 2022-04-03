@@ -66,9 +66,11 @@ impl AudioCtx {
                 have.freq,
             );
 
-            if self.stream.is_null() {
-                panic!("Cannot init audio stream: {}", get_error())
-            }
+            assert!(
+                !self.stream.is_null(),
+                "Cannot init audio stream: {}",
+                get_error()
+            );
         }
     }
 
@@ -136,6 +138,6 @@ impl AudioCtx {
 
 impl AudioInterface for AudioCtx {
     fn write(&mut self, samples: [i16; 2]) {
-        self.write_impl(samples)
+        self.write_impl(samples);
     }
 }

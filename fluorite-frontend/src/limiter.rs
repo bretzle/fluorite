@@ -51,7 +51,7 @@ impl FrameRateLimiter {
 
     pub fn set_fast_forward(&mut self, fast_forward: f64) {
         self.fast_forward = fast_forward;
-		self.set_fps(Self::REFRESH_RATE * fast_forward);
+        self.set_fps(Self::REFRESH_RATE * fast_forward);
     }
 
     fn measure<F: FnMut()>(&self, mut callback: F) -> Duration {

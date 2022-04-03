@@ -53,7 +53,7 @@ impl Application {
 
     pub fn init(&mut self) {
         self.audio.init();
-        Gba::load_audio(&mut self.audio as *mut _);
+        Gba::load_audio(&mut self.audio);
 
         if let Some(path) = std::env::args().nth(1) {
             self.audio.pause();
@@ -76,7 +76,7 @@ impl Application {
                 Some(fps) => format!("GBA Emulator - {fps:.1} FPS"),
                 None => "GBA Emulator".to_string(),
             })
-            .unwrap()
+            .unwrap();
     }
 
     #[allow(clippy::single_match)]
@@ -115,7 +115,7 @@ impl Application {
                     };
                     self.key_tx
                         .send((key, true))
-                        .expect("Failed to send keypress")
+                        .expect("Failed to send keypress");
                 }
                 Event::KeyUp {
                     scancode: Some(code),
@@ -136,7 +136,7 @@ impl Application {
                     };
                     self.key_tx
                         .send((key, false))
-                        .expect("Failed to send keypress")
+                        .expect("Failed to send keypress");
                 }
                 _ => {}
             }
