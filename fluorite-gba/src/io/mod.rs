@@ -519,7 +519,7 @@ impl Sysbus {
             0x04000108..=0x0400010B => self.timers.timers[2].read(&self.scheduler, addr as u8 % 4),
             0x0400010C..=0x0400010F => self.timers.timers[3].read(&self.scheduler, addr as u8 % 4),
             0x04000120..=0x0400012F => {
-                println!("Read from SerialCom(1)");
+                warn!("Read from SerialCom(1)");
                 0
             }
             0x04000130 => self.keypad.keyinput.read(0),
@@ -620,10 +620,10 @@ impl Sysbus {
                 self.timers.timers[3].write(&mut self.scheduler, addr as u8 % 4, val)
             }
             0x04000110..=0x0400011F => (),
-            0x04000120..=0x0400012B => println!("Writng SerialCom(1) at {addr:08X} = {val:02X}",), // TODO: serial communication(1)
+            0x04000120..=0x0400012B => warn!("Writng SerialCom(1) at {addr:08X} = {val:02X}",), // TODO: serial communication(1)
             0x0400012C..=0x0400012F => (),
-            0x04000130..=0x04000133 => println!("Writng Keypad at {addr:08X} = {val:02X}",), // TODO: Keypad Input
-            0x04000134..=0x04000159 => println!("Writng SerialCom(2) at {addr:08X} = {val:02X}",), // TODO: serial communication(2)
+            0x04000130..=0x04000133 => warn!("Writng Keypad at {addr:08X} = {val:02X}",), // TODO: Keypad Input
+            0x04000134..=0x04000159 => warn!("Writng SerialCom(2) at {addr:08X} = {val:02X}",), // TODO: serial communication(2)
             0x0400015A..=0x040001FF => (),
             0x04000200 => self
                 .interrupt_controller
