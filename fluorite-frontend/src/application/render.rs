@@ -1,4 +1,4 @@
-use crate::LIMITER;
+use crate::{config::CONFIG, LIMITER};
 
 use super::{Application, State};
 
@@ -98,7 +98,7 @@ impl Application {
                         LIMITER.get_mut().set_fast_forward(if is_fast_forward {
                             1.0
                         } else {
-                            self.config.fast_forward as f64
+                            CONFIG.fast_forward as f64
                         });
                     }
 
@@ -108,7 +108,7 @@ impl Application {
                         if ui
                             .menu_item_config("Unbound")
                             .shortcut("Ctrl+1")
-                            .selected(self.config.fast_forward == multiplier)
+                            .selected(CONFIG.fast_forward == multiplier)
                             .build()
                         {
                             todo!()
@@ -120,7 +120,7 @@ impl Application {
                             if ui
                                 .menu_item_config(&format!("{multiplier}x"))
                                 .shortcut(&format!("Ctrl+{multiplier}"))
-                                .selected(self.config.fast_forward == multiplier)
+                                .selected(CONFIG.fast_forward == multiplier)
                                 .build()
                             {
                                 todo!()
@@ -143,16 +143,18 @@ impl Application {
                     ui.separator();
 
                     ui.menu("Volume", || {
-                        ui.slider("##", 0.0, 1.0, &mut self.config.volume);
+                        let volume = unsafe { &mut *CONFIG.volume.as_ptr() };
+
+                        ui.slider("##", 0.0, 1.0, volume);
                     });
 
                     if ui
                         .menu_item_config("Mute")
                         .shortcut("Ctrl+M")
-                        .selected(self.config.mute)
+                        .selected(CONFIG.mute.get())
                         .build()
                     {
-                        self.config.mute ^= true;
+                        CONFIG.mute.set(!CONFIG.mute.get());
                     }
 
                     ui.separator();

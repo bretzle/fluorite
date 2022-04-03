@@ -14,6 +14,8 @@ use sdl2::{
     AudioSubsystem, Sdl,
 };
 
+use crate::config::CONFIG;
+
 const WANT_FREQUENCY: u32 = 44100;
 const WANT_CHANNELS: u32 = 2;
 const SECOND: u32 = WANT_FREQUENCY * WANT_CHANNELS * 4;
@@ -91,10 +93,9 @@ impl AudioCtx {
     fn write_impl(&mut self, mut samples: [i16; 2]) {
         let _guard = self.lock.lock().unwrap();
         unsafe {
-            if SDL_AudioStreamAvailable(self.stream) < (SECOND / 8) as i32 {
-                // TODO: link this with config.volume and config.mute
-                samples[0] /= 2;
-                samples[1] /= 2;
+            if SDL_AudioStreamAvailable(self.stream) < (SECOND / 8) as i32 && !CONFIG.mute.get() {
+                samples[0] = (CONFIG.volume.get() * samples[0] as f32) as i16;
+                samples[1] = (CONFIG.volume.get() * samples[1] as f32) as i16;
                 SDL_AudioStreamPut(self.stream, samples.as_ptr() as *const _, 4);
             }
         }

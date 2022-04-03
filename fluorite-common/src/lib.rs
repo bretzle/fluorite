@@ -1,4 +1,5 @@
 #![feature(generic_const_exprs)]
+#![feature(once_cell)]
 #![allow(clippy::mut_from_ref, incomplete_features, clippy::missing_safety_doc)]
 
 pub extern crate flume;

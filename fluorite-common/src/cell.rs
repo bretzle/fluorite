@@ -1,6 +1,7 @@
 use once_cell::sync::OnceCell;
 use std::{
-    cell::UnsafeCell,
+    cell::{Cell, UnsafeCell},
+    lazy::SyncOnceCell,
     ops::{Deref, DerefMut},
 };
 
@@ -49,3 +50,41 @@ impl<T> DerefMut for EasyCell<T> {
 }
 
 unsafe impl<T> Sync for EasyCell<T> {}
+
+///////////////////////////////////////////////////////////////////////////////
+
+pub struct EasyLazy<T, F = fn() -> T> {
+    cell: SyncOnceCell<T>,
+    init: Cell<Option<F>>,
+}
+
+impl<T, F> EasyLazy<T, F> {
+    pub const fn new(f: F) -> Self {
+        Self {
+            cell: SyncOnceCell::new(),
+            init: Cell::new(Some(f)),
+        }
+    }
+}
+
+impl<T, F: FnOnce() -> T> Deref for EasyLazy<T, F> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        self.cell.get_or_init(|| match self.init.take() {
+            Some(f) => f(),
+            None => panic!("Lazy instance has previously been poisoned"),
+        })
+    }
+}
+
+impl<T, F: FnOnce() -> T> DerefMut for EasyLazy<T, F> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self.cell.get_mut() {
+            Some(t) => t,
+            None => panic!("Cannot get mutable reference"),
+        }
+    }
+}
+
+unsafe impl<T, F: Send> Sync for EasyLazy<T, F> {}

@@ -1,4 +1,5 @@
 #![doc(html_logo_url = "https://raw.githubusercontent.com/bretzle/fluorite/main/fluorite.png")]
+#![feature(once_cell)]
 #![warn(clippy::pedantic)]
 #![allow(
     clippy::cast_lossless,

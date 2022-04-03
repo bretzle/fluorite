@@ -1,5 +1,4 @@
 use crate::audio_ctx::AudioCtx;
-use crate::config::Config;
 use crate::video_ctx::VideoCtx;
 use fluorite_common::flume::Sender;
 use fluorite_gba::{
@@ -25,7 +24,6 @@ pub struct Application {
     audio: AudioCtx,
     _input: (),
     events: EventPump,
-    config: Config,
     gba: Gba,
     pub state: State,
     key_tx: Sender<(KEYINPUT, bool)>,
@@ -43,7 +41,6 @@ impl Application {
             _input: (),
             events: sdl.event_pump().unwrap(),
             _sdl: sdl,
-            config: Config::new(),
             gba,
             state: State::Menu,
             key_tx: tx,
