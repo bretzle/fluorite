@@ -115,7 +115,35 @@ fn generate_arm_lut<P: AsRef<Path>>(path: P) -> io::Result<()> {
                 bit!(inst, 21)
             )
         } else if inst & 0xC000000 == 0x0 {
-            format!("data_proc::<{}, {}>", bit!(inst, 25), bit!(inst, 20),)
+            let opcode = match (inst >> 21) & 0xF {
+                0 => "{ DataOp::And }",
+                1 => "{ DataOp::Eor }",
+                2 => "{ DataOp::Sub }",
+                3 => "{ DataOp::Rsb }",
+                4 => "{ DataOp::Add }",
+                5 => "{ DataOp::Adc }",
+                6 => "{ DataOp::Sbc }",
+                7 => "{ DataOp::Rsc }",
+                8 => "{ DataOp::Tst }",
+                9 => "{ DataOp::Teq }",
+                10 => "{ DataOp::Cmp }",
+                11 => "{ DataOp::Cmn }",
+                12 => "{ DataOp::Orr }",
+                13 => "{ DataOp::Mov }",
+                14 => "{ DataOp::Bic }",
+                15 => "{ DataOp::Mvn }",
+                _ => unreachable!(),
+            };
+            let field4 = (inst >> 4) & 0xF;
+
+            format!(
+                "data_proc::<{}, {}, {}, {}, {}>",
+                bit!(inst, 25),
+                opcode,
+                bit!(inst, 20),
+                (field4 >> 1) & 3,
+                !field4 & 1 != 0
+            )
         } else if inst & 0xC000000 == 0x4000000 {
             format!(
                 "single_data_transfer::<{}, {}, {}, {}, {}, {}>",

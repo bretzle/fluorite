@@ -5,6 +5,8 @@ use crate::arm::InstructionHandler;
 use crate::arm::CONDITION_LUT;
 use crate::io::{MemoryAccess, Sysbus};
 
+use super::DataOp;
+
 include!(concat!(env!("OUT_DIR"), "/arm_lut.rs"));
 
 impl Arm7tdmi {
@@ -111,73 +113,90 @@ impl Arm7tdmi {
     }
 
     // ARM.5: Data Processing
-    fn data_proc<const IMM: bool, const SET: bool>(&mut self, bus: &mut Sysbus, instr: u32) {
+    fn data_proc<
+        const IMM: bool,
+        const OPCODE: DataOp,
+        const SET: bool,
+        const SHIFT_TYPE: u32,
+        const SHIFT_IMM: bool,
+    >(
+        &mut self,
+        bus: &mut Sysbus,
+        instr: u32,
+    ) {
+        use DataOp::*;
+
         let mut temp_inc_pc = false;
-        let opcode = (instr >> 21) & 0xF;
-        let dest_reg = (instr >> 12) & 0xF;
-        let (change_status, special_change_status) = if dest_reg == 15 && SET {
+
+        let reg_dst = (instr >> 12) & 0xF;
+        let reg_op1 = (instr >> 16) & 0xF;
+        let reg_op2 = (instr >> 0) & 0xF;
+
+        let (change_status, special_change_status) = if reg_dst == 15 && SET {
             (false, true)
         } else {
             (SET, false)
         };
+
+        let op1 = self.regs.get_reg_i(reg_op1);
         let op2 = if IMM {
             let shift = (instr >> 8) & 0xF;
             let operand = instr & 0xFF;
-            if !(0x5..=0x7).contains(&opcode) && shift != 0 {
+
+            if ![Adc, Sbc, Rsc].contains(&OPCODE) && shift != 0 {
                 self.shift(bus, 3, operand, shift * 2, true, change_status)
             } else {
                 operand.rotate_right(shift * 2)
             }
         } else {
-            let shift_by_reg = (instr >> 4) & 0x1 != 0;
-            let shift = if shift_by_reg {
-                assert_eq!((instr >> 7) & 0x1, 0);
+            let shift = if SHIFT_IMM {
+                (instr >> 7) & 0x1F
+            } else {
+                // assert_eq!((instr >> 7) & 0x1, 0);
                 let shift = self.regs.get_reg_i((instr >> 8) & 0xF) & 0xFF;
                 self.regs.pc = self.regs.pc.wrapping_add(4); // Temp inc
                 temp_inc_pc = true;
                 shift
-            } else {
-                (instr >> 7) & 0x1F
             };
-            let shift_type = (instr >> 5) & 0x3;
-            let op2 = self.regs.get_reg_i(instr & 0xF);
+            let op2 = self.regs.get_reg_i(reg_op2);
             // TODO: I Cycle occurs too early
             self.shift(
                 bus,
-                shift_type,
+                SHIFT_TYPE,
                 op2,
                 shift,
-                !shift_by_reg,
-                change_status && !(0x5..=0x7).contains(&opcode),
+                SHIFT_IMM,
+                change_status && ![Adc, Sbc, Rsc].contains(&OPCODE),
             )
         };
-        let op1 = self.regs.get_reg_i((instr >> 16) & 0xF);
-        let result = match opcode {
-            0x0 | 0x8 => op1 & op2,                         // AND and TST
-            0x1 | 0x9 => op1 ^ op2,                         // EOR and TEQ
-            0x2 | 0xA => self.sub(op1, op2, change_status), // SUB and CMP
-            0x3 => self.sub(op2, op1, change_status),       // RSB
-            0x4 | 0xB => self.add(op1, op2, change_status), // ADD and CMN
-            0x5 => self.adc(op1, op2, change_status),       // ADC
-            0x6 => self.sbc(op1, op2, change_status),       // SBC
-            0x7 => self.sbc(op2, op1, change_status),       // RSC
-            0xC => op1 | op2,                               // ORR
-            0xD => op2,                                     // MOV
-            0xE => op1 & !op2,                              // BIC
-            0xF => !op2,                                    // MVN
-            _ => unreachable!(),
+
+        let result = match OPCODE {
+            And | Tst => op1 & op2,
+            Eor | Teq => op1 ^ op2,
+            Sub | Cmp => self.sub(op1, op2, change_status),
+            Rsb => self.sub(op2, op1, change_status),
+            Add | Cmn => self.add(op1, op2, change_status),
+            Adc => self.adc(op1, op2, change_status),
+            Sbc => self.sbc(op1, op2, change_status),
+            Rsc => self.sbc(op2, op1, change_status),
+            Orr => op1 | op2,
+            Mov => op2,
+            Bic => op1 & !op2,
+            Mvn => !op2,
         };
+
         if change_status {
             self.regs.set_z(result == 0);
             self.regs.set_n(result & 0x8000_0000 != 0);
         } else if special_change_status {
             self.regs.set_reg(Reg::Cpsr, self.regs.get_reg(Reg::Spsr))
         } else {
-            assert!(opcode & 0xC != 0x8)
+            // assert!(OPCODE as u8 & 0xC != 0x8)
         }
+
         let mut clocked = false;
-        if opcode & 0xC != 0x8 {
-            if dest_reg == 15 {
+        if (OPCODE as u8) & 0xC != 0x8 {
+            if reg_dst == 15 {
                 clocked = true;
                 self.instruction_prefetch::<u32>(bus, MemoryAccess::N);
                 self.regs.pc = result;
@@ -187,7 +206,7 @@ impl Arm7tdmi {
                     self.fill_arm_instr_buffer(bus)
                 }
             } else {
-                self.regs.set_reg_i(dest_reg, result)
+                self.regs.set_reg_i(reg_dst, result)
             }
         }
         if !clocked {
@@ -204,11 +223,11 @@ impl Arm7tdmi {
         bus: &mut Sysbus,
         instr: u32,
     ) {
-        assert_eq!(instr >> 26 & 0b11, 0b00);
-        assert_eq!(instr >> 23 & 0b11, 0b10);
+        // assert_eq!(instr >> 26 & 0b11, 0b00);
+        // assert_eq!(instr >> 23 & 0b11, 0b10);
         let status_reg = if P { Reg::Spsr } else { Reg::Cpsr };
         let msr = L;
-        assert_eq!(instr >> 20 & 0b1, 0b0);
+        // assert_eq!(instr >> 20 & 0b1, 0b0);
         self.instruction_prefetch::<u32>(bus, MemoryAccess::S);
 
         if msr {
@@ -225,21 +244,21 @@ impl Arm7tdmi {
             if self.regs.get_mode() != Mode::User && instr >> 16 & 0x1 != 0 {
                 mask |= 0x000000FF
             } // Control
-            assert_eq!(instr >> 12 & 0xF, 0xF);
+            // assert_eq!(instr >> 12 & 0xF, 0xF);
             let operand = if IMM {
                 let shift = instr >> 8 & 0xF;
                 (instr & 0xFF).rotate_right(shift * 2)
             } else {
-                assert_eq!(instr >> 4 & 0xFF, 0);
+                // assert_eq!(instr >> 4 & 0xFF, 0);
                 self.regs.get_reg_i(instr & 0xF)
             };
             let value = self.regs.get_reg(status_reg) & !mask | operand & mask;
             self.regs.set_reg(status_reg, value);
         } else {
-            assert!(!IMM);
+            // assert!(!IMM);
             self.regs
                 .set_reg_i(instr >> 12 & 0xF, self.regs.get_reg(status_reg));
-            assert_eq!(instr & 0xFFF, 0);
+            // assert_eq!(instr & 0xFFF, 0);
         }
     }
 
@@ -249,8 +268,8 @@ impl Arm7tdmi {
         bus: &mut Sysbus,
         instr: u32,
     ) {
-        assert_eq!(instr >> 22 & 0x3F, 0b000000);
-        assert_eq!(instr >> 4 & 0xF, 0b1001);
+        // assert_eq!(instr >> 22 & 0x3F, 0b000000);
+        // assert_eq!(instr >> 4 & 0xF, 0b1001);
 
         let dest_reg = instr >> 16 & 0xF;
         let op1_reg = instr >> 12 & 0xF;
@@ -264,7 +283,7 @@ impl Arm7tdmi {
             self.internal(bus);
             op2.wrapping_mul(op3).wrapping_add(op1)
         } else {
-            assert_eq!(op1_reg, 0);
+            // assert_eq!(op1_reg, 0);
             op2.wrapping_mul(op3)
         };
         if SET_STATUS {
@@ -280,12 +299,12 @@ impl Arm7tdmi {
         bus: &mut Sysbus,
         instr: u32,
     ) {
-        assert_eq!(instr >> 23 & 0x1F, 0b00001);
+        // assert_eq!(instr >> 23 & 0x1F, 0b00001);
 
         let src_dest_reg_high = instr >> 16 & 0xF;
         let src_dest_reg_low = instr >> 12 & 0xF;
         let op1 = self.regs.get_reg_i(instr >> 8 & 0xF);
-        assert_eq!(instr >> 4 & 0xF, 0b1001);
+        // assert_eq!(instr >> 4 & 0xF, 0b1001);
         let op2 = self.regs.get_reg_i(instr & 0xF);
 
         self.instruction_prefetch::<u32>(bus, MemoryAccess::S);
@@ -325,7 +344,7 @@ impl Arm7tdmi {
         bus: &mut Sysbus,
         instr: u32,
     ) {
-        assert_eq!(instr >> 26 & 0b11, 0b01);
+        // assert_eq!(instr >> 26 & 0b11, 0b01);
 
         let mut write_back = WRITEBACK || !PRE_OFFSET;
         let load = instr >> 20 & 0x1 != 0;
@@ -337,9 +356,9 @@ impl Arm7tdmi {
         let offset = if SHIFTED_REG_OFFSET {
             let shift = instr >> 7 & 0x1F;
             let shift_type = instr >> 5 & 0x3;
-            assert_eq!(instr >> 4 & 0x1, 0);
+            // assert_eq!(instr >> 4 & 0x1, 0);
             let offset_reg = instr & 0xF;
-            assert_ne!(offset_reg, 15);
+            // assert_ne!(offset_reg, 15);
             let operand = self.regs.get_reg_i(offset_reg);
             self.shift(bus, shift_type, operand, shift, true, false)
         } else {
@@ -393,8 +412,8 @@ impl Arm7tdmi {
             }
         } else {
             // TOOD: Take into account privilege of access
-            let force_non_privileged_access = instr >> 21 & 0x1 != 0;
-            assert!(!force_non_privileged_access);
+            // let force_non_privileged_access = instr >> 21 & 0x1 != 0;
+            // assert!(!force_non_privileged_access);
             // Write back is not done if src_reg == base_reg
             exec(base);
             if write_back {
@@ -422,16 +441,16 @@ impl Arm7tdmi {
         let base = self.regs.get_reg_i(base_reg);
         let src_dest_reg = instr >> 12 & 0xF;
         let offset_hi = instr >> 8 & 0xF;
-        assert_eq!(instr >> 7 & 0x1, 1);
+        // assert_eq!(instr >> 7 & 0x1, 1);
         let opcode = (SIGNED as u8) << 1 | (HALFWORD as u8);
-        assert_eq!(instr >> 4 & 0x1, 1);
+        // assert_eq!(instr >> 4 & 0x1, 1);
         let offset_low = instr & 0xF;
         self.instruction_prefetch::<u32>(bus, MemoryAccess::N);
 
         let offset = if IMMEDIATE_OFFSET {
             offset_hi << 4 | offset_low
         } else {
-            assert_eq!(offset_hi, 0);
+            // assert_eq!(offset_hi, 0);
             self.regs.get_reg_i(offset_low)
         };
 
@@ -460,7 +479,7 @@ impl Arm7tdmi {
                     self.fill_arm_instr_buffer(bus)
                 }
             } else {
-                assert_eq!(opcode, 1);
+                // assert_eq!(opcode, 1);
                 let addr = addr & !0x1;
                 let value = self.regs.get_reg_i(src_dest_reg);
                 self.write::<u16>(bus, MemoryAccess::N, addr, value as u16);
@@ -478,7 +497,7 @@ impl Arm7tdmi {
             }
         } else {
             exec(base);
-            assert!(instr >> 24 & 0x1 == 0);
+            // assert!(instr >> 24 & 0x1 == 0);
             // Write back is not done if src_reg == base_reg
             if write_back {
                 self.regs.set_reg_i(base_reg, offset_applied)
@@ -498,10 +517,10 @@ impl Arm7tdmi {
         bus: &mut Sysbus,
         instr: u32,
     ) {
-        assert_eq!(instr >> 25 & 0x7, 0b100);
+        // assert_eq!(instr >> 25 & 0x7, 0b100);
         let pre_offset = PRE_OFFSET ^ !ADD_OFFSET;
         let base_reg = instr >> 16 & 0xF;
-        assert_ne!(base_reg, 0xF);
+        // assert_ne!(base_reg, 0xF);
         let base = self.regs.get_reg_i(base_reg);
         let base_offset = base & 0x3;
         let base = base - base_offset;
@@ -613,9 +632,9 @@ impl Arm7tdmi {
 
     // ARM.12: Single Data Swap (SWP)
     fn single_data_swap<const BYTE: bool>(&mut self, bus: &mut Sysbus, instr: u32) {
-        assert_eq!(instr >> 23 & 0x1F, 0b00010);
-        assert_eq!(instr >> 20 & 0x3, 0b00);
-        assert_eq!(instr >> 4 & 0xFF, 0b00001001);
+        // assert_eq!(instr >> 23 & 0x1F, 0b00010);
+        // assert_eq!(instr >> 20 & 0x3, 0b00);
+        // assert_eq!(instr >> 4 & 0xFF, 0b00001001);
 
         let base = self.regs.get_reg_i(instr >> 16 & 0xF);
         let dest_reg = instr >> 12 & 0xF;
@@ -639,8 +658,8 @@ impl Arm7tdmi {
     }
 
     // ARM.13: Software Interrupt (SWI)
-    fn arm_software_interrupt(&mut self, bus: &mut Sysbus, instr: u32) {
-        assert_eq!(instr >> 24 & 0xF, 0b1111);
+    fn arm_software_interrupt(&mut self, bus: &mut Sysbus, _instr: u32) {
+        // assert_eq!(instr >> 24 & 0xF, 0b1111);
         self.instruction_prefetch::<u32>(bus, MemoryAccess::N);
         self.regs.change_mode(Mode::Supervisor);
         self.regs.set_reg(Reg::R14, self.regs.pc.wrapping_sub(4));

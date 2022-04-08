@@ -318,3 +318,23 @@ impl Arm7tdmi {
         }
     }
 }
+
+#[derive(PartialEq, Eq)]
+pub enum DataOp {
+    And,
+    Eor,
+    Sub,
+    Rsb,
+    Add,
+    Adc,
+    Sbc,
+    Rsc,
+    Tst,
+    Teq,
+    Cmp,
+    Cmn,
+    Orr,
+    Mov,
+    Bic,
+    Mvn,
+}

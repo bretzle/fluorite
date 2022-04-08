@@ -250,7 +250,7 @@ impl Sysbus {
 
         for _ in 0..clocks_inc {
             self.handle_events();
-            self.gamepak.gpio.clock();
+            // self.gamepak.gpio.clock();
             self.apu.clock();
         }
         self.clocks_ahead += clocks_inc;
