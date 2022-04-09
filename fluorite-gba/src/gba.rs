@@ -1,10 +1,5 @@
+use crate::{arm::Arm7tdmi, io::Sysbus, AudioInterface};
 use fluorite_common::{flume::Receiver, EasyCell};
-
-use crate::{
-    arm::Arm7tdmi,
-    io::{keypad::KEYINPUT, Sysbus},
-    AudioInterface,
-};
 use std::path::Path;
 
 pub struct Gba {
@@ -18,7 +13,7 @@ pub type Pixels = Vec<u16>;
 pub static AUDIO_DEVICE: EasyCell<&mut dyn AudioInterface> = EasyCell::new();
 
 impl Gba {
-    pub fn new(rx: Receiver<(KEYINPUT, bool)>) -> Self {
+    pub fn new(rx: Receiver<(u16, bool)>) -> Self {
         let mut bus = Sysbus::new(rx);
 
         Self {

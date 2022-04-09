@@ -1,6 +1,6 @@
 use std::fmt;
 
-use bitflags::bitflags;
+use fluorite_common::{bitfield, traits::UnsafeFrom};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Reg {
@@ -60,11 +60,11 @@ impl Registers {
     pub fn skip_bios(&mut self) {
         self.pc = 0x08000000;
         self.usr[13] = 0x0300_7F00;
-        self.cpsr.bits = 0x5F;
+        self.cpsr.0 = 0x5F;
     }
 
     pub fn get_reg(&self, reg: Reg) -> u32 {
-        let mode = self.cpsr.get_mode();
+        let mode = self.cpsr.mode();
         use Reg::*;
         match reg {
             R0 | R1 | R2 | R3 | R4 | R5 | R6 | R7 => self.usr[reg as usize],
@@ -81,20 +81,20 @@ impl Registers {
                 _ => self.usr[reg as usize],
             },
             R15 => self.pc,
-            Cpsr => self.cpsr.bits,
+            Cpsr => self.cpsr.raw(),
             Spsr => match mode {
-                Mode::Fiq => self.spsr[0].bits(),
-                Mode::Supervisor => self.spsr[1].bits(),
-                Mode::Abort => self.spsr[2].bits(),
-                Mode::Irq => self.spsr[3].bits(),
-                Mode::Undefined => self.spsr[4].bits(),
-                _ => self.cpsr.bits(),
+                Mode::Fiq => self.spsr[0].raw(),
+                Mode::Supervisor => self.spsr[1].raw(),
+                Mode::Abort => self.spsr[2].raw(),
+                Mode::Irq => self.spsr[3].raw(),
+                Mode::Undefined => self.spsr[4].raw(),
+                _ => self.cpsr.raw(),
             },
         }
     }
 
     pub fn set_reg(&mut self, reg: Reg, value: u32) {
-        let mode = self.cpsr.get_mode();
+        let mode = self.cpsr.mode();
         use Reg::*;
         match reg {
             R0 | R1 | R2 | R3 | R4 | R5 | R6 | R7 => self.usr[reg as usize] = value,
@@ -111,13 +111,13 @@ impl Registers {
                 _ => self.usr[reg as usize] = value,
             },
             R15 => self.pc = value,
-            Cpsr => self.cpsr.bits = value,
+            Cpsr => self.cpsr.0 = value,
             Spsr => match mode {
-                Mode::Fiq => self.spsr[0] = StatusRegister::from_bits(value).unwrap(),
-                Mode::Supervisor => self.spsr[1] = StatusRegister::from_bits(value).unwrap(),
-                Mode::Abort => self.spsr[2] = StatusRegister::from_bits(value).unwrap(),
-                Mode::Irq => self.spsr[3] = StatusRegister::from_bits(value).unwrap(),
-                Mode::Undefined => self.spsr[4] = StatusRegister::from_bits(value).unwrap(),
+                Mode::Fiq => self.spsr[0] = StatusRegister(value),
+                Mode::Supervisor => self.spsr[1] = StatusRegister(value),
+                Mode::Abort => self.spsr[2] = StatusRegister(value),
+                Mode::Irq => self.spsr[3] = StatusRegister(value),
+                Mode::Undefined => self.spsr[4] = StatusRegister(value),
                 _ => (),
             },
         }
@@ -147,7 +147,7 @@ impl Registers {
     }
 
     pub fn restore_cpsr(&mut self) {
-        self.cpsr.bits = self.get_reg(Reg::Spsr);
+        self.cpsr.0 = self.get_reg(Reg::Spsr);
     }
 
     pub fn change_mode(&mut self, mode: Mode) {
@@ -169,58 +169,59 @@ impl Registers {
     }
 
     pub fn get_n(&self) -> bool {
-        self.cpsr.contains(StatusRegister::N)
+        self.cpsr.negative()
     }
     pub fn get_z(&self) -> bool {
-        self.cpsr.contains(StatusRegister::Z)
+        self.cpsr.zero()
     }
     pub fn get_c(&self) -> bool {
-        self.cpsr.contains(StatusRegister::C)
+        self.cpsr.carry()
     }
     pub fn get_v(&self) -> bool {
-        self.cpsr.contains(StatusRegister::V)
+        self.cpsr.overflow()
     }
     pub fn get_i(&self) -> bool {
-        self.cpsr.contains(StatusRegister::I)
+        self.cpsr.irq_disabled()
     }
     pub fn _get_f(&self) -> bool {
-        self.cpsr.contains(StatusRegister::F)
+        self.cpsr.fiq_disabled()
     }
     pub fn get_flags(&self) -> u32 {
-        self.cpsr.bits >> 24
+        self.cpsr.raw() >> 24
     }
     pub fn get_t(&self) -> bool {
-        self.cpsr.contains(StatusRegister::T)
+        self.cpsr.thumb_state()
     }
     pub fn get_mode(&self) -> Mode {
-        self.cpsr.get_mode()
+        self.cpsr.mode()
     }
     pub fn set_n(&mut self, value: bool) {
-        self.cpsr.set(StatusRegister::N, value)
+        self.cpsr.set_negative(value)
     }
     pub fn set_z(&mut self, value: bool) {
-        self.cpsr.set(StatusRegister::Z, value)
+        self.cpsr.set_zero(value)
     }
     pub fn set_c(&mut self, value: bool) {
-        self.cpsr.set(StatusRegister::C, value)
+        self.cpsr.set_carry(value)
     }
     pub fn set_v(&mut self, value: bool) {
-        self.cpsr.set(StatusRegister::V, value)
+        self.cpsr.set_overflow(value)
     }
     pub fn set_i(&mut self, value: bool) {
-        self.cpsr.set(StatusRegister::I, value)
+        self.cpsr.set_irq_disabled(value)
     }
     pub fn _set_f(&mut self, value: bool) {
-        self.cpsr.set(StatusRegister::F, value)
+        self.cpsr.set_fiq_disabled(value)
     }
     pub fn set_t(&mut self, value: bool) {
-        self.cpsr.set(StatusRegister::T, value)
+        self.cpsr.set_thumb_state(value)
     }
     pub fn set_mode(&mut self, mode: Mode) {
         self.cpsr.set_mode(mode)
     }
 }
 
+#[repr(u8)]
 #[derive(Debug, PartialEq)]
 pub enum Mode {
     User = 0b10000,
@@ -232,43 +233,38 @@ pub enum Mode {
     Undefined = 0b11011,
 }
 
-bitflags! {
-    pub struct StatusRegister: u32 {
-        const N =  0x80000000;
-        const Z =  0x40000000;
-        const C =  0x20000000;
-        const V =  0x10000000;
-        const F =  0x00000040;
-        const I =  0x00000080;
-        const T =  0x00000020;
-        const M4 = 0x00000010;
-        const M3 = 0x00000008;
-        const M2 = 0x00000004;
-        const M1 = 0x00000002;
-        const M0 = 0x00000001;
+impl UnsafeFrom<u8> for Mode {
+    #[inline]
+    unsafe fn from(raw: u8) -> Self {
+        core::mem::transmute(raw)
+    }
+}
+
+impl From<Mode> for u8 {
+    #[inline]
+    fn from(mode: Mode) -> Self {
+        mode as u8
+    }
+}
+
+bitfield! {
+    #[derive(Clone, Copy)]
+    pub struct StatusRegister(u32) {
+        pub raw: u32 [read_only] @ ..,
+        pub mode: u8 [unsafe Mode] @ 0..=4,
+        pub thumb_state: bool @ 5,
+        pub fiq_disabled: bool @ 6,
+        pub irq_disabled: bool @ 7,
+        pub overflow: bool @ 28,
+        pub carry: bool @ 29,
+        pub zero: bool @ 30,
+        pub negative: bool @ 31,
     }
 }
 
 impl StatusRegister {
-    pub fn reset() -> Self {
-        Self::from_bits(Mode::System as u32).unwrap()
-    }
-
-    pub fn get_mode(&self) -> Mode {
-        match self.bits() & 0x1F {
-            m if m == Mode::User as u32 => Mode::User,
-            m if m == Mode::Fiq as u32 => Mode::Fiq,
-            m if m == Mode::Irq as u32 => Mode::Irq,
-            m if m == Mode::Supervisor as u32 => Mode::Supervisor,
-            m if m == Mode::Abort as u32 => Mode::Abort,
-            m if m == Mode::System as u32 => Mode::System,
-            m if m == Mode::Undefined as u32 => Mode::Undefined,
-            bits => panic!("Invalid Mode: {bits:05b}"),
-        }
-    }
-
-    pub fn set_mode(&mut self, mode: Mode) {
-        self.bits = (self.bits() & !0x1F) | mode as u32;
+    pub const fn reset() -> Self {
+        Self(Mode::System as u32)
     }
 }
 
@@ -277,14 +273,14 @@ impl fmt::Display for StatusRegister {
         write!(
             f,
             "[{N}{Z}{C}{V}{I}{F}{T}] {MODE:?}",
-            N = if self.contains(Self::N) { 'N' } else { '-' },
-            Z = if self.contains(Self::Z) { 'Z' } else { '-' },
-            C = if self.contains(Self::C) { 'C' } else { '-' },
-            V = if self.contains(Self::V) { 'V' } else { '-' },
-            I = if self.contains(Self::I) { 'I' } else { '-' },
-            F = if self.contains(Self::F) { 'F' } else { '-' },
-            T = if self.contains(Self::T) { 'T' } else { '-' },
-            MODE = self.get_mode()
+            N = if self.negative() { 'N' } else { '-' },
+            Z = if self.zero() { 'Z' } else { '-' },
+            C = if self.carry() { 'C' } else { '-' },
+            V = if self.overflow() { 'V' } else { '-' },
+            I = if self.irq_disabled() { 'I' } else { '-' },
+            F = if self.fiq_disabled() { 'F' } else { '-' },
+            T = if self.thumb_state() { 'T' } else { '-' },
+            MODE = self.mode()
         )
     }
 }

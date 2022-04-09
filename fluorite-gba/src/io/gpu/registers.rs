@@ -1,4 +1,4 @@
-use bitflags::bitflags;
+use fluorite_common::bitfield;
 use std::ops::{Deref, DerefMut};
 
 #[derive(Clone, Copy, PartialEq)]
@@ -26,21 +26,21 @@ impl BGMode {
     }
 }
 
-bitflags! {
-    pub struct DISPCNTFlags: u16 {
-        const CGB_MODE = 1 << 3;
-        const DISPLAY_FRAME_SELECT = 1 << 4;
-        const HBLANK_INTERVAL_FREE = 1 << 5;
-        const OBJ_TILES1D = 1 << 6;
-        const FORCED_BLANK = 1 << 7;
-        const DISPLAY_BG0 = 1 << 8;
-        const DISPLAY_BG1 = 1 << 9;
-        const DISPLAY_BG2 = 1 << 10;
-        const DISPLAY_BG3 = 1 << 11;
-        const DISPLAY_OBJ = 1 << 12;
-        const DISPLAY_WINDOW0 = 1 << 13;
-        const DISPLAY_WINDOW1 = 1 << 14;
-        const DISPLAY_OBJ_WINDOW = 1 << 15;
+bitfield! {
+    pub struct DISPCNTFlags(u16) {
+        pub cgb_mode: bool @ 3,
+        pub display_frame_select: bool @ 4,
+        pub hblank_interval_free: bool @ 5,
+        pub obj_tiles1d: bool @ 6,
+        pub forced_blank: bool @ 7,
+        pub display_bg0: bool @ 8,
+        pub display_bg1: bool @ 9,
+        pub display_bg2: bool @ 10,
+        pub display_bg3: bool @ 11,
+        pub display_obj: bool @ 12,
+        pub display_window0: bool @ 13,
+        pub display_window1: bool @ 14,
+        pub display_obj_window: bool @ 15,
     }
 }
 
@@ -50,21 +50,25 @@ pub struct Dispcnt {
 }
 
 impl Dispcnt {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
-            flags: DISPCNTFlags::empty(),
+            flags: DISPCNTFlags(0),
             mode: BGMode::Mode0,
         }
     }
 
+    pub fn raw(&self) -> u16 {
+        self.flags.0
+    }
+
     pub fn windows_enabled(&self) -> bool {
-        (self.bits() >> 13) != 0
+        (self.0 >> 13) != 0
     }
 
     pub fn read<const BYTE: u8>(&self) -> u8 {
         match BYTE {
-            0 => (self.flags.bits as u8) | (self.mode as u8),
-            1 => (self.flags.bits >> 8) as u8,
+            0 => (self.flags.0 as u8) | (self.mode as u8),
+            1 => (self.flags.0 >> 8) as u8,
             _ => unreachable!(),
         }
     }
@@ -73,13 +77,9 @@ impl Dispcnt {
         match BYTE {
             0 => {
                 self.mode = BGMode::get(value & 0x7);
-                self.flags.bits =
-                    self.flags.bits & !0x00FF | (value as u16) & DISPCNTFlags::all().bits;
+                self.flags.0 = self.flags.0 & !0x00FF | (value as u16) & 0xFFF8;
             }
-            1 => {
-                self.flags.bits =
-                    self.flags.bits & !0xFF00 | (value as u16) << 8 & DISPCNTFlags::all().bits
-            }
+            1 => self.flags.0 = self.flags.0 & !0xFF00 | (value as u16) << 8 & 0xFFF8,
             _ => unreachable!(),
         }
     }
@@ -99,14 +99,14 @@ impl DerefMut for Dispcnt {
     }
 }
 
-bitflags! {
-    pub struct DISPSTATFlags: u16 {
-        const VBLANK = 1;
-        const HBLANK = 1 << 1;
-        const VCOUNTER = 1 << 2;
-        const VBLANK_IRQ_ENABLE = 1 << 3;
-        const HBLANK_IRQ_ENABLE = 1 << 4;
-        const VCOUNTER_IRQ_ENALBE = 1 << 5;
+bitfield! {
+    pub struct DISPSTATFlags(u16) {
+        pub vblank: bool @ 0,
+        pub hblank: bool @ 1,
+        pub vcounter: bool @ 2,
+        pub vblank_irq_enable: bool @ 3,
+        pub hblank_irq_enable: bool @ 4,
+        pub vcounter_irq_enable: bool @ 5,
     }
 }
 
@@ -118,7 +118,7 @@ pub struct Dispstat {
 impl Dispstat {
     pub fn new() -> Self {
         Self {
-            flags: DISPSTATFlags::empty(),
+            flags: DISPSTATFlags(0),
             vcount_setting: 0,
         }
     }
@@ -141,7 +141,7 @@ impl DerefMut for Dispstat {
 impl Dispstat {
     pub fn read<const BYTE: u8>(&self) -> u8 {
         match BYTE {
-            0 => self.flags.bits as u8,
+            0 => self.flags.0 as u8,
             1 => self.vcount_setting as u8,
             _ => unreachable!(),
         }
@@ -150,10 +150,9 @@ impl Dispstat {
     pub fn write<const BYTE: u8>(&mut self, value: u8) {
         match BYTE {
             0 => {
-                let old_bits = self.flags.bits;
-                self.flags.bits =
-                    self.flags.bits & 0x7 | ((value as u16) & !0x7 & DISPSTATFlags::all().bits);
-                assert_eq!(old_bits & 0x7, self.flags.bits & 0x7);
+                let old_bits = self.flags.0;
+                self.flags.0 = self.flags.0 & 0x7 | ((value as u16) & !0x7 & 0x1F);
+                debug_assert_eq!(old_bits & 0x7, self.flags.0 & 0x7);
             }
             1 => self.vcount_setting = value as u8,
             _ => unreachable!(),

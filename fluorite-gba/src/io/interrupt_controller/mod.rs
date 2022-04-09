@@ -11,9 +11,9 @@ pub struct InterruptController {
 impl InterruptController {
     pub fn new() -> InterruptController {
         InterruptController {
-            enable: InterruptEnable::empty(),
-            master_enable: InterruptMasterEnable::empty(),
-            request: InterruptRequest::empty(),
+            enable: InterruptEnable::new(),
+            master_enable: InterruptMasterEnable::new(),
+            request: InterruptRequest::new(),
         }
     }
 }

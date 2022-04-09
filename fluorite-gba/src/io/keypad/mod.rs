@@ -1,61 +1,64 @@
-use bitflags::bitflags;
-use fluorite_common::flume::Receiver;
+use fluorite_common::{bitfield, flume::Receiver};
 
-bitflags! {
-    pub struct KEYINPUT: u16 {
-        const A = 1 << 0;
-        const B = 1 << 1;
-        const SELECT = 1 << 2;
-        const START = 1 << 3;
-        const RIGHT = 1 << 4;
-        const LEFT = 1 << 5;
-        const UP = 1 << 6;
-        const DOWN = 1 << 7;
-        const R = 1 << 8;
-        const L = 1 << 9;
+bitfield! {
+    #[derive(Clone, Copy)]
+    pub struct KEYINPUT(u16) {
+        raw: u16 @ ..,
+        a: bool @ 0,
+        b: bool @ 1,
+        select: bool @ 2,
+        start: bool @ 3,
+        right: bool @ 4,
+        left: bool @ 5,
+        up: bool @ 6,
+        down: bool @ 7,
+        r: bool @ 8,
+        l: bool @ 9,
     }
 }
 
 impl KEYINPUT {
     pub fn read<const BYTE: u8>(&self) -> u8 {
         match BYTE {
-            0 => self.bits as u8,
-            1 => (self.bits >> 8) as u8,
+            0 => self.0 as u8,
+            1 => (self.0 >> 8) as u8,
             _ => unreachable!(),
         }
     }
 }
 
-bitflags! {
-    pub struct KEYCNT: u16 {
-        const A = 1 << 0;
-        const B = 1 << 1;
-        const SELECT = 1 << 2;
-        const START = 1 << 3;
-        const RIGHT = 1 << 4;
-        const LEFT = 1 << 5;
-        const UP = 1 << 6;
-        const DOWN = 1 << 7;
-        const R = 1 << 8;
-        const L = 1 << 9;
-        const IRQ_ENABLE = 1 << 14;
-        const IRQ_COND_AND = 1 << 15;
+bitfield! {
+    #[derive(Clone, Copy)]
+    pub struct KEYCNT(u16) {
+        raw: u16 @ ..,
+        a: bool @ 0,
+        b: bool @ 1,
+        select: bool @ 2,
+        start: bool @ 3,
+        right: bool @ 4,
+        left: bool @ 5,
+        up: bool @ 6,
+        down: bool @ 7,
+        r: bool @ 8,
+        l: bool @ 9,
+        irq_enable: bool @ 14,
+        irq_cond_and: bool @ 15,
     }
 }
 
 impl KEYCNT {
     pub fn read<const BYTE: u8>(&self) -> u8 {
         match BYTE {
-            0 => self.bits as u8,
-            1 => (self.bits >> 8) as u8,
+            0 => self.0 as u8,
+            1 => (self.0 >> 8) as u8,
             _ => unreachable!(),
         }
     }
 
     pub fn write(&mut self, byte: u8, value: u8) {
         match byte {
-            0 => self.bits = self.bits & !0x00FF | (value as u16) & KEYCNT::all().bits,
-            1 => self.bits = self.bits & !0xFF00 | (value as u16) << 8 & KEYCNT::all().bits,
+            0 => self.0 = self.0 & !0x00FF | (value as u16) & 0xC3FF,
+            1 => self.0 = self.0 & !0xFF00 | (value as u16) << 8 & 0xC3FF,
             _ => unreachable!(),
         }
     }
@@ -64,40 +67,41 @@ impl KEYCNT {
 pub struct Keypad {
     pub keyinput: KEYINPUT,
     pub keycnt: KEYCNT,
-    rx: Receiver<(KEYINPUT, bool)>,
+    rx: Receiver<(u16, bool)>,
 }
 
 impl Keypad {
-    pub fn new(rx: Receiver<(KEYINPUT, bool)>) -> Self {
+    pub fn new(rx: Receiver<(u16, bool)>) -> Self {
         Self {
-            keyinput: KEYINPUT::all(),
-            keycnt: KEYCNT::empty(),
+            keyinput: KEYINPUT(0x1FF),
+            keycnt: KEYCNT(0),
             rx,
         }
     }
 
     pub fn reset(&mut self) {
-        self.keyinput = KEYINPUT::all();
-        self.keycnt = KEYCNT::empty();
+        self.keyinput = KEYINPUT(0x1FF);
+        self.keycnt = KEYCNT(0);
     }
 
     pub fn poll(&mut self) {
         for (key, pressed) in self.rx.try_iter() {
             if pressed {
-                self.keyinput.remove(key);
+                self.keyinput.0 &= !key;
             } else {
-                self.keyinput.insert(key);
+                self.keyinput.0 |= key;
             }
         }
     }
 
     pub fn interrupt_requested(&self) -> bool {
-        if self.keycnt.contains(KEYCNT::IRQ_ENABLE) {
-            let irq_keys = self.keycnt - KEYCNT::IRQ_ENABLE - KEYCNT::IRQ_COND_AND;
-            if self.keycnt.contains(KEYCNT::IRQ_COND_AND) {
-                irq_keys.bits() & !self.keyinput.bits() == irq_keys.bits()
+        if self.keycnt.irq_enable() {
+            let irq_keys = self.keycnt.with_irq_enable(false).with_irq_cond_and(false);
+
+            if self.keycnt.irq_cond_and() {
+                irq_keys.raw() & !self.keyinput.raw() == irq_keys.raw()
             } else {
-                irq_keys.bits() & !self.keyinput.bits() != 0
+                irq_keys.raw() & !self.keyinput.raw() != 0
             }
         } else {
             false

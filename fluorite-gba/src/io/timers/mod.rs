@@ -16,10 +16,10 @@ impl Timers {
     pub fn new() -> Timers {
         Timers {
             timers: [
-                Timer::new(0, InterruptRequest::TIMER0_OVERFLOW),
-                Timer::new(1, InterruptRequest::TIMER1_OVERFLOW),
-                Timer::new(2, InterruptRequest::TIMER2_OVERFLOW),
-                Timer::new(3, InterruptRequest::TIMER3_OVERFLOW),
+                Timer::new(0, InterruptRequest::new().with_timer0_overflow(true)),
+                Timer::new(1, InterruptRequest::new().with_timer1_overflow(true)),
+                Timer::new(2, InterruptRequest::new().with_timer2_overflow(true)),
+                Timer::new(3, InterruptRequest::new().with_timer3_overflow(true)),
             ],
         }
     }

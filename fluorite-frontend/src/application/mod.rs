@@ -26,7 +26,7 @@ pub struct Application {
     events: EventPump,
     gba: Gba,
     pub state: State,
-    key_tx: Sender<(KEYINPUT, bool)>,
+    key_tx: Sender<(u16, bool)>,
     show_registers: bool,
 }
 

@@ -370,20 +370,20 @@ impl Gpu {
     }
 
     pub fn emulate_dot(&mut self) -> InterruptRequest {
-        let mut interrupts = InterruptRequest::empty();
+        let mut interrupts = InterruptRequest::new();
 
         // TODO: feature(exclusive_range_pattern)
         match self.dot {
-            0..=239 => self.dispstat.remove(DISPSTATFlags::HBLANK), // Visible
+            0..=239 => self.dispstat.set_hblank(false), // Visible
             240 => {
                 // HBlank
-                if self.dispstat.contains(DISPSTATFlags::HBLANK_IRQ_ENABLE) {
-                    interrupts.insert(InterruptRequest::HBLANK);
+                if self.dispstat.hblank_irq_enable() {
+                    interrupts.set_hblank(true);
                 }
             }
             250 => {
                 // TODO: Take into account half
-                self.dispstat.insert(DISPSTATFlags::HBLANK);
+                self.dispstat.set_hblank(true);
                 if self.vcount < 160 {
                     self.hblank_called = true;
                 } // HDMA only occurs on visible scanlines
@@ -393,7 +393,7 @@ impl Gpu {
 
         if self.vcount < 160 && self.vcount != 227 {
             // Visible
-            self.dispstat.remove(DISPSTATFlags::VBLANK);
+            self.dispstat.set_vblank(false);
             if self.dot == 241 {
                 self.render_line()
             }
@@ -401,11 +401,11 @@ impl Gpu {
             // VBlank
             if self.vcount == 160 && self.dot == 0 {
                 self.vblank_called = true;
-                if self.dispstat.contains(DISPSTATFlags::VBLANK_IRQ_ENABLE) {
-                    interrupts.insert(InterruptRequest::VBLANK)
+                if self.dispstat.vblank_irq_enable() {
+                    interrupts.set_vblank(true);
                 }
             }
-            self.dispstat.insert(DISPSTATFlags::VBLANK);
+            self.dispstat.set_vblank(true);
         }
 
         if self.vcount == 160 && self.dot == 0 {
@@ -422,41 +422,41 @@ impl Gpu {
             }
             self.vcount = (self.vcount + 1) % 228;
             if self.vcount == self.dispstat.vcount_setting {
-                self.dispstat.insert(DISPSTATFlags::VCOUNTER);
-                if self.dispstat.contains(DISPSTATFlags::VCOUNTER_IRQ_ENALBE) {
-                    interrupts.insert(InterruptRequest::VCOUNTER_MATCH);
+                self.dispstat.set_vcounter(true);
+                if self.dispstat.vcounter_irq_enable() {
+                    interrupts.set_vcounter_match(true);
                 }
             } else {
-                self.dispstat.remove(DISPSTATFlags::VCOUNTER);
+                self.dispstat.set_vcounter(false);
             }
         }
         interrupts
     }
 
     fn render_line(&mut self) {
-        if self.dispcnt.contains(DISPCNTFlags::DISPLAY_WINDOW0) {
+        if self.dispcnt.display_window0() {
             self.render_window(0)
         }
-        if self.dispcnt.contains(DISPCNTFlags::DISPLAY_WINDOW1) {
+        if self.dispcnt.display_window1() {
             self.render_window(1)
         }
-        if self.dispcnt.contains(DISPCNTFlags::DISPLAY_OBJ) {
+        if self.dispcnt.display_obj() {
             self.render_objs_line()
         }
 
         match self.dispcnt.mode {
             BGMode::Mode0 => {
                 let mut bgs = vec![];
-                if self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG0) {
+                if self.dispcnt.display_bg0() {
                     bgs.push(0)
                 }
-                if self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG1) {
+                if self.dispcnt.display_bg1() {
                     bgs.push(1)
                 }
-                if self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG2) {
+                if self.dispcnt.display_bg2() {
                     bgs.push(2)
                 }
-                if self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG3) {
+                if self.dispcnt.display_bg3() {
                     bgs.push(3)
                 }
 
@@ -464,14 +464,14 @@ impl Gpu {
                 self.process_lines(0, 3);
             }
             BGMode::Mode1 => {
-                let mut bgs: Vec<usize> = Vec::new();
-                if self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG0) {
+                let mut bgs = vec![];
+                if self.dispcnt.display_bg0() {
                     bgs.push(0)
                 }
-                if self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG1) {
+                if self.dispcnt.display_bg1() {
                     bgs.push(1)
                 }
-                if self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG2) {
+                if self.dispcnt.display_bg2() {
                     bgs.push(2)
                 }
 
@@ -514,7 +514,7 @@ impl Gpu {
                     (1, 1)
                 };
                 let y = self.vcount / mosaic_y * mosaic_y;
-                let start_addr = if self.dispcnt.contains(DISPCNTFlags::DISPLAY_FRAME_SELECT) {
+                let start_addr = if self.dispcnt.display_frame_select() {
                     0xA000
                 } else {
                     0
@@ -534,17 +534,17 @@ impl Gpu {
 
         let mut bgs: Vec<(usize, u8)> = Vec::new();
         for bg_i in start_line..=end_line {
-            if self.dispcnt.bits() & (1 << (8 + bg_i)) != 0 {
+            if self.dispcnt.raw() & (1 << (8 + bg_i)) != 0 {
                 bgs.push((bg_i, self.bgcnts[bg_i].priority))
             }
         }
         bgs.sort_by_key(|a| a.1);
         let master_enabled = [
-            self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG0),
-            self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG1),
-            self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG2),
-            self.dispcnt.contains(DISPCNTFlags::DISPLAY_BG3),
-            self.dispcnt.contains(DISPCNTFlags::DISPLAY_OBJ),
+            self.dispcnt.display_bg0(),
+            self.dispcnt.display_bg1(),
+            self.dispcnt.display_bg2(),
+            self.dispcnt.display_bg3(),
+            self.dispcnt.display_obj(),
         ];
         let pixels = &mut self.pixels;
         for dot_x in 0..WIDTH {
@@ -721,10 +721,7 @@ impl Gpu {
             })
             .collect::<Vec<_>>();
         objs.sort_by_key(|a| (*a)[2] >> 10 & 0x3);
-        let obj_window_enabled = self
-            .dispcnt
-            .flags
-            .contains(DISPCNTFlags::DISPLAY_OBJ_WINDOW);
+        let obj_window_enabled = self.dispcnt.flags.display_obj_window();
 
         for dot_x in 0..WIDTH {
             self.objs_line[dot_x] = OBJPixel::none();
@@ -815,7 +812,7 @@ impl Gpu {
                     base_tile_num
                 };
                 let tile_num = base_tile_num
-                    + if self.dispcnt.contains(DISPCNTFlags::OBJ_TILES1D) {
+                    + if self.dispcnt.obj_tiles1d() {
                         (y_diff as i16 / 8 * obj_width + x_diff) / 8
                     } else {
                         y_diff as i16 / 8 * 0x80 / (bit_depth as i16) + x_diff / 8

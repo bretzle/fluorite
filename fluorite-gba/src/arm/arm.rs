@@ -244,7 +244,7 @@ impl Arm7tdmi {
             if self.regs.get_mode() != Mode::User && instr >> 16 & 0x1 != 0 {
                 mask |= 0x000000FF
             } // Control
-            // assert_eq!(instr >> 12 & 0xF, 0xF);
+              // assert_eq!(instr >> 12 & 0xF, 0xF);
             let operand = if IMM {
                 let shift = instr >> 8 & 0xF;
                 (instr & 0xFF).rotate_right(shift * 2)

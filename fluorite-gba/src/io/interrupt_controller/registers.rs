@@ -1,99 +1,121 @@
-use bitflags::bitflags;
+use fluorite_common::bitfield;
+use std::ops::BitOrAssign;
 
-bitflags! {
-    pub struct InterruptEnable: u16 {
-        const VBLANK = 1 << 0;
-        const HBLANK = 1 << 1;
-        const VCOUNTER_MATCH = 1 << 2;
-        const TIMER0_OVERFLOW = 1 << 3;
-        const TIMER1_OVERFLOW = 1 << 4;
-        const TIMER2_OVERFLOW = 1 << 5;
-        const TIMER3_OVERFLOW = 1 << 6;
-        const SERIAL = 1 << 7;
-        const DMA0 = 1 << 8;
-        const DMA1 = 1 << 9;
-        const DMA2 = 1 << 10;
-        const DMA3 = 1 << 11;
-        const KEYPAD = 1 << 12;
-        const GAME_PAK = 1 << 13;
+bitfield! {
+    pub struct InterruptEnable(u16) {
+        pub raw: u16 [read_only] @ ..,
+        pub vblank: bool @ 0,
+        pub hblank: bool @ 1,
+        pub vcounter_match: bool @ 2,
+        pub timer0_overflow: bool @ 3,
+        pub timer1_overflow: bool @ 4,
+        pub timer2_overflow: bool @ 5,
+        pub timer3_overflow: bool @ 6,
+        serial: bool @ 7,
+        pub dma0: bool @ 8,
+        pub dma1: bool @ 9,
+        pub dma2: bool @ 10,
+        pub dma3: bool @ 11,
+        keypad: bool @ 12,
+        gamepak: bool @ 13,
     }
 }
 
 impl InterruptEnable {
+    pub const fn new() -> Self {
+        Self(0)
+    }
+
     pub fn read<const BYTE: u8>(&self) -> u8 {
         match BYTE {
-            0 => self.bits as u8,
-            1 => (self.bits >> 8) as u8,
+            0 => self.0 as u8,
+            1 => (self.0 >> 8) as u8,
             _ => unreachable!(),
         }
     }
 
     pub fn write<const BYTE: u8>(&mut self, value: u8) {
-        self.bits = match BYTE {
-            0 => self.bits & !0x00FF | (value as u16) & InterruptEnable::all().bits,
-            1 => self.bits & !0xFF00 | (value as u16) << 8 & InterruptEnable::all().bits,
+        self.0 = match BYTE {
+            0 => self.0 & !0x00FF | (value as u16) & 0x3FFF,
+            1 => self.0 & !0xFF00 | (value as u16) << 8 & 0x3FFF,
             _ => unreachable!(),
         }
     }
 }
 
-bitflags! {
-    pub struct InterruptMasterEnable: u16 {
-        const ENABLE = 1 << 0;
+bitfield! {
+    pub struct InterruptMasterEnable(u16) {
+        pub enabled: bool @ 0,
     }
 }
 
 impl InterruptMasterEnable {
+    pub const fn new() -> Self {
+        Self(0)
+    }
+
     pub fn read<const BYTE: u8>(&self) -> u8 {
         match BYTE {
-            0 => self.bits as u8,
-            1 => (self.bits >> 8) as u8,
+            0 => self.0 as u8,
+            1 => (self.0 >> 8) as u8,
             _ => unreachable!(),
         }
     }
 
     pub fn write<const BYTE: u8>(&mut self, val: u8) {
-        self.bits = match BYTE {
-            0 => self.bits & !0x00FF | (val as u16) & InterruptMasterEnable::all().bits,
-            1 => self.bits & !0xFF00 | (val as u16) << 8 & InterruptMasterEnable::all().bits,
+        self.0 = match BYTE {
+            0 => self.0 & !0x00FF | (val as u16) & 1,
+            1 => self.0 & !0xFF00 | (val as u16) << 8 & 1,
             _ => unreachable!(),
         }
     }
 }
 
-bitflags! {
-    pub struct InterruptRequest: u16 {
-        const VBLANK = 1 << 0;
-        const HBLANK = 1 << 1;
-        const VCOUNTER_MATCH = 1 << 2;
-        const TIMER0_OVERFLOW = 1 << 3;
-        const TIMER1_OVERFLOW = 1 << 4;
-        const TIMER2_OVERFLOW = 1 << 5;
-        const TIMER3_OVERFLOW = 1 << 6;
-        const SERIAL = 1 << 7;
-        const DMA0 = 1 << 8;
-        const DMA1 = 1 << 9;
-        const DMA2 = 1 << 10;
-        const DMA3 = 1 << 11;
-        const KEYPAD = 1 << 12;
-        const GAME_PAK = 1 << 13;
+bitfield! {
+    #[derive(Clone, Copy)]
+    pub struct InterruptRequest(u16) {
+        pub raw: u16 [read_only] @ ..,
+        pub vblank: bool @ 0,
+        pub hblank: bool @ 1,
+        pub vcounter_match: bool @ 2,
+        pub timer0_overflow: bool @ 3,
+        pub timer1_overflow: bool @ 4,
+        pub timer2_overflow: bool @ 5,
+        pub timer3_overflow: bool @ 6,
+        serial: bool @ 7,
+        pub dma0: bool @ 8,
+        pub dma1: bool @ 9,
+        pub dma2: bool @ 10,
+        pub dma3: bool @ 11,
+        keypad: bool @ 12,
+        gamepak: bool @ 13,
     }
 }
 
 impl InterruptRequest {
+    pub const fn new() -> Self {
+        Self(0)
+    }
+
     pub fn read<const BYTE: u8>(&self) -> u8 {
         match BYTE {
-            0 => self.bits as u8,
-            1 => (self.bits >> 8) as u8,
+            0 => self.0 as u8,
+            1 => (self.0 >> 8) as u8,
             _ => unreachable!(),
         }
     }
 
     pub fn write<const BYTE: u8>(&mut self, value: u8) {
-        self.bits &= match BYTE {
+        self.0 &= match BYTE {
             0 => !(value as u16),
             1 => !((value as u16) << 8),
             _ => unreachable!(),
         }
+    }
+}
+
+impl BitOrAssign for InterruptRequest {
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.0 |= rhs.0
     }
 }

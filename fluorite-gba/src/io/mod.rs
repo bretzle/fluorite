@@ -7,7 +7,7 @@ use self::{
     },
     gpu::Gpu,
     interrupt_controller::InterruptController,
-    keypad::{Keypad, KEYINPUT},
+    keypad::Keypad,
     memory::{MemoryRegion, MemoryValue},
     scheduler::{Event, EventType, Scheduler},
     timers::Timers,
@@ -85,7 +85,7 @@ impl Sysbus {
     const EWRAM_MASK: u32 = 0x3FFFF;
     const IWRAM_MASK: u32 = 0x7FFF;
 
-    pub fn new(rx: Receiver<(KEYINPUT, bool)>) -> Self {
+    pub fn new(rx: Receiver<(u16, bool)>) -> Self {
         Self {
             gamepak: Gamepak::new(),
 
@@ -301,8 +301,8 @@ impl Sysbus {
         //     self.interrupt_controller.request |= InterruptRequest::KEYPAD
         // }
 
-        self.interrupt_controller.master_enable.bits() != 0
-            && (self.interrupt_controller.request.bits() & self.interrupt_controller.enable.bits())
+        self.interrupt_controller.master_enable.enabled()
+            && (self.interrupt_controller.request.raw() & self.interrupt_controller.enable.raw())
                 != 0
     }
 
@@ -407,10 +407,10 @@ impl Sysbus {
 
             if irq {
                 self.interrupt_controller.request |= match dma_channel {
-                    0 => InterruptRequest::DMA0,
-                    1 => InterruptRequest::DMA1,
-                    2 => InterruptRequest::DMA2,
-                    3 => InterruptRequest::DMA3,
+                    0 => InterruptRequest::new().with_dma0(true),
+                    1 => InterruptRequest::new().with_dma1(true),
+                    2 => InterruptRequest::new().with_dma2(true),
+                    3 => InterruptRequest::new().with_dma3(true),
                     _ => unreachable!(),
                 }
             }
