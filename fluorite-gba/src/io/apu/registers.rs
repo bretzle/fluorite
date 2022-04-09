@@ -59,8 +59,8 @@ impl SoundCnt {
         }
     }
 
-    pub fn write(&mut self, byte: u8, value: u8) {
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        match BYTE {
             0 => {
                 self.psg_master_volume_r = value & 0x7;
                 self.psg_master_volume_l = value >> 4 & 0x7;
@@ -100,8 +100,8 @@ impl SoundBias {
         }
     }
 
-    pub fn write(&mut self, byte: u8, value: u8) {
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        match BYTE {
             0 => self.bias_level = self.bias_level & !0xFF | value as u16 & !0x1,
             1 => {
                 self.bias_level = self.bias_level & !0x300 | ((value as u16) & 0x3) << 8;

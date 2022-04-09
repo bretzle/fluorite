@@ -1,7 +1,5 @@
 use self::registers::{Address, DmaCnt, WordCount};
 
-use super::scheduler::Scheduler;
-
 mod registers;
 
 pub struct Dma {
@@ -127,28 +125,28 @@ impl DmaChannel {
             0x7 => self.dad.read(3),
             0x8 => self.count.read(0),
             0x9 => self.count.read(1),
-            0xA => self.cnt.read(0),
-            0xB => self.cnt.read(1),
+            0xA => self.cnt.read::<0>(),
+            0xB => self.cnt.read::<1>(),
             _ => unreachable!(),
         }
     }
 
-    pub fn write(&mut self, scheduler: &mut Scheduler, byte: u8, val: u8) {
+    pub fn write(&mut self, byte: u8, val: u8) {
         match byte {
-            0x0 => self.sad.write(scheduler, 0, val),
-            0x1 => self.sad.write(scheduler, 1, val),
-            0x2 => self.sad.write(scheduler, 2, val),
-            0x3 => self.sad.write(scheduler, 3, val),
-            0x4 => self.dad.write(scheduler, 0, val),
-            0x5 => self.dad.write(scheduler, 1, val),
-            0x6 => self.dad.write(scheduler, 2, val),
-            0x7 => self.dad.write(scheduler, 3, val),
-            0x8 => self.count.write(scheduler, 0, val),
-            0x9 => self.count.write(scheduler, 1, val),
-            0xA => self.cnt.write(scheduler, 0, val),
+            0x0 => self.sad.write::<0>(val),
+            0x1 => self.sad.write::<1>(val),
+            0x2 => self.sad.write::<2>(val),
+            0x3 => self.sad.write::<3>(val),
+            0x4 => self.dad.write::<0>(val),
+            0x5 => self.dad.write::<1>(val),
+            0x6 => self.dad.write::<2>(val),
+            0x7 => self.dad.write::<3>(val),
+            0x8 => self.count.write::<0>(val),
+            0x9 => self.count.write::<1>(val),
+            0xA => self.cnt.write::<0>(val),
             0xB => {
                 let prev_enable = self.cnt.enable;
-                self.cnt.write(scheduler, 1, val);
+                self.cnt.write::<1>(val);
                 if !prev_enable && self.cnt.enable {
                     self.latch()
                 }

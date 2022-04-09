@@ -1,5 +1,5 @@
 use self::registers::*;
-use super::{interrupt_controller::InterruptRequest, scheduler::Scheduler};
+use super::interrupt_controller::InterruptRequest;
 use crate::{
     consts::{HEIGHT, WIDTH},
     gba::Pixels,
@@ -123,41 +123,41 @@ impl Gpu {
     }
 
     pub fn read_register(&self, addr: u32) -> u8 {
-        assert_eq!(addr >> 12, 0x04000);
+        debug_assert_eq!(addr >> 12, 0x04000);
 
         match addr & 0xFFF {
-            0x000 => self.dispcnt.read(0),
-            0x001 => self.dispcnt.read(1),
+            0x000 => self.dispcnt.read::<0>(),
+            0x001 => self.dispcnt.read::<1>(),
             0x002 => self.green_swap as u8,
             0x003 => 0, // Unused area of Green Swap
-            0x004 => self.dispstat.read(0),
-            0x005 => self.dispstat.read(1),
+            0x004 => self.dispstat.read::<0>(),
+            0x005 => self.dispstat.read::<1>(),
             0x006 => self.vcount as u8,
             0x007 => 0, // Unused area of VCOUNT
-            0x008 => self.bgcnts[0].read(0),
-            0x009 => self.bgcnts[0].read(1),
-            0x00A => self.bgcnts[1].read(0),
-            0x00B => self.bgcnts[1].read(1),
-            0x00C => self.bgcnts[2].read(0),
-            0x00D => self.bgcnts[2].read(1),
-            0x00E => self.bgcnts[3].read(0),
-            0x00F => self.bgcnts[3].read(1),
-            0x010 => self.hofs[0].read(0),
-            0x011 => self.hofs[0].read(1),
-            0x012 => self.vofs[0].read(0),
-            0x013 => self.vofs[0].read(1),
-            0x014 => self.hofs[1].read(0),
-            0x015 => self.hofs[1].read(1),
-            0x016 => self.vofs[1].read(0),
-            0x017 => self.vofs[1].read(1),
-            0x018 => self.hofs[2].read(0),
-            0x019 => self.hofs[2].read(1),
-            0x01A => self.vofs[2].read(0),
-            0x01B => self.vofs[2].read(1),
-            0x01C => self.hofs[3].read(0),
-            0x01D => self.hofs[3].read(1),
-            0x01E => self.vofs[3].read(0),
-            0x01F => self.vofs[3].read(1),
+            0x008 => self.bgcnts[0].read::<0>(),
+            0x009 => self.bgcnts[0].read::<1>(),
+            0x00A => self.bgcnts[1].read::<0>(),
+            0x00B => self.bgcnts[1].read::<1>(),
+            0x00C => self.bgcnts[2].read::<0>(),
+            0x00D => self.bgcnts[2].read::<1>(),
+            0x00E => self.bgcnts[3].read::<0>(),
+            0x00F => self.bgcnts[3].read::<1>(),
+            0x010 => self.hofs[0].read::<0>(),
+            0x011 => self.hofs[0].read::<1>(),
+            0x012 => self.vofs[0].read::<0>(),
+            0x013 => self.vofs[0].read::<1>(),
+            0x014 => self.hofs[1].read::<0>(),
+            0x015 => self.hofs[1].read::<1>(),
+            0x016 => self.vofs[1].read::<0>(),
+            0x017 => self.vofs[1].read::<1>(),
+            0x018 => self.hofs[2].read::<0>(),
+            0x019 => self.hofs[2].read::<1>(),
+            0x01A => self.vofs[2].read::<0>(),
+            0x01B => self.vofs[2].read::<1>(),
+            0x01C => self.hofs[3].read::<0>(),
+            0x01D => self.hofs[3].read::<1>(),
+            0x01E => self.vofs[3].read::<0>(),
+            0x01F => self.vofs[3].read::<1>(),
             0x020 => self.dxs[0].read(0),
             0x021 => self.dxs[0].read(1),
             0x022 => self.dmxs[0].read(0),
@@ -190,26 +190,26 @@ impl Gpu {
             0x03D => self.bgys[1].read(1),
             0x03E => self.bgys[1].read(2),
             0x03F => self.bgys[1].read(3),
-            0x040 => self.winhs[0].read(0),
-            0x041 => self.winhs[0].read(1),
-            0x042 => self.winhs[1].read(0),
-            0x043 => self.winhs[1].read(1),
-            0x044 => self.winvs[0].read(0),
-            0x045 => self.winvs[0].read(1),
-            0x046 => self.winvs[1].read(0),
-            0x047 => self.winvs[1].read(1),
-            0x048 => self.win_0_cnt.read(0),
-            0x049 => self.win_1_cnt.read(0),
-            0x04A => self.win_out_cnt.read(0),
-            0x04B => self.win_obj_cnt.read(0),
-            0x04C => self.mosaic.read(0),
-            0x04D => self.mosaic.read(1),
+            0x040 => self.winhs[0].read::<0>(),
+            0x041 => self.winhs[0].read::<1>(),
+            0x042 => self.winhs[1].read::<0>(),
+            0x043 => self.winhs[1].read::<1>(),
+            0x044 => self.winvs[0].read::<0>(),
+            0x045 => self.winvs[0].read::<1>(),
+            0x046 => self.winvs[1].read::<0>(),
+            0x047 => self.winvs[1].read::<1>(),
+            0x048 => self.win_0_cnt.read::<0>(),
+            0x049 => self.win_1_cnt.read::<0>(),
+            0x04A => self.win_out_cnt.read::<0>(),
+            0x04B => self.win_obj_cnt.read::<0>(),
+            0x04C => self.mosaic.read::<0>(),
+            0x04D => self.mosaic.read::<1>(),
             0x04E => 0,
             0x04F => 0,
-            0x050 => self.bldcnt.read(0),
-            0x051 => self.bldcnt.read(1),
-            0x052 => self.bldalpha.read(0),
-            0x053 => self.bldalpha.read(1),
+            0x050 => self.bldcnt.read::<0>(),
+            0x051 => self.bldcnt.read::<1>(),
+            0x052 => self.bldalpha.read::<0>(),
+            0x053 => self.bldalpha.read::<1>(),
             0x054 => self.bldy.read(0),
             0x055 => self.bldy.read(1),
             0x056..=0x05F => 0,
@@ -217,120 +217,120 @@ impl Gpu {
         }
     }
 
-    pub fn write_register(&mut self, scheduler: &mut Scheduler, addr: u32, val: u8) {
-        assert_eq!(addr >> 12, 0x04000);
+    pub fn write_register(&mut self, addr: u32, val: u8) {
+        debug_assert_eq!(addr >> 12, 0x04000);
 
         match addr & 0xFFF {
-            0x000 => self.dispcnt.write(0, val),
-            0x001 => self.dispcnt.write(1, val),
+            0x000 => self.dispcnt.write::<0>(val),
+            0x001 => self.dispcnt.write::<1>(val),
             0x002 => self.green_swap = val & 0x1 != 0,
             0x003 => (),
-            0x004 => self.dispstat.write(scheduler, 0, val),
-            0x005 => self.dispstat.write(scheduler, 1, val),
+            0x004 => self.dispstat.write::<0>(val),
+            0x005 => self.dispstat.write::<1>(val),
             0x006 => (),
             0x007 => (),
-            0x008 => self.bgcnts[0].write(0, val),
-            0x009 => self.bgcnts[0].write(1, val),
-            0x00A => self.bgcnts[1].write(0, val),
-            0x00B => self.bgcnts[1].write(1, val),
-            0x00C => self.bgcnts[2].write(0, val),
-            0x00D => self.bgcnts[2].write(1, val),
-            0x00E => self.bgcnts[3].write(0, val),
-            0x00F => self.bgcnts[3].write(1, val),
-            0x010 => self.hofs[0].write(scheduler, 0, val),
-            0x011 => self.hofs[0].write(scheduler, 1, val),
-            0x012 => self.vofs[0].write(scheduler, 0, val),
-            0x013 => self.vofs[0].write(scheduler, 1, val),
-            0x014 => self.hofs[1].write(scheduler, 0, val),
-            0x015 => self.hofs[1].write(scheduler, 1, val),
-            0x016 => self.vofs[1].write(scheduler, 0, val),
-            0x017 => self.vofs[1].write(scheduler, 1, val),
-            0x018 => self.hofs[2].write(scheduler, 0, val),
-            0x019 => self.hofs[2].write(scheduler, 1, val),
-            0x01A => self.vofs[2].write(scheduler, 0, val),
-            0x01B => self.vofs[2].write(scheduler, 1, val),
-            0x01C => self.hofs[3].write(scheduler, 0, val),
-            0x01D => self.hofs[3].write(scheduler, 1, val),
-            0x01E => self.vofs[3].write(scheduler, 0, val),
-            0x01F => self.vofs[3].write(scheduler, 1, val),
-            0x020 => self.dxs[0].write(scheduler, 0, val),
-            0x021 => self.dxs[0].write(scheduler, 1, val),
-            0x022 => self.dmxs[0].write(scheduler, 0, val),
-            0x023 => self.dmxs[0].write(scheduler, 1, val),
-            0x024 => self.dys[0].write(scheduler, 0, val),
-            0x025 => self.dys[0].write(scheduler, 1, val),
-            0x026 => self.dmys[0].write(scheduler, 0, val),
-            0x027 => self.dmys[0].write(scheduler, 1, val),
+            0x008 => self.bgcnts[0].write::<0>(val),
+            0x009 => self.bgcnts[0].write::<1>(val),
+            0x00A => self.bgcnts[1].write::<0>(val),
+            0x00B => self.bgcnts[1].write::<1>(val),
+            0x00C => self.bgcnts[2].write::<0>(val),
+            0x00D => self.bgcnts[2].write::<1>(val),
+            0x00E => self.bgcnts[3].write::<0>(val),
+            0x00F => self.bgcnts[3].write::<1>(val),
+            0x010 => self.hofs[0].write::<0>(val),
+            0x011 => self.hofs[0].write::<1>(val),
+            0x012 => self.vofs[0].write::<0>(val),
+            0x013 => self.vofs[0].write::<1>(val),
+            0x014 => self.hofs[1].write::<0>(val),
+            0x015 => self.hofs[1].write::<1>(val),
+            0x016 => self.vofs[1].write::<0>(val),
+            0x017 => self.vofs[1].write::<1>(val),
+            0x018 => self.hofs[2].write::<0>(val),
+            0x019 => self.hofs[2].write::<1>(val),
+            0x01A => self.vofs[2].write::<0>(val),
+            0x01B => self.vofs[2].write::<1>(val),
+            0x01C => self.hofs[3].write::<0>(val),
+            0x01D => self.hofs[3].write::<1>(val),
+            0x01E => self.vofs[3].write::<0>(val),
+            0x01F => self.vofs[3].write::<1>(val),
+            0x020 => self.dxs[0].write::<0>(val),
+            0x021 => self.dxs[0].write::<1>(val),
+            0x022 => self.dmxs[0].write::<0>(val),
+            0x023 => self.dmxs[0].write::<1>(val),
+            0x024 => self.dys[0].write::<0>(val),
+            0x025 => self.dys[0].write::<1>(val),
+            0x026 => self.dmys[0].write::<0>(val),
+            0x027 => self.dmys[0].write::<1>(val),
             0x028 => {
-                self.bgxs[0].write(scheduler, 0, val);
+                self.bgxs[0].write::<0>(val);
                 self.bgxs_latch[0] = self.bgxs[0]
             }
             0x029 => {
-                self.bgxs[0].write(scheduler, 1, val);
+                self.bgxs[0].write::<1>(val);
                 self.bgxs_latch[0] = self.bgxs[0]
             }
             0x02A => {
-                self.bgxs[0].write(scheduler, 2, val);
+                self.bgxs[0].write::<2>(val);
                 self.bgxs_latch[0] = self.bgxs[0]
             }
             0x02B => {
-                self.bgxs[0].write(scheduler, 3, val);
+                self.bgxs[0].write::<3>(val);
                 self.bgxs_latch[0] = self.bgxs[0]
             }
             0x02C => {
-                self.bgys[0].write(scheduler, 0, val);
+                self.bgys[0].write::<0>(val);
                 self.bgys_latch[0] = self.bgys[0]
             }
             0x02D => {
-                self.bgys[0].write(scheduler, 1, val);
+                self.bgys[0].write::<1>(val);
                 self.bgys_latch[0] = self.bgys[0]
             }
             0x02E => {
-                self.bgys[0].write(scheduler, 2, val);
+                self.bgys[0].write::<2>(val);
                 self.bgys_latch[0] = self.bgys[0]
             }
             0x02F => {
-                self.bgys[0].write(scheduler, 3, val);
+                self.bgys[0].write::<3>(val);
                 self.bgys_latch[0] = self.bgys[0]
             }
-            0x030 => self.dxs[1].write(scheduler, 0, val),
-            0x031 => self.dxs[1].write(scheduler, 1, val),
-            0x032 => self.dmxs[1].write(scheduler, 0, val),
-            0x033 => self.dmxs[1].write(scheduler, 1, val),
-            0x034 => self.dys[1].write(scheduler, 0, val),
-            0x035 => self.dys[1].write(scheduler, 1, val),
-            0x036 => self.dmys[1].write(scheduler, 0, val),
-            0x037 => self.dmys[1].write(scheduler, 1, val),
-            0x038 => self.bgxs[1].write(scheduler, 0, val),
-            0x039 => self.bgxs[1].write(scheduler, 1, val),
-            0x03A => self.bgxs[1].write(scheduler, 2, val),
-            0x03B => self.bgxs[1].write(scheduler, 3, val),
-            0x03C => self.bgys[1].write(scheduler, 0, val),
-            0x03D => self.bgys[1].write(scheduler, 1, val),
-            0x03E => self.bgys[1].write(scheduler, 2, val),
-            0x03F => self.bgys[1].write(scheduler, 3, val),
-            0x040 => self.winhs[0].write(scheduler, 0, val),
-            0x041 => self.winhs[0].write(scheduler, 1, val),
-            0x042 => self.winhs[1].write(scheduler, 0, val),
-            0x043 => self.winhs[1].write(scheduler, 1, val),
-            0x044 => self.winvs[0].write(scheduler, 0, val),
-            0x045 => self.winvs[0].write(scheduler, 1, val),
-            0x046 => self.winvs[1].write(scheduler, 0, val),
-            0x047 => self.winvs[1].write(scheduler, 1, val),
-            0x048 => self.win_0_cnt.write(scheduler, 0, val),
-            0x049 => self.win_1_cnt.write(scheduler, 0, val),
-            0x04A => self.win_out_cnt.write(scheduler, 0, val),
-            0x04B => self.win_obj_cnt.write(scheduler, 0, val),
-            0x04C => self.mosaic.write(scheduler, 0, val),
-            0x04D => self.mosaic.write(scheduler, 1, val),
+            0x030 => self.dxs[1].write::<0>(val),
+            0x031 => self.dxs[1].write::<1>(val),
+            0x032 => self.dmxs[1].write::<0>(val),
+            0x033 => self.dmxs[1].write::<1>(val),
+            0x034 => self.dys[1].write::<0>(val),
+            0x035 => self.dys[1].write::<1>(val),
+            0x036 => self.dmys[1].write::<0>(val),
+            0x037 => self.dmys[1].write::<1>(val),
+            0x038 => self.bgxs[1].write::<0>(val),
+            0x039 => self.bgxs[1].write::<1>(val),
+            0x03A => self.bgxs[1].write::<2>(val),
+            0x03B => self.bgxs[1].write::<3>(val),
+            0x03C => self.bgys[1].write::<0>(val),
+            0x03D => self.bgys[1].write::<1>(val),
+            0x03E => self.bgys[1].write::<2>(val),
+            0x03F => self.bgys[1].write::<3>(val),
+            0x040 => self.winhs[0].write::<0>(val),
+            0x041 => self.winhs[0].write::<1>(val),
+            0x042 => self.winhs[1].write::<0>(val),
+            0x043 => self.winhs[1].write::<1>(val),
+            0x044 => self.winvs[0].write::<0>(val),
+            0x045 => self.winvs[0].write::<1>(val),
+            0x046 => self.winvs[1].write::<0>(val),
+            0x047 => self.winvs[1].write::<1>(val),
+            0x048 => self.win_0_cnt.write::<0>(val),
+            0x049 => self.win_1_cnt.write::<0>(val),
+            0x04A => self.win_out_cnt.write::<0>(val),
+            0x04B => self.win_obj_cnt.write::<0>(val),
+            0x04C => self.mosaic.write::<0>(val),
+            0x04D => self.mosaic.write::<1>(val),
             0x04E => (),
             0x04F => (),
-            0x050 => self.bldcnt.write(scheduler, 0, val),
-            0x051 => self.bldcnt.write(scheduler, 1, val),
-            0x052 => self.bldalpha.write(scheduler, 0, val),
-            0x053 => self.bldalpha.write(scheduler, 1, val),
-            0x054 => self.bldy.write(scheduler, 0, val),
-            0x055 => self.bldy.write(scheduler, 1, val),
+            0x050 => self.bldcnt.write::<0>(val),
+            0x051 => self.bldcnt.write::<1>(val),
+            0x052 => self.bldalpha.write::<0>(val),
+            0x053 => self.bldalpha.write::<1>(val),
+            0x054 => self.bldy.write::<0>(val),
+            0x055 => self.bldy.write::<1>(val),
             0x056..=0x05F => (),
             _ => panic!("Ignoring GPU Write 0x{addr:08X} = 0x{val:02X}"),
         }

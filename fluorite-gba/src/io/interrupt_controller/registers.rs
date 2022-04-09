@@ -1,4 +1,3 @@
-use crate::io::Scheduler;
 use bitflags::bitflags;
 
 bitflags! {
@@ -21,16 +20,16 @@ bitflags! {
 }
 
 impl InterruptEnable {
-    pub fn read(&self, byte: u8) -> u8 {
-        match byte {
+    pub fn read<const BYTE: u8>(&self) -> u8 {
+        match BYTE {
             0 => self.bits as u8,
             1 => (self.bits >> 8) as u8,
             _ => unreachable!(),
         }
     }
 
-    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
-        self.bits = match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        self.bits = match BYTE {
             0 => self.bits & !0x00FF | (value as u16) & InterruptEnable::all().bits,
             1 => self.bits & !0xFF00 | (value as u16) << 8 & InterruptEnable::all().bits,
             _ => unreachable!(),
@@ -45,16 +44,16 @@ bitflags! {
 }
 
 impl InterruptMasterEnable {
-    pub fn read(&self, byte: u8) -> u8 {
-        match byte {
+    pub fn read<const BYTE: u8>(&self) -> u8 {
+        match BYTE {
             0 => self.bits as u8,
             1 => (self.bits >> 8) as u8,
             _ => unreachable!(),
         }
     }
 
-    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, val: u8) {
-        self.bits = match byte {
+    pub fn write<const BYTE: u8>(&mut self, val: u8) {
+        self.bits = match BYTE {
             0 => self.bits & !0x00FF | (val as u16) & InterruptMasterEnable::all().bits,
             1 => self.bits & !0xFF00 | (val as u16) << 8 & InterruptMasterEnable::all().bits,
             _ => unreachable!(),
@@ -82,16 +81,16 @@ bitflags! {
 }
 
 impl InterruptRequest {
-    pub fn read(&self, byte: u8) -> u8 {
-        match byte {
+    pub fn read<const BYTE: u8>(&self) -> u8 {
+        match BYTE {
             0 => self.bits as u8,
             1 => (self.bits >> 8) as u8,
             _ => unreachable!(),
         }
     }
 
-    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
-        self.bits &= match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        self.bits &= match BYTE {
             0 => !(value as u16),
             1 => !((value as u16) << 8),
             _ => unreachable!(),

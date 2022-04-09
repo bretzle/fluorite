@@ -60,8 +60,8 @@ impl Tone {
         }
     }
 
-    pub fn write(&mut self, byte: u8, value: u8) {
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        match BYTE {
             0 => self.sweep.write(value),
             1 => (),
             2 => {

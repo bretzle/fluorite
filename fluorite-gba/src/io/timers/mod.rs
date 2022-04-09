@@ -132,7 +132,7 @@ impl Timer {
                 if !self.is_count_up() && self.cnt.start {
                     self.counter = self.calc_counter(global_cycle);
                 }
-                self.cnt.write(0, value);
+                self.cnt.write::<0>(value);
                 if !self.is_count_up() {
                     if !prev_start && self.cnt.start {
                         self.reload();
@@ -144,7 +144,7 @@ impl Timer {
                     self.counter = self.reload;
                 }
             }
-            3 => self.cnt.write(1, value),
+            3 => self.cnt.write::<1>(value),
             _ => unreachable!(),
         }
     }

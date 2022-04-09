@@ -1,4 +1,3 @@
-use crate::io::scheduler::Scheduler;
 use bitflags::bitflags;
 use std::ops::{Deref, DerefMut};
 
@@ -62,16 +61,16 @@ impl Dispcnt {
         (self.bits() >> 13) != 0
     }
 
-    pub fn read(&self, byte: u8) -> u8 {
-        match byte {
+    pub fn read<const BYTE: u8>(&self) -> u8 {
+        match BYTE {
             0 => (self.flags.bits as u8) | (self.mode as u8),
             1 => (self.flags.bits >> 8) as u8,
             _ => unreachable!(),
         }
     }
 
-    pub fn write(&mut self, byte: u8, value: u8) {
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        match BYTE {
             0 => {
                 self.mode = BGMode::get(value & 0x7);
                 self.flags.bits =
@@ -140,16 +139,16 @@ impl DerefMut for Dispstat {
 }
 
 impl Dispstat {
-    pub fn read(&self, byte: u8) -> u8 {
-        match byte {
+    pub fn read<const BYTE: u8>(&self) -> u8 {
+        match BYTE {
             0 => self.flags.bits as u8,
             1 => self.vcount_setting as u8,
             _ => unreachable!(),
         }
     }
 
-    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        match BYTE {
             0 => {
                 let old_bits = self.flags.bits;
                 self.flags.bits =
@@ -186,8 +185,8 @@ impl BgCnt {
         }
     }
 
-    pub fn read(&self, byte: u8) -> u8 {
-        match byte {
+    pub fn read<const BYTE: u8>(&self) -> u8 {
+        match BYTE {
             0 => {
                 (self.bpp8 as u8) << 7
                     | (self.mosaic as u8) << 6
@@ -199,8 +198,8 @@ impl BgCnt {
         }
     }
 
-    pub fn write(&mut self, byte: u8, value: u8) {
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        match BYTE {
             0 => {
                 self.priority = value & 0x3;
                 self.tile_block = value >> 2 & 0x3;
@@ -253,16 +252,16 @@ impl Mosaic {
         }
     }
 
-    pub fn read(&self, byte: u8) -> u8 {
-        match byte {
+    pub fn read<const BYTE: u8>(&self) -> u8 {
+        match BYTE {
             0 => self.bg_size.read(),
             1 => self.obj_size.read(),
             _ => unreachable!(),
         }
     }
 
-    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        match BYTE {
             0 => self.bg_size.write(value),
             1 => self.obj_size.write(value),
             _ => unreachable!(),
@@ -336,16 +335,16 @@ impl BldCnt {
         }
     }
 
-    pub fn read(&self, byte: u8) -> u8 {
-        match byte {
+    pub fn read<const BYTE: u8>(&self) -> u8 {
+        match BYTE {
             0 => (self.effect as u8) << 6 | self.target_pixel1.read(),
             1 => self.target_pixel2.read(),
             _ => unreachable!(),
         }
     }
 
-    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        match BYTE {
             0 => {
                 self.target_pixel1._write(value);
                 self.effect = ColorSFX::_from(value >> 6);
@@ -389,8 +388,8 @@ impl WindowControl {
         }
     }
 
-    pub fn read(&self, byte: u8) -> u8 {
-        match byte {
+    pub fn read<const BYTE: u8>(&self) -> u8 {
+        match BYTE {
             0 => {
                 (self.color_special_enable as u8) << 5
                     | (self.obj_enable as u8) << 4
@@ -403,8 +402,8 @@ impl WindowControl {
         }
     }
 
-    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        match BYTE {
             0 => {
                 self.color_special_enable = value >> 5 & 0x1 != 0;
                 self.obj_enable = value >> 4 & 0x1 != 0;
@@ -435,16 +434,16 @@ impl BldAlpha {
         }
     }
 
-    pub fn read(&self, byte: u8) -> u8 {
-        match byte {
+    pub fn read<const BYTE: u8>(&self) -> u8 {
+        match BYTE {
             0 => self._raw_eva,
             1 => self._raw_evb,
             _ => unreachable!(),
         }
     }
 
-    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        match BYTE {
             0 => {
                 self._raw_eva = value & 0x1F;
                 self.eva = std::cmp::min(0x10, self._raw_eva as u16);
@@ -471,8 +470,8 @@ impl Bldy {
         0
     }
 
-    pub fn write(&mut self, __scheduler: &mut Scheduler, byte: u8, value: u8) {
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        match BYTE {
             0 => self.evy = std::cmp::min(0x10, value & 0x1F),
             1 => (),
             _ => unreachable!(),
@@ -488,16 +487,16 @@ impl Ofs {
         Self(0)
     }
 
-    pub fn read(&self, byte: u8) -> u8 {
-        match byte {
+    pub fn read<const BYTE: u8>(&self) -> u8 {
+        match BYTE {
             0 => self.0 as u8,
             1 => (self.0 >> 8) as u8,
             _ => unreachable!(),
         }
     }
 
-    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        match BYTE {
             0 => self.0 = self.0 & !0xFF | value as u16,
             1 => self.0 = self.0 & !0x100 | (value as u16) << 8 & 0x100,
             _ => unreachable!(),
@@ -521,9 +520,9 @@ impl ReferencePointCoord {
         0
     }
 
-    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
-        let offset = byte * 8;
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        let offset = BYTE * 8;
+        match BYTE {
             0..=2 => self.0 = (self.0 as u32 & !(0xFF << offset) | (value as u32) << offset) as i32,
             3 => {
                 self.0 =
@@ -560,9 +559,9 @@ impl RotationScalingParameter {
         0
     }
 
-    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
-        let offset = byte * 8;
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        let offset = BYTE * 8;
+        match BYTE {
             0 | 1 => {
                 self.0 = ((self.0 as u32) & !(0xFF << offset) | (value as u32) << offset) as i16
             }
@@ -585,16 +584,16 @@ impl WindowDimensions {
         }
     }
 
-    pub fn read(&self, byte: u8) -> u8 {
-        match byte {
+    pub fn read<const BYTE: u8>(&self) -> u8 {
+        match BYTE {
             0 => self.coord2,
             1 => self.coord1,
             _ => unreachable!(),
         }
     }
 
-    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        match BYTE {
             0 => self.coord2 = value,
             1 => self.coord1 = value,
             _ => unreachable!(),

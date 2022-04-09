@@ -1,5 +1,3 @@
-use crate::io::scheduler::Scheduler;
-
 pub struct Address {
     pub addr: u32,
     byte3_mask: u32,
@@ -17,11 +15,11 @@ impl Address {
         0
     }
 
-    pub fn write(&mut self, __scheduler: &mut Scheduler, byte: u8, value: u8) {
-        let mask = 0xFF << (8 * byte);
-        match byte {
-            0..=2 => self.addr = self.addr & !mask | (value as u32) << (8 * byte) & mask,
-            3 => self.addr = self.addr & !mask | (value as u32) << (8 * byte) & self.byte3_mask,
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        let mask = 0xFF << (8 * BYTE);
+        match BYTE {
+            0..=2 => self.addr = self.addr & !mask | (value as u32) << (8 * BYTE) & mask,
+            3 => self.addr = self.addr & !mask | (value as u32) << (8 * BYTE) & self.byte3_mask,
             _ => unreachable!(),
         }
     }
@@ -48,8 +46,8 @@ impl WordCount {
         0
     }
 
-    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        match BYTE {
             0 => self.count = self.count & !0x00FF | value as u16,
             1 => self.count = self.count & !0xFF00 | (value as u16) << 8 & self.max,
             _ => unreachable!(),
@@ -86,8 +84,8 @@ impl DmaCnt {
         }
     }
 
-    pub fn read(&self, byte: u8) -> u8 {
-        match byte {
+    pub fn read<const BYTE: u8>(&self) -> u8 {
+        match BYTE {
             0 => (self.src_addr_ctrl & 0x1) << 7 | self.dest_addr_ctrl << 5,
             1 => {
                 (self.enable as u8) << 7
@@ -102,8 +100,8 @@ impl DmaCnt {
         }
     }
 
-    pub fn write(&mut self, _scheduler: &mut Scheduler, byte: u8, value: u8) {
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        match BYTE {
             0 => {
                 self.src_addr_ctrl = self.src_addr_ctrl & !0x1 | value >> 7 & 0x1;
                 self.dest_addr_ctrl = value >> 5 & 0x3;

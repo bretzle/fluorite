@@ -522,21 +522,21 @@ impl Sysbus {
                 warn!("Read from SerialCom(1)");
                 0
             }
-            0x04000130 => self.keypad.keyinput.read(0),
-            0x04000131 => self.keypad.keyinput.read(1),
-            0x04000132 => self.keypad.keycnt.read(0),
-            0x04000133 => self.keypad.keycnt.read(1),
+            0x04000130 => self.keypad.keyinput.read::<0>(),
+            0x04000131 => self.keypad.keyinput.read::<1>(),
+            0x04000132 => self.keypad.keycnt.read::<0>(),
+            0x04000133 => self.keypad.keycnt.read::<1>(),
             0x04000134..=0x04000159 => todo!(),
             0x0400015A..=0x040001FF => 0,
-            0x04000200 => self.interrupt_controller.enable.read(0),
-            0x04000201 => self.interrupt_controller.enable.read(1),
-            0x04000202 => self.interrupt_controller.request.read(0),
-            0x04000203 => self.interrupt_controller.request.read(1),
+            0x04000200 => self.interrupt_controller.enable.read::<0>(),
+            0x04000201 => self.interrupt_controller.enable.read::<1>(),
+            0x04000202 => self.interrupt_controller.request.read::<0>(),
+            0x04000203 => self.interrupt_controller.request.read::<1>(),
             0x04000204 => self.waitcnt.read(0),
             0x04000205 => self.waitcnt.read(1),
             0x04000206..=0x04000207 => 0, // Unused IO Register
-            0x04000208 => self.interrupt_controller.master_enable.read(0),
-            0x04000209 => self.interrupt_controller.master_enable.read(1),
+            0x04000208 => self.interrupt_controller.master_enable.read::<0>(),
+            0x04000209 => self.interrupt_controller.master_enable.read::<1>(),
             0x0400020A..=0x040002FF => 0, // Unused IO Register
             0x04000300 => self.haltcnt as u8,
             0x04000301 => (self.haltcnt >> 8) as u8,
@@ -592,20 +592,12 @@ impl Sysbus {
 
     fn write_register(&mut self, addr: u32, val: u8) {
         match addr {
-            0x04000000..=0x0400005F => self.gpu.write_register(&mut self.scheduler, addr, val),
-            0x04000060..=0x040000AF => self.apu.write_register(&mut self.scheduler, addr, val),
-            0x040000B0..=0x040000BB => {
-                self.dma.channels[0].write(&mut self.scheduler, addr as u8 - 0xB0, val)
-            }
-            0x040000BC..=0x040000C7 => {
-                self.dma.channels[1].write(&mut self.scheduler, addr as u8 - 0xBC, val)
-            }
-            0x040000C8..=0x040000D3 => {
-                self.dma.channels[2].write(&mut self.scheduler, addr as u8 - 0xC8, val)
-            }
-            0x040000D4..=0x040000DF => {
-                self.dma.channels[3].write(&mut self.scheduler, addr as u8 - 0xD4, val)
-            }
+            0x04000000..=0x0400005F => self.gpu.write_register(addr, val),
+            0x04000060..=0x040000AF => self.apu.write_register(addr, val),
+            0x040000B0..=0x040000BB => self.dma.channels[0].write(addr as u8 - 0xB0, val),
+            0x040000BC..=0x040000C7 => self.dma.channels[1].write(addr as u8 - 0xBC, val),
+            0x040000C8..=0x040000D3 => self.dma.channels[2].write(addr as u8 - 0xC8, val),
+            0x040000D4..=0x040000DF => self.dma.channels[3].write(addr as u8 - 0xD4, val),
             0x040000E0..=0x040000FF => (),
             0x04000100..=0x04000103 => {
                 self.timers.timers[0].write(&mut self.scheduler, addr as u8 % 4, val)
@@ -625,35 +617,15 @@ impl Sysbus {
             0x04000130..=0x04000133 => warn!("Writng Keypad at {addr:08X} = {val:02X}",), // TODO: Keypad Input
             0x04000134..=0x04000159 => warn!("Writng SerialCom(2) at {addr:08X} = {val:02X}",), // TODO: serial communication(2)
             0x0400015A..=0x040001FF => (),
-            0x04000200 => self
-                .interrupt_controller
-                .enable
-                .write(&mut self.scheduler, 0, val),
-            0x04000201 => self
-                .interrupt_controller
-                .enable
-                .write(&mut self.scheduler, 1, val),
-            0x04000202 => self
-                .interrupt_controller
-                .request
-                .write(&mut self.scheduler, 0, val),
-            0x04000203 => self
-                .interrupt_controller
-                .request
-                .write(&mut self.scheduler, 1, val),
+            0x04000200 => self.interrupt_controller.enable.write::<0>(val),
+            0x04000201 => self.interrupt_controller.enable.write::<1>(val),
+            0x04000202 => self.interrupt_controller.request.write::<0>(val),
+            0x04000203 => self.interrupt_controller.request.write::<1>(val),
             0x04000204 => self.waitcnt.write(&mut self.scheduler, 0, val),
             0x04000205 => self.waitcnt.write(&mut self.scheduler, 1, val),
             0x04000206..=0x04000207 => (), // Unused IO Register
-            0x04000208 => {
-                self.interrupt_controller
-                    .master_enable
-                    .write(&mut self.scheduler, 0, val)
-            }
-            0x04000209 => {
-                self.interrupt_controller
-                    .master_enable
-                    .write(&mut self.scheduler, 1, val)
-            }
+            0x04000208 => self.interrupt_controller.master_enable.write::<0>(val),
+            0x04000209 => self.interrupt_controller.master_enable.write::<1>(val),
             0x0400020A..=0x040002FF => (), // Unused IO Register
             0x04000300 => self.haltcnt = (self.haltcnt & !0x00FF) | val as u16,
             0x04000301 => self.haltcnt = (self.haltcnt & !0xFF00) | (val as u16) << 8,

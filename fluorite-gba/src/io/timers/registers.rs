@@ -29,8 +29,8 @@ impl TmCnt {
         }
     }
 
-    pub fn write(&mut self, byte: u8, value: u8) {
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        match BYTE {
             0 => {
                 self.start = value >> 7 & 0x1 != 0;
                 self.irq = value >> 6 & 0x1 != 0;

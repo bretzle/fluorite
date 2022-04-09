@@ -65,8 +65,8 @@ impl Noise {
         }
     }
 
-    pub fn write(&mut self, byte: u8, value: u8) {
-        match byte {
+    pub fn write<const BYTE: u8>(&mut self, value: u8) {
+        match BYTE {
             0 => self.length_reload = value & 0x3F,
             1 => self.envelope.write(value),
             2 | 3 => (),

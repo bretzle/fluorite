@@ -1,5 +1,9 @@
 #![feature(adt_const_params)]
-#![allow(clippy::new_without_default, clippy::only_used_in_recursion)]
+#![allow(
+    clippy::new_without_default,
+    clippy::only_used_in_recursion,
+    incomplete_features
+)]
 
 #[macro_use]
 extern crate log;

@@ -17,8 +17,8 @@ bitflags! {
 }
 
 impl KEYINPUT {
-    pub fn read(&self, byte: u8) -> u8 {
-        match byte {
+    pub fn read<const BYTE: u8>(&self) -> u8 {
+        match BYTE {
             0 => self.bits as u8,
             1 => (self.bits >> 8) as u8,
             _ => unreachable!(),
@@ -44,8 +44,8 @@ bitflags! {
 }
 
 impl KEYCNT {
-    pub fn read(&self, byte: u8) -> u8 {
-        match byte {
+    pub fn read<const BYTE: u8>(&self) -> u8 {
+        match BYTE {
             0 => self.bits as u8,
             1 => (self.bits >> 8) as u8,
             _ => unreachable!(),
